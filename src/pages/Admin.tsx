@@ -6,9 +6,10 @@ import { ExcelFileUploader } from "@/components/ExcelFileUploader";
 import { NewPlanningView } from "@/components/NewPlanningView";
 import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 import { RoomConstraintsManager } from "@/components/RoomConstraintsManager";
+import SurveillanceHistory from "@/components/SurveillanceHistory";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CalendarDays, Upload, FileSpreadsheet, Eye, UserCheck, Building } from "lucide-react";
+import { CalendarDays, Upload, FileSpreadsheet, Eye, UserCheck, Building, History } from "lucide-react";
 
 const Admin = () => {
   const [uploadStates, setUploadStates] = useState({
@@ -37,7 +38,7 @@ const Admin = () => {
         </div>
 
         <Tabs defaultValue="sessions" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="sessions" className="flex items-center space-x-2">
               <CalendarDays className="h-4 w-4" />
               <span>Sessions</span>
@@ -57,6 +58,10 @@ const Admin = () => {
             <TabsTrigger value="constraints" className="flex items-center space-x-2">
               <Building className="h-4 w-4" />
               <span>Contraintes</span>
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center space-x-2">
+              <History className="h-4 w-4" />
+              <span>Historique</span>
             </TabsTrigger>
             <TabsTrigger value="planning" className="flex items-center space-x-2">
               <Eye className="h-4 w-4" />
@@ -201,6 +206,11 @@ const Admin = () => {
           {/* Constraints Tab */}
           <TabsContent value="constraints">
             <RoomConstraintsManager />
+          </TabsContent>
+
+          {/* History Tab */}
+          <TabsContent value="history">
+            <SurveillanceHistory />
           </TabsContent>
 
           {/* Planning Tab */}
