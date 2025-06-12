@@ -6,41 +6,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Upload, Calendar, Users, Settings, Play, FileSpreadsheet } from "lucide-react";
 import { Link } from "react-router-dom";
-import { FileUploader } from "@/components/FileUploader";
-import { PlanningView } from "@/components/PlanningView";
+import { NewFileUploader } from "@/components/NewFileUploader";
+import { NewPlanningView } from "@/components/NewPlanningView";
 import { AssignmentEngine } from "@/components/AssignmentEngine";
+import { SessionSelector } from "@/components/SessionSelector";
+import { TemplateDownloader } from "@/components/TemplateDownloader";
+import { useActiveSession } from "@/hooks/useSessions";
 import { toast } from "@/hooks/use-toast";
 
 const Admin = () => {
   const [uploadedFiles, setUploadedFiles] = useState({
-    examens: false,
     surveillants: false,
-    indisponibilites: false
+    examens: false,
+    indisponibilites: false,
+    quotas: false
   });
 
-  const [dataLoaded, setDataLoaded] = useState(false);
+  const { data: activeSession } = useActiveSession();
 
   const handleFileUpload = (fileType: string, success: boolean) => {
     if (success) {
       setUploadedFiles(prev => ({ ...prev, [fileType]: true }));
       toast({
         title: "Fichier importé avec succès",
-        description: `Le fichier ${fileType}.xlsx a été traité et validé.`,
+        description: `Le fichier ${fileType} a été traité et validé.`,
       });
-      
-      // Check if all files are uploaded
-      const newState = { ...uploadedFiles, [fileType]: true };
-      if (newState.examens && newState.surveillants && newState.indisponibilites) {
-        setDataLoaded(true);
-        toast({
-          title: "Données complètes",
-          description: "Tous les fichiers ont été importés. Vous pouvez maintenant procéder à l'attribution.",
-        });
-      }
     }
   };
 
-  const allFilesUploaded = uploadedFiles.examens && uploadedFiles.surveillants && uploadedFiles.indisponibilites;
+  const hasRequiredFiles = uploadedFiles.surveillants && uploadedFiles.examens;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -61,8 +55,13 @@ const Admin = () => {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Badge variant={allFilesUploaded ? "default" : "secondary"}>
-                {allFilesUploaded ? "Données complètes" : "Import en cours"}
+              {activeSession && (
+                <Badge variant="default">
+                  Session active: {activeSession.name}
+                </Badge>
+              )}
+              <Badge variant={hasRequiredFiles ? "default" : "secondary"}>
+                {hasRequiredFiles ? "Données complètes" : "Import en cours"}
               </Badge>
             </div>
           </div>
@@ -71,57 +70,67 @@ const Admin = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Tabs defaultValue="import" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="sessions" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="sessions" className="flex items-center space-x-2">
+              <Calendar className="h-4 w-4" />
+              <span>Sessions</span>
+            </TabsTrigger>
             <TabsTrigger value="import" className="flex items-center space-x-2">
               <Upload className="h-4 w-4" />
               <span>Import</span>
             </TabsTrigger>
-            <TabsTrigger value="planning" disabled={!dataLoaded} className="flex items-center space-x-2">
+            <TabsTrigger value="planning" disabled={!activeSession} className="flex items-center space-x-2">
               <Calendar className="h-4 w-4" />
               <span>Planning</span>
             </TabsTrigger>
-            <TabsTrigger value="assignment" disabled={!dataLoaded} className="flex items-center space-x-2">
+            <TabsTrigger value="assignment" disabled={!hasRequiredFiles} className="flex items-center space-x-2">
               <Play className="h-4 w-4" />
               <span>Attribution</span>
             </TabsTrigger>
-            <TabsTrigger value="management" disabled={!dataLoaded} className="flex items-center space-x-2">
+            <TabsTrigger value="management" disabled={!hasRequiredFiles} className="flex items-center space-x-2">
               <Users className="h-4 w-4" />
               <span>Gestion</span>
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="sessions" className="space-y-6">
+            <SessionSelector />
+          </TabsContent>
+
           <TabsContent value="import" className="space-y-6">
+            <TemplateDownloader />
+            
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
                   <FileSpreadsheet className="h-5 w-5" />
-                  <span>Import des Fichiers Excel</span>
+                  <span>Import des Fichiers CSV</span>
                 </CardTitle>
                 <CardDescription>
-                  Importez les trois fichiers Excel nécessaires : examens, surveillants et indisponibilités.
-                  Chaque fichier sera validé automatiquement lors de l'upload.
+                  Importez les fichiers CSV nécessaires. Les templates sont disponibles ci-dessus.
+                  {!activeSession && " Activez d'abord une session dans l'onglet Sessions."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="grid md:grid-cols-3 gap-6">
-                  <FileUploader
-                    title="Examens"
-                    description="Liste des examens avec salles et types requis"
-                    fileType="examens"
-                    expectedFormat={["Date", "Heure", "Matière", "Salle", "Nombre surveillants", "Type requis"]}
-                    onUpload={(success) => handleFileUpload("examens", success)}
-                    uploaded={uploadedFiles.examens}
-                  />
-                  <FileUploader
+                <div className="grid md:grid-cols-2 gap-6">
+                  <NewFileUploader
                     title="Surveillants"
-                    description="Personnel disponible avec quotas et types"
+                    description="Liste des surveillants avec informations personnelles et type"
                     fileType="surveillants"
-                    expectedFormat={["Nom", "Prénom", "Email", "Type", "Quota", "Sessions imposées"]}
+                    expectedFormat={["Nom", "Prénom", "Email", "Type", "Statut"]}
                     onUpload={(success) => handleFileUpload("surveillants", success)}
                     uploaded={uploadedFiles.surveillants}
                   />
-                  <FileUploader
+                  <NewFileUploader
+                    title="Examens"
+                    description="Planning des examens avec salles et contraintes"
+                    fileType="examens"
+                    expectedFormat={["Date", "Heure début", "Heure fin", "Matière", "Salle", "Nombre surveillants", "Type requis"]}
+                    onUpload={(success) => handleFileUpload("examens", success)}
+                    uploaded={uploadedFiles.examens}
+                  />
+                  <NewFileUploader
                     title="Indisponibilités"
                     description="Périodes d'indisponibilité du personnel"
                     fileType="indisponibilites"
@@ -129,20 +138,28 @@ const Admin = () => {
                     onUpload={(success) => handleFileUpload("indisponibilites", success)}
                     uploaded={uploadedFiles.indisponibilites}
                   />
+                  <NewFileUploader
+                    title="Quotas"
+                    description="Quotas personnalisés par surveillant pour la session"
+                    fileType="quotas"
+                    expectedFormat={["Email", "Quota", "Sessions imposées"]}
+                    onUpload={(success) => handleFileUpload("quotas", success)}
+                    uploaded={uploadedFiles.quotas}
+                  />
                 </div>
                 
-                {allFilesUploaded && (
+                {hasRequiredFiles && (
                   <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                     <div className="flex items-center space-x-2">
                       <div className="bg-green-500 rounded-full p-1">
                         <Users className="h-4 w-4 text-white" />
                       </div>
                       <span className="font-medium text-green-800">
-                        Tous les fichiers ont été importés avec succès !
+                        Fichiers essentiels importés !
                       </span>
                     </div>
                     <p className="text-green-700 mt-2">
-                      Vous pouvez maintenant accéder aux autres onglets pour configurer et lancer l'attribution automatique.
+                      Vous pouvez maintenant accéder au planning et configurer l'attribution automatique.
                     </p>
                   </div>
                 )}
@@ -151,7 +168,7 @@ const Admin = () => {
           </TabsContent>
 
           <TabsContent value="planning">
-            <PlanningView />
+            <NewPlanningView />
           </TabsContent>
 
           <TabsContent value="assignment">

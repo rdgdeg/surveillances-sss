@@ -9,7 +9,314 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      attributions: {
+        Row: {
+          created_at: string
+          examen_id: string
+          id: string
+          is_locked: boolean
+          is_pre_assigne: boolean
+          session_id: string
+          surveillant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          examen_id: string
+          id?: string
+          is_locked?: boolean
+          is_pre_assigne?: boolean
+          session_id: string
+          surveillant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          examen_id?: string
+          id?: string
+          is_locked?: boolean
+          is_pre_assigne?: boolean
+          session_id?: string
+          surveillant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attributions_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "examens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attributions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attributions_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
+            referencedRelation: "surveillants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      examens: {
+        Row: {
+          created_at: string
+          date_examen: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          matiere: string
+          nombre_surveillants: number
+          salle: string
+          session_id: string
+          type_requis: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_examen: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          matiere: string
+          nombre_surveillants?: number
+          salle: string
+          session_id: string
+          type_requis: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_examen?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          matiere?: string
+          nombre_surveillants?: number
+          salle?: string
+          session_id?: string
+          type_requis?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "examens_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      indisponibilites: {
+        Row: {
+          created_at: string
+          date_debut: string
+          date_fin: string
+          id: string
+          motif: string | null
+          session_id: string
+          surveillant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_debut: string
+          date_fin: string
+          id?: string
+          motif?: string | null
+          session_id: string
+          surveillant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_debut?: string
+          date_fin?: string
+          id?: string
+          motif?: string | null
+          session_id?: string
+          surveillant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indisponibilites_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indisponibilites_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
+            referencedRelation: "surveillants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modifications_log: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          record_id: string
+          session_id: string
+          table_name: string
+          user_info: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id: string
+          session_id: string
+          table_name: string
+          user_info?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          record_id?: string
+          session_id?: string
+          table_name?: string
+          user_info?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modifications_log_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sessions: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          period: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          period: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          period?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      surveillant_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          quota: number
+          session_id: string
+          sessions_imposees: number | null
+          surveillant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          quota?: number
+          session_id: string
+          sessions_imposees?: number | null
+          surveillant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          quota?: number
+          session_id?: string
+          sessions_imposees?: number | null
+          surveillant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "surveillant_sessions_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "surveillant_sessions_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
+            referencedRelation: "surveillants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      surveillants: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          nom: string
+          prenom: string
+          statut: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          nom: string
+          prenom: string
+          statut?: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          nom?: string
+          prenom?: string
+          statut?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
