@@ -4,9 +4,11 @@ import { SessionSelector } from "@/components/SessionSelector";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
 import { ExcelFileUploader } from "@/components/ExcelFileUploader";
 import { NewPlanningView } from "@/components/NewPlanningView";
+import { PreAssignmentManager } from "@/components/PreAssignmentManager";
+import { RoomConstraintsManager } from "@/components/RoomConstraintsManager";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CalendarDays, Upload, FileSpreadsheet, Eye } from "lucide-react";
+import { CalendarDays, Upload, FileSpreadsheet, Eye, UserCheck, Building } from "lucide-react";
 
 const Admin = () => {
   const [uploadStates, setUploadStates] = useState({
@@ -35,7 +37,7 @@ const Admin = () => {
         </div>
 
         <Tabs defaultValue="sessions" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="sessions" className="flex items-center space-x-2">
               <CalendarDays className="h-4 w-4" />
               <span>Sessions</span>
@@ -47,6 +49,14 @@ const Admin = () => {
             <TabsTrigger value="import" className="flex items-center space-x-2">
               <Upload className="h-4 w-4" />
               <span>Import</span>
+            </TabsTrigger>
+            <TabsTrigger value="pre-assignments" className="flex items-center space-x-2">
+              <UserCheck className="h-4 w-4" />
+              <span>Pré-assignations</span>
+            </TabsTrigger>
+            <TabsTrigger value="constraints" className="flex items-center space-x-2">
+              <Building className="h-4 w-4" />
+              <span>Contraintes</span>
             </TabsTrigger>
             <TabsTrigger value="planning" className="flex items-center space-x-2">
               <Eye className="h-4 w-4" />
@@ -181,6 +191,16 @@ const Admin = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Pre-assignments Tab */}
+          <TabsContent value="pre-assignments">
+            <PreAssignmentManager />
+          </TabsContent>
+
+          {/* Constraints Tab */}
+          <TabsContent value="constraints">
+            <RoomConstraintsManager />
           </TabsContent>
 
           {/* Planning Tab */}

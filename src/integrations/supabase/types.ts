@@ -15,6 +15,7 @@ export type Database = {
           examen_id: string
           id: string
           is_locked: boolean
+          is_obligatoire: boolean
           is_pre_assigne: boolean
           session_id: string
           surveillant_id: string
@@ -25,6 +26,7 @@ export type Database = {
           examen_id: string
           id?: string
           is_locked?: boolean
+          is_obligatoire?: boolean
           is_pre_assigne?: boolean
           session_id: string
           surveillant_id: string
@@ -35,6 +37,7 @@ export type Database = {
           examen_id?: string
           id?: string
           is_locked?: boolean
+          is_obligatoire?: boolean
           is_pre_assigne?: boolean
           session_id?: string
           surveillant_id?: string
@@ -60,6 +63,41 @@ export type Database = {
             columns: ["surveillant_id"]
             isOneToOne: false
             referencedRelation: "surveillants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contraintes_salles: {
+        Row: {
+          created_at: string
+          id: string
+          min_non_jobistes: number
+          salle: string
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          min_non_jobistes?: number
+          salle: string
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          min_non_jobistes?: number
+          salle?: string
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contraintes_salles_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
             referencedColumns: ["id"]
           },
         ]
