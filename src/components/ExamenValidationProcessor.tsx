@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +6,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Filter } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,7 +32,6 @@ export const ExamenValidationProcessor = () => {
   const queryClient = useQueryClient();
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [selectedValidations, setSelectedValidations] = useState<string[]>([]);
-  const [validatorName, setValidatorName] = useState("");
 
   const { data: validations, isLoading } = useQuery({
     queryKey: ['examens-validation', activeSession?.id],
@@ -62,16 +59,12 @@ export const ExamenValidationProcessor = () => {
       statut: string; 
       commentaire?: string;
     }) => {
-      if (!validatorName.trim()) {
-        throw new Error("Veuillez saisir votre nom avant de valider");
-      }
-
       const { error } = await supabase
         .from('examens_validation')
         .update({
           statut_validation: statut,
           commentaire: commentaire || '',
-          valide_par: validatorName.trim(),
+          valide_par: 'Système',
           date_validation: new Date().toISOString()
         })
         .eq('id', validationId);
@@ -100,15 +93,11 @@ export const ExamenValidationProcessor = () => {
       validationIds: string[]; 
       statut: string; 
     }) => {
-      if (!validatorName.trim()) {
-        throw new Error("Veuillez saisir votre nom avant de valider");
-      }
-
       const { error } = await supabase
         .from('examens_validation')
         .update({
           statut_validation: statut,
-          valide_par: validatorName.trim(),
+          valide_par: 'Système',
           date_validation: new Date().toISOString()
         })
         .in('id', validationIds);
@@ -206,16 +195,6 @@ export const ExamenValidationProcessor = () => {
         <CardContent className="space-y-4">
           {/* Contrôles */}
           <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-64">
-              <label className="text-sm font-medium">Nom du validateur</label>
-              <input
-                type="text"
-                value={validatorName}
-                onChange={(e) => setValidatorName(e.target.value)}
-                placeholder="Votre nom complet"
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md"
-              />
-            </div>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Filtrer par statut" />

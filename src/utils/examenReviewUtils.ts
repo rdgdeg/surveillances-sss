@@ -42,7 +42,8 @@ export const unifierAuditoire = (salle: string): string => {
   
   // Cas spécifique pour Neerveld - unifier toutes les variantes
   // Patterns supportés: "Neerveld A", "Neerveld B", "Neerveld C", etc.
-  if (salleNormalisee.match(/^Neerveld\s+[A-Z]$/i)) {
+  // Aussi "Neerveld A, Neerveld B" ou "Neerveld B, Neerveld A"
+  if (salleNormalisee.match(/Neerveld\s*[A-Z]/i)) {
     console.log(`Unification de "${salleNormalisee}" vers "Neerveld"`);
     return "Neerveld";
   }
@@ -56,13 +57,10 @@ export const getContrainteUnifiee = (auditoire: string, contraintesOriginales: C
   console.log(`Recherche contrainte pour auditoire unifié: "${auditoire}"`);
   
   if (auditoire === "Neerveld") {
-    // Cas spécial : sommer toutes les contraintes Neerveld A, B, C, etc.
-    const contraintesNeerveld = contraintesOriginales.filter(c => 
-      c.auditoire.match(/^Neerveld\s+[A-Z]$/i)
-    );
-    const total = contraintesNeerveld.reduce((sum, c) => sum + c.nombre_surveillants_requis, 0);
-    console.log(`Contraintes Neerveld trouvées:`, contraintesNeerveld.map(c => `${c.auditoire}: ${c.nombre_surveillants_requis}`), `Total: ${total}`);
-    return total || 1; // Au minimum 1 surveillant si aucune contrainte trouvée
+    // Cas spécial : pour Neerveld, on utilise 2 surveillants par défaut
+    // (car c'est généralement A+B qui nécessitent chacun 1 surveillant)
+    console.log(`Contrainte Neerveld par défaut: 2 surveillants`);
+    return 2;
   }
   
   // 1. Chercher d'abord une correspondance exacte
