@@ -18,13 +18,13 @@ export default function Auth() {
   const { user, isAdmin } = useAuth();
 
   useEffect(() => {
-    // Rediriger les utilisateurs déjà connectés
-    if (user) {
-      if (isAdmin) {
-        navigate("/admin");
-      } else {
-        navigate("/");
-      }
+    // Rediriger uniquement les utilisateurs admin déjà connectés
+    if (user && isAdmin) {
+      navigate("/admin");
+    } else if (user && !isAdmin) {
+      // Les utilisateurs non-admin connectés peuvent rester sur cette page
+      // ou être redirigés vers l'accueil si souhaité
+      navigate("/");
     }
   }, [user, isAdmin, navigate]);
 
@@ -77,7 +77,7 @@ export default function Auth() {
         
         toast({
           title: "Connexion réussie",
-          description: userIsAdmin ? "Redirection vers l'administration..." : "Redirection vers l'accueil...",
+          description: userIsAdmin ? "Redirection vers l'administration..." : "Connexion réussie.",
         });
         
         // Redirection conditionnelle
@@ -106,15 +106,15 @@ export default function Auth() {
             Authentification UCLouvain
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Gestion des surveillances d'examens
+            Connexion pour l'administration uniquement
           </p>
         </div>
         
         <Card>
           <CardHeader>
-            <CardTitle>Authentification</CardTitle>
+            <CardTitle>Authentification Administrative</CardTitle>
             <CardDescription>
-              Connectez-vous pour accéder aux fonctionnalités
+              Accès réservé aux administrateurs du système
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -191,6 +191,16 @@ export default function Auth() {
             </Tabs>
           </CardContent>
         </Card>
+
+        <div className="text-center">
+          <Button 
+            variant="link" 
+            onClick={() => navigate("/")}
+            className="text-blue-600 hover:text-blue-800"
+          >
+            ← Retour à l'accueil
+          </Button>
+        </div>
       </div>
     </div>
   );
