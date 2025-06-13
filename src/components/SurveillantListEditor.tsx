@@ -148,7 +148,7 @@ export const SurveillantListEditor = () => {
       // Filtre par faculté interdite
       if (faculteFilter !== "all" && s.faculte_interdite !== faculteFilter) return false;
 
-      // Filtre par affectation
+      // Filtre par affectation (corrigé)
       if (affectationFilter !== "all") {
         if (affectationFilter === "none" && s.affectation_fac !== null) return false;
         if (affectationFilter !== "none" && s.affectation_fac !== affectationFilter) return false;
@@ -434,7 +434,9 @@ export const SurveillantListEditor = () => {
     { value: "ESPO", label: "ESPO" },
     { value: "FLTR", label: "FLTR" },
     { value: "TECO", label: "TECO" },
-    { value: "FSM", label: "FSM (exclu)" }
+    { value: "FSM", label: "FSM (exclu)" },
+    { value: "MEDE", label: "MEDE" },
+    { value: "ASS", label: "ASS" }
   ];
 
   const campusOptions = [
@@ -533,7 +535,7 @@ export const SurveillantListEditor = () => {
               <Select value={faculteFilter} onValueChange={setFaculteFilter}>
                 <SelectTrigger className="w-[150px]">
                   <Filter className="h-4 w-4 mr-2" />
-                  <SelectValue placeholder="Faculté" />
+                  <SelectValue placeholder="Faculté interdite" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes facultés</SelectItem>
