@@ -8,23 +8,25 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
 
   useEffect(() => {
-    // Vérifier si l'utilisateur est déjà connecté
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
+    // Rediriger les utilisateurs déjà connectés
+    if (user) {
+      if (isAdmin) {
         navigate("/admin");
+      } else {
+        navigate("/");
       }
-    };
-    checkUser();
-  }, [navigate]);
+    }
+  }, [user, isAdmin, navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +37,7 @@ export default function Auth() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/admin`
+          emailRedirectTo: `${window.location.origin}/`
         }
       });
 
@@ -71,11 +73,19 @@ export default function Auth() {
       if (error) throw error;
 
       if (data.user) {
+        const userIsAdmin = data.user.email === "raphael.degand@uclouvain.be";
+        
         toast({
           title: "Connexion réussie",
-          description: "Redirection vers l'administration...",
+          description: userIsAdmin ? "Redirection vers l'administration..." : "Redirection vers l'accueil...",
         });
-        navigate("/admin");
+        
+        // Redirection conditionnelle
+        if (userIsAdmin) {
+          navigate("/admin");
+        } else {
+          navigate("/");
+        }
       }
     } catch (error: any) {
       toast({
@@ -93,7 +103,7 @@ export default function Auth() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Administration UCLouvain
+            Authentification UCLouvain
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Gestion des surveillances d'examens
@@ -104,7 +114,7 @@ export default function Auth() {
           <CardHeader>
             <CardTitle>Authentification</CardTitle>
             <CardDescription>
-              Connectez-vous pour accéder à l'administration
+              Connectez-vous pour accéder aux fonctionnalités
             </CardDescription>
           </CardHeader>
           <CardContent>
