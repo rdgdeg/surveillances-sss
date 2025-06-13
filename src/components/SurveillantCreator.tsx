@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { UserPlus } from "lucide-react";
 
@@ -19,9 +20,11 @@ const surveillantSchema = z.object({
   nom: z.string().min(1, "Le nom est requis"),
   prenom: z.string().min(1, "Le prénom est requis"),
   email: z.string().email("Email invalide"),
-  type: z.enum(["PAT", "Assistant", "Jobiste"], {
+  type: z.enum(["Assistant", "Doctorant", "PAT", "PAT FASB", "Jobiste", "Autre"], {
     required_error: "Le type est requis"
   }),
+  type_autre: z.string().optional(),
+  faculte_interdite: z.string().optional(),
   quota_personnalise: z.number().min(0).optional(),
   est_illimite: z.boolean().default(false),
   exclure_attribution_auto: z.boolean().default(false)
@@ -40,6 +43,8 @@ export const SurveillantCreator = () => {
       prenom: "",
       email: "",
       type: undefined,
+      type_autre: "",
+      faculte_interdite: "",
       quota_personnalise: undefined,
       est_illimite: false,
       exclure_attribution_auto: false
@@ -48,6 +53,7 @@ export const SurveillantCreator = () => {
 
   const watchEstIllimite = form.watch("est_illimite");
   const watchExclureAuto = form.watch("exclure_attribution_auto");
+  const watchType = form.watch("type");
 
   const createSurveillant = useMutation({
     mutationFn: async (data: SurveillantFormData) => {
@@ -73,8 +79,9 @@ export const SurveillantCreator = () => {
           nom: data.nom,
           prenom: data.prenom,
           email: data.email,
-          type: data.type,
-          statut: 'actif'
+          type: data.type === 'Autre' ? data.type_autre : data.type,
+          statut: 'actif',
+          faculte_interdite: data.faculte_interdite || null
         })
         .select('id')
         .single();
@@ -89,7 +96,16 @@ export const SurveillantCreator = () => {
         quotaFinal = data.quota_personnalise;
       } else {
         // Quota par défaut selon le type
-        quotaFinal = data.type === 'PAT' ? 12 : data.type === 'Assistant' ? 6 : 4;
+        const typeValue = data.type === 'Autre' ? data.type_autre : data.type;
+        if (typeValue === 'PAT' || typeValue === 'PAT FASB') {
+          quotaFinal = 12;
+        } else if (typeValue === 'Assistant' || typeValue === 'Doctorant') {
+          quotaFinal = 6;
+        } else if (typeValue === 'Jobiste') {
+          quotaFinal = 4;
+        } else {
+          quotaFinal = 6; // Défaut pour les autres cas
+        }
       }
       
       // Ajouter à la session
@@ -212,8 +228,55 @@ export const SurveillantCreator = () => {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="PAT">PAT (Quota par défaut: 12)</SelectItem>
+                      <SelectItem value="PAT FASB">PAT FASB (Quota par défaut: 12)</SelectItem>
                       <SelectItem value="Assistant">Assistant (Quota par défaut: 6)</SelectItem>
+                      <SelectItem value="Doctorant">Doctorant (Quota par défaut: 6)</SelectItem>
                       <SelectItem value="Jobiste">Jobiste (Quota par défaut: 4)</SelectItem>
+                      <SelectItem value="Autre">Autre</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {watchType === 'Autre' && (
+              <FormField
+                control={form.control}
+                name="type_autre"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Précisez le type</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Précisez le type de surveillant" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            <FormField
+              control={form.control}
+              name="faculte_interdite"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Faculté interdite (conflit d'intérêt)</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une faculté (optionnel)" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="">Aucune restriction</SelectItem>
+                      <SelectItem value="FASB">FASB - Faculté des sciences appliquées et des bioingénieurs</SelectItem>
+                      <SelectItem value="EPL">EPL - École polytechnique de Louvain</SelectItem>
+                      <SelectItem value="FIAL">FIAL - Faculté de philosophie, arts et lettres</SelectItem>
+                      <SelectItem value="PSSP">PSSP - Faculté de psychologie et des sciences de l'éducation</SelectItem>
+                      <SelectItem value="ESPO">ESPO - École des sciences politiques et sociales</SelectItem>
+                      <SelectItem value="FLTR">FLTR - Faculté de traduction et d'interprétation</SelectItem>
+                      <SelectItem value="TECO">TECO - Faculté de théologie</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

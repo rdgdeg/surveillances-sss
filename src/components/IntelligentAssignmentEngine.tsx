@@ -59,7 +59,7 @@ export const IntelligentAssignmentEngine = () => {
       const { data: surveillants } = await supabase
         .from('surveillants')
         .select(`
-          id, nom, prenom, email, type,
+          id, nom, prenom, email, type, faculte_interdite,
           surveillant_sessions!inner(quota, sessions_imposees, is_active)
         `)
         .eq('statut', 'actif')
@@ -126,7 +126,7 @@ export const IntelligentAssignmentEngine = () => {
         });
       }
 
-      // Étape 5: Attribution intelligente (50-90%)
+      // Étape 5: Attribution intelligente avec contraintes de faculté (50-90%)
       setProgress(50);
       console.log("🎯 Attribution intelligente en cours...");
 
@@ -145,7 +145,7 @@ export const IntelligentAssignmentEngine = () => {
         const examProgress = 50 + (i / examens.length) * 40;
         setProgress(examProgress);
 
-        console.log(`📝 Attribution pour: ${examen.matiere} - ${examen.date_examen} ${examen.heure_debut}`);
+        console.log(`📝 Attribution pour: ${examen.matiere} - ${examen.date_examen} ${examen.heure_debut} (Faculté: ${examen.faculte || 'Non spécifiée'})`);
 
         // Vérifier les contraintes de salle
         const contrainteSalle = contraintes?.find(c => c.salle === examen.salle);
@@ -157,7 +157,16 @@ export const IntelligentAssignmentEngine = () => {
         // Filtrer les surveillants disponibles ET actifs pour l'attribution automatique
         const surveillantsDisponibles = surveillantsActifs.filter(s => {
           const disponibiliteKey = `${s.id}_${examen.date_examen}_${examen.heure_debut}_${examen.heure_fin}`;
-          return disponibiliteMap.has(disponibiliteKey);
+          const isDisponible = disponibiliteMap.has(disponibiliteKey);
+          
+          // Vérifier les contraintes de faculté
+          const hasConflitFaculte = examen.faculte && s.faculte_interdite === examen.faculte;
+          
+          if (hasConflitFaculte) {
+            console.log(`⚠️ Conflit de faculté: ${s.prenom} ${s.nom} ne peut pas surveiller ${examen.matiere} (faculté ${examen.faculte})`);
+          }
+          
+          return isDisponible && !hasConflitFaculte;
         });
 
         const selectedSurveillantsIds: string[] = [...preAssigned];
@@ -253,6 +262,12 @@ export const IntelligentAssignmentEngine = () => {
         warnings.push(`${surveillantsExclus.length} surveillant(s) exclu(s) de l'attribution automatique`);
       }
 
+      // Ajouter des avertissements sur les conflits de faculté
+      const surveillantsAvecConflits = surveillants.filter(s => s.faculte_interdite);
+      if (surveillantsAvecConflits.length > 0) {
+        warnings.push(`${surveillantsAvecConflits.length} surveillant(s) avec contraintes de faculté appliquées`);
+      }
+
       // Étape 7: Finalisation (100%)
       setProgress(100);
       console.log("✅ Attribution terminée!");
@@ -303,7 +318,7 @@ export const IntelligentAssignmentEngine = () => {
           <span>Moteur d'Attribution Intelligent</span>
         </CardTitle>
         <CardDescription>
-          Attribution automatique avec contraintes, quotas personnalisés et exclusions
+          Attribution automatique avec contraintes de faculté, quotas personnalisés et exclusions
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -320,6 +335,7 @@ export const IntelligentAssignmentEngine = () => {
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• Respect des disponibilités et quotas personnalisés</li>
               <li>• Exclusion des surveillants marqués comme inactifs</li>
+              <li>• <strong>Contraintes de faculté (conflits d'intérêt)</strong></li>
               <li>• Contraintes par salle (min non-jobistes)</li>
               <li>• Équilibrage automatique de la charge</li>
               <li>• Priorisation selon le type requis</li>
