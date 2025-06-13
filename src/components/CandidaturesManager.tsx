@@ -21,7 +21,7 @@ interface Candidature {
   statut_autre: string;
   traite: boolean;
   created_at: string;
-  disponibilites: Array<{
+  candidats_disponibilites: Array<{
     examen_id: string;
     est_disponible: boolean;
     examens: {
@@ -79,8 +79,8 @@ export const CandidaturesManager = () => {
 
     // Préparer les données pour l'export
     const exportData = candidatures.flatMap(candidat => {
-      if (candidat.disponibilites && candidat.disponibilites.length > 0) {
-        return candidat.disponibilites.map(dispo => ({
+      if (candidat.candidats_disponibilites && candidat.candidats_disponibilites.length > 0) {
+        return candidat.candidats_disponibilites.map(dispo => ({
           'Nom': candidat.nom,
           'Prénom': candidat.prenom,
           'Email': candidat.email,
@@ -219,9 +219,9 @@ export const CandidaturesManager = () => {
                   </CardHeader>
                   <CardContent>
                     <h4 className="font-medium mb-2">Disponibilités:</h4>
-                    {candidat.disponibilites && candidat.disponibilites.length > 0 ? (
+                    {candidat.candidats_disponibilites && candidat.candidats_disponibilites.length > 0 ? (
                       <div className="grid gap-2">
-                        {candidat.disponibilites.map((dispo, index) => (
+                        {candidat.candidats_disponibilites.map((dispo, index) => (
                           <div key={index} className="flex items-center space-x-2 text-sm p-2 bg-gray-50 rounded">
                             <Badge variant="outline" className="bg-green-100 text-green-800">
                               Disponible

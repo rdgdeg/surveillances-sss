@@ -20,11 +20,12 @@ import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
 import { DataConsistencyChecker } from "@/components/DataConsistencyChecker";
 import { SensitiveDataManager } from "@/components/SensitiveDataManager";
-import { SurveillanceHistory } from "@/components/SurveillanceHistory";
+import SurveillanceHistory from "@/components/SurveillanceHistory";
 import { DemandeChangement } from "@/components/DemandeChangement";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("dashboard");
+  const [showSensitiveData, setShowSensitiveData] = useState(false);
   const [uploadStates, setUploadStates] = useState({
     surveillants: false,
     examens: false,
@@ -160,7 +161,10 @@ const Admin = () => {
         return <DataConsistencyChecker />;
       
       case "sensitive":
-        return <SensitiveDataManager />;
+        return <SensitiveDataManager 
+          showSensitiveData={showSensitiveData} 
+          onToggle={setShowSensitiveData} 
+        />;
       
       case "history":
         return <SurveillanceHistory />;
