@@ -6,10 +6,8 @@ import { useActiveSession } from "@/hooks/useSessions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Building, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import { Building, Trash2, Plus, RefreshCw, Edit2, Check, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface ContrainteAuditoire {
@@ -19,19 +17,14 @@ interface ContrainteAuditoire {
   description?: string;
 }
 
-interface AuditoireFromExams {
-  salle: string;
-  examens_count: number;
-  has_constraint: boolean;
-}
-
 export const ContraintesAuditoires = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
-  const [newAuditoire, setNewAuditoire] = useState("");
-  const [newNombreSurveillants, setNewNombreSurveillants] = useState(1);
-  const [editingConstraints, setEditingConstraints] = useState<Record<string, number>>({});
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [nouvelAuditoire, setNouvelAuditoire] = useState<string>("");
+  const [nombreSurveillants, setNombreSurveillants] = useState<number>(1);
+  const [description, setDescription] = useState<string>("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<{ nombre: number; description: string }>({ nombre: 1, description: "" });
 
   // Récupérer les contraintes existantes
   const { data: contraintes = [] } = useQuery({
@@ -47,9 +40,9 @@ export const ContraintesAuditoires = () => {
     }
   });
 
-  // Récupérer les auditoires depuis les examens
-  const { data: auditoiresFromExams = [] } = useQuery({
-    queryKey: ['auditoires-from-examens', activeSession?.id],
+  // Récupérer les auditoires utilisés dans les examens
+  const { data: auditoriesFromExams = [] } = useQuery({
+    queryKey: ['auditoires-examens', activeSession?.id],
     queryFn: async () => {
       if (!activeSession?.id) return [];
       
@@ -60,32 +53,26 @@ export const ContraintesAuditoires = () => {
       
       if (error) throw error;
       
-      // Compter les examens par salle et vérifier les contraintes
-      const sallesCounts = data.reduce((acc, exam) => {
-        acc[exam.salle] = (acc[exam.salle] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      
-      const result: AuditoireFromExams[] = Object.entries(sallesCounts).map(([salle, count]) => ({
-        salle,
-        examens_count: count,
-        has_constraint: contraintes.some(c => c.auditoire === salle)
-      }));
-      
-      return result.sort((a, b) => a.salle.localeCompare(b.salle));
+      // Récupérer les auditoires uniques et les trier
+      const uniqueAuditoires = [...new Set(data.map(item => item.salle))];
+      return uniqueAuditoires.sort();
     },
     enabled: !!activeSession?.id
   });
 
   // Créer une contrainte
   const createContrainte = useMutation({
-    mutationFn: async ({ auditoire, nombre }: { auditoire: string; nombre: number }) => {
+    mutationFn: async () => {
+      if (!nouvelAuditoire.trim()) {
+        throw new Error("Veuillez saisir un nom d'auditoire");
+      }
+
       const { data, error } = await supabase
         .from('contraintes_auditoires')
         .insert({
-          auditoire,
-          nombre_surveillants_requis: nombre,
-          description: `Contrainte générée automatiquement`
+          auditoire: nouvelAuditoire.trim(),
+          nombre_surveillants_requis: nombreSurveillants,
+          description: description.trim() || null
         })
         .select()
         .single();
@@ -95,10 +82,9 @@ export const ContraintesAuditoires = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contraintes-auditoires'] });
-      queryClient.invalidateQueries({ queryKey: ['auditoires-from-examens'] });
-      setNewAuditoire("");
-      setNewNombreSurveillants(1);
-      setIsAddDialogOpen(false);
+      setNouvelAuditoire("");
+      setNombreSurveillants(1);
+      setDescription("");
       toast({
         title: "Contrainte créée",
         description: "La contrainte d'auditoire a été créée avec succès.",
@@ -115,17 +101,20 @@ export const ContraintesAuditoires = () => {
 
   // Mettre à jour une contrainte
   const updateContrainte = useMutation({
-    mutationFn: async ({ id, nombre }: { id: string; nombre: number }) => {
+    mutationFn: async ({ id, nombre_surveillants_requis, description }: { id: string; nombre_surveillants_requis: number; description: string }) => {
       const { error } = await supabase
         .from('contraintes_auditoires')
-        .update({ nombre_surveillants_requis: nombre })
+        .update({ 
+          nombre_surveillants_requis,
+          description: description.trim() || null
+        })
         .eq('id', id);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contraintes-auditoires'] });
-      setEditingConstraints({});
+      setEditingId(null);
       toast({
         title: "Contrainte mise à jour",
         description: "La contrainte a été mise à jour avec succès.",
@@ -152,7 +141,6 @@ export const ContraintesAuditoires = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contraintes-auditoires'] });
-      queryClient.invalidateQueries({ queryKey: ['auditoires-from-examens'] });
       toast({
         title: "Contrainte supprimée",
         description: "La contrainte a été supprimée avec succès.",
@@ -167,51 +155,77 @@ export const ContraintesAuditoires = () => {
     }
   });
 
-  // Créer des contraintes pour tous les auditoires manquants
-  const createMissingConstraints = useMutation({
+  // Synchroniser avec les auditoires des examens
+  const syncWithExams = useMutation({
     mutationFn: async () => {
-      const missingAuditoires = auditoiresFromExams.filter(a => !a.has_constraint);
+      if (!activeSession?.id) throw new Error("Aucune session active");
       
-      const inserts = missingAuditoires.map(auditoire => ({
-        auditoire: auditoire.salle,
-        nombre_surveillants_requis: 1,
-        description: `Contrainte générée automatiquement depuis les examens`
-      }));
+      // Trouver les auditoires qui n'ont pas encore de contrainte
+      const existingAuditoires = contraintes.map(c => c.auditoire);
+      const newAuditoires = auditoriesFromExams.filter(auditoire => 
+        !existingAuditoires.includes(auditoire)
+      );
 
-      if (inserts.length === 0) return;
+      if (newAuditoires.length === 0) {
+        throw new Error("Tous les auditoires ont déjà des contraintes définies");
+      }
+
+      // Créer les contraintes manquantes avec 1 surveillant par défaut
+      const newContraintes = newAuditoires.map(auditoire => ({
+        auditoire,
+        nombre_surveillants_requis: 1,
+        description: "Créé automatiquement depuis les examens"
+      }));
 
       const { error } = await supabase
         .from('contraintes_auditoires')
-        .insert(inserts);
+        .insert(newContraintes);
 
       if (error) throw error;
-      return inserts.length;
+      return newAuditoires.length;
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ['contraintes-auditoires'] });
-      queryClient.invalidateQueries({ queryKey: ['auditoires-from-examens'] });
       toast({
-        title: "Contraintes créées",
-        description: `${count} contraintes ont été créées automatiquement.`,
+        title: "Synchronisation réussie",
+        description: `${count} nouvelle(s) contrainte(s) créée(s) pour les auditoires manquants.`,
       });
     },
     onError: (error: any) => {
       toast({
-        title: "Erreur",
-        description: error.message || "Impossible de créer les contraintes automatiquement.",
-        variant: "destructive"
+        title: "Information",
+        description: error.message || "Impossible de synchroniser.",
+        variant: "default"
       });
     }
   });
 
-  const handleUpdateConstraint = (constraintId: string) => {
-    const newValue = editingConstraints[constraintId];
-    if (newValue && newValue > 0) {
-      updateContrainte.mutate({ id: constraintId, nombre: newValue });
-    }
+  const handleEdit = (contrainte: ContrainteAuditoire) => {
+    setEditingId(contrainte.id);
+    setEditValues({
+      nombre: contrainte.nombre_surveillants_requis,
+      description: contrainte.description || ""
+    });
   };
 
-  const missingConstraintsCount = auditoiresFromExams.filter(a => !a.has_constraint).length;
+  const handleSaveEdit = (id: string) => {
+    updateContrainte.mutate({
+      id,
+      nombre_surveillants_requis: editValues.nombre,
+      description: editValues.description
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditValues({ nombre: 1, description: "" });
+  };
+
+  // Auditoires sans contrainte
+  const existingAuditoires = contraintes.map(c => c.auditoire);
+  const auditoriesSansContrainte = auditoriesFromExams.filter(auditoire => 
+    !existingAuditoires.includes(auditoire)
+  );
 
   return (
     <div className="space-y-6">
@@ -219,168 +233,183 @@ export const ContraintesAuditoires = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Building className="h-5 w-5" />
-            <span>Contraintes d'Auditoires</span>
+            <span>Contraintes par Auditoire</span>
           </CardTitle>
           <CardDescription>
-            Définissez le nombre de surveillants requis par auditoire. 
-            Les auditoires sans contrainte utiliseront 1 surveillant par défaut.
+            Définissez le nombre de surveillants requis pour chaque auditoire.
+            Par défaut, 1 surveillant est assigné si aucune contrainte n'est définie.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Actions */}
-          <div className="flex gap-4 flex-wrap">
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Ajouter contrainte
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Ajouter une contrainte d'auditoire</DialogTitle>
-                  <DialogDescription>
-                    Définissez le nombre de surveillants requis pour un auditoire spécifique.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Auditoire</label>
-                    <Input
-                      value={newAuditoire}
-                      onChange={(e) => setNewAuditoire(e.target.value)}
-                      placeholder="Nom de l'auditoire"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Nombre de surveillants requis</label>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={newNombreSurveillants}
-                      onChange={(e) => setNewNombreSurveillants(parseInt(e.target.value) || 1)}
-                    />
-                  </div>
-                  <div className="flex justify-end space-x-2">
-                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      Annuler
-                    </Button>
-                    <Button 
-                      onClick={() => createContrainte.mutate({ 
-                        auditoire: newAuditoire, 
-                        nombre: newNombreSurveillants 
-                      })}
-                      disabled={!newAuditoire || createContrainte.isPending}
-                    >
-                      Créer
-                    </Button>
-                  </div>
+          {/* Actions rapides */}
+          {activeSession && auditoriesSansContrainte.length > 0 && (
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Auditoires sans contrainte détectés</p>
+                  <p className="text-xs text-gray-600">
+                    {auditoriesSansContrainte.length} auditoire(s) trouvé(s) dans les examens
+                  </p>
                 </div>
-              </DialogContent>
-            </Dialog>
+                <Button
+                  onClick={() => syncWithExams.mutate()}
+                  disabled={syncWithExams.isPending}
+                  size="sm"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Synchroniser
+                </Button>
+              </div>
+            </div>
+          )}
 
-            {missingConstraintsCount > 0 && (
+          {/* Formulaire d'ajout */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div>
+              <label className="block text-sm font-medium mb-2">Auditoire</label>
+              <Input
+                placeholder="Ex: A001, Grand Amphi..."
+                value={nouvelAuditoire}
+                onChange={(e) => setNouvelAuditoire(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Nb surveillants</label>
+              <Input
+                type="number"
+                min="1"
+                max="20"
+                value={nombreSurveillants}
+                onChange={(e) => setNombreSurveillants(parseInt(e.target.value) || 1)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Description (optionnel)</label>
+              <Input
+                placeholder="Ex: Grand auditoire..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-end">
               <Button 
-                variant="outline" 
-                onClick={() => createMissingConstraints.mutate()}
-                disabled={createMissingConstraints.isPending}
+                onClick={() => createContrainte.mutate()}
+                disabled={!nouvelAuditoire.trim() || createContrainte.isPending}
+                className="w-full"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Créer contraintes manquantes ({missingConstraintsCount})
+                <Plus className="h-4 w-4 mr-2" />
+                Ajouter
               </Button>
-            )}
+            </div>
           </div>
 
-          {/* Auditoires détectés depuis les examens */}
-          {auditoiresFromExams.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="font-medium">Auditoires détectés dans les examens</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {auditoiresFromExams.map((auditoire) => (
-                  <div 
-                    key={auditoire.salle} 
-                    className={`p-2 rounded border text-sm ${
-                      auditoire.has_constraint 
-                        ? 'bg-green-50 border-green-200' 
-                        : 'bg-orange-50 border-orange-200'
-                    }`}
-                  >
-                    <div className="font-medium">{auditoire.salle}</div>
-                    <div className="text-xs text-gray-600">
-                      {auditoire.examens_count} examen(s) • 
-                      {auditoire.has_constraint ? (
-                        <span className="text-green-600"> Contrainte définie</span>
+          {/* Liste des contraintes */}
+          <div className="space-y-2">
+            <h4 className="font-medium">Contraintes configurées ({contraintes.length})</h4>
+            {contraintes.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">
+                Aucune contrainte définie. La règle par défaut (1 surveillant) s'applique à tous les auditoires.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {contraintes.map((contrainte) => (
+                  <div key={contrainte.id} className="flex items-center justify-between p-3 bg-white border rounded-lg">
+                    <div className="flex-1">
+                      <div className="font-medium">{contrainte.auditoire}</div>
+                      {editingId === contrainte.id ? (
+                        <div className="flex items-center space-x-2 mt-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            max="20"
+                            value={editValues.nombre}
+                            onChange={(e) => setEditValues({...editValues, nombre: parseInt(e.target.value) || 1})}
+                            className="w-20"
+                          />
+                          <span className="text-sm text-gray-600">surveillant(s)</span>
+                          <Input
+                            placeholder="Description..."
+                            value={editValues.description}
+                            onChange={(e) => setEditValues({...editValues, description: e.target.value})}
+                            className="flex-1"
+                          />
+                        </div>
                       ) : (
-                        <span className="text-orange-600"> Aucune contrainte</span>
+                        <div className="text-sm text-gray-600">
+                          {contrainte.nombre_surveillants_requis} surveillant(s) requis
+                          {contrainte.description && (
+                            <span className="ml-2 text-gray-500">• {contrainte.description}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      {editingId === contrainte.id ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSaveEdit(contrainte.id)}
+                            disabled={updateContrainte.isPending}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCancelEdit}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(contrainte)}
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteContrainte.mutate(contrainte.id)}
+                            disabled={deleteContrainte.isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Tableau des contraintes */}
-          <div className="space-y-2">
-            <h4 className="font-medium">Contraintes configurées ({contraintes.length})</h4>
-            {contraintes.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">
-                Aucune contrainte définie. Tous les auditoires utiliseront 1 surveillant par défaut.
-              </p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Auditoire</TableHead>
-                    <TableHead>Surveillants requis</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {contraintes.map((contrainte) => (
-                    <TableRow key={contrainte.id}>
-                      <TableCell className="font-medium">{contrainte.auditoire}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Input
-                            type="number"
-                            min="1"
-                            max="20"
-                            value={editingConstraints[contrainte.id] ?? contrainte.nombre_surveillants_requis}
-                            onChange={(e) => setEditingConstraints(prev => ({
-                              ...prev,
-                              [contrainte.id]: parseInt(e.target.value) || 1
-                            }))}
-                            className="w-20"
-                          />
-                          {editingConstraints[contrainte.id] && editingConstraints[contrainte.id] !== contrainte.nombre_surveillants_requis && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleUpdateConstraint(contrainte.id)}
-                              disabled={updateContrainte.isPending}
-                            >
-                              <Save className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteContrainte.mutate(contrainte.id)}
-                          disabled={deleteContrainte.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
             )}
           </div>
+
+          {/* Auditoires sans contrainte */}
+          {auditoriesSansContrainte.length > 0 && (
+            <div className="mt-4 p-3 bg-yellow-50 rounded-lg">
+              <h5 className="font-medium text-sm mb-2">
+                Auditoires sans contrainte spécifique ({auditoriesSansContrainte.length})
+              </h5>
+              <p className="text-xs text-gray-600 mb-2">
+                Ces auditoires utilisent la règle par défaut (1 surveillant)
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {auditoriesSansContrainte.map((auditoire) => (
+                  <Badge key={auditoire} variant="outline" className="text-xs">
+                    {auditoire}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

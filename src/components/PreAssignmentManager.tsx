@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +46,7 @@ export const PreAssignmentManager = () => {
   const [selectedExamen, setSelectedExamen] = useState<string>("");
   const [selectedSurveillant, setSelectedSurveillant] = useState<string>("");
   const [surveillantSearch, setSurveillantSearch] = useState<string>("");
+  const [examenSearch, setExamenSearch] = useState<string>("");
 
   // Récupérer les surveillants actifs de la session
   const { data: surveillants = [] } = useQuery({
@@ -76,7 +76,7 @@ export const PreAssignmentManager = () => {
     enabled: !!activeSession?.id
   });
 
-  // Récupérer les examens de la session
+  // Récupérer les examens de la session (triés chronologiquement)
   const { data: examens = [] } = useQuery({
     queryKey: ['examens', activeSession?.id],
     queryFn: async () => {
@@ -95,7 +95,7 @@ export const PreAssignmentManager = () => {
     enabled: !!activeSession?.id
   });
 
-  // Récupérer les pré-assignations existantes
+  // Récupérer les pré-assignations existantes (triées chronologiquement)
   const { data: preAssignments = [] } = useQuery({
     queryKey: ['pre-assignments', activeSession?.id],
     queryFn: async () => {
@@ -112,7 +112,15 @@ export const PreAssignmentManager = () => {
         .eq('is_obligatoire', true);
       
       if (error) throw error;
-      return data as PreAssignment[];
+      
+      // Trier par date puis par heure
+      return (data as PreAssignment[]).sort((a, b) => {
+        const dateCompare = a.examen.date_examen.localeCompare(b.examen.date_examen);
+        if (dateCompare === 0) {
+          return a.examen.heure_debut.localeCompare(b.examen.heure_debut);
+        }
+        return dateCompare;
+      });
     },
     enabled: !!activeSession?.id
   });
@@ -186,7 +194,8 @@ export const PreAssignmentManager = () => {
   const formatExamenLabel = (examen: Examen) => {
     const dateBelge = formatDateBelgian(examen.date_examen);
     const heures = formatTimeRange(examen.heure_debut, examen.heure_fin);
-    return `${dateBelge} ${heures} | ${examen.matiere} | ${examen.salle}`;
+    const code = examen.code_examen ? ` [${examen.code_examen}]` : '';
+    return `${dateBelge} ${heures}${code} | ${examen.matiere} | ${examen.salle}`;
   };
 
   const formatSurveillantLabel = (surveillant: Surveillant) => {
@@ -204,14 +213,36 @@ export const PreAssignmentManager = () => {
     );
   });
 
+  // Filtrer les examens selon la recherche
+  const filteredExamens = examens.filter(examen => {
+    if (!examenSearch) return true;
+    const searchLower = examenSearch.toLowerCase();
+    return (
+      examen.matiere.toLowerCase().includes(searchLower) ||
+      examen.salle.toLowerCase().includes(searchLower) ||
+      (examen.code_examen && examen.code_examen.toLowerCase().includes(searchLower))
+    );
+  });
+
   // Filter out items with empty or invalid IDs
-  const validExamens = examens.filter(examen => 
+  const validExamens = filteredExamens.filter(examen => 
     examen && examen.id && typeof examen.id === 'string' && examen.id.trim() !== ''
   );
   
   const validSurveillants = filteredSurveillants.filter(surveillant => 
     surveillant && surveillant.id && typeof surveillant.id === 'string' && surveillant.id.trim() !== ''
   );
+
+  // Filtrer les pré-assignations selon la recherche d'examen
+  const filteredPreAssignments = preAssignments.filter(assignment => {
+    if (!examenSearch) return true;
+    const searchLower = examenSearch.toLowerCase();
+    return (
+      assignment.examen.matiere.toLowerCase().includes(searchLower) ||
+      assignment.examen.salle.toLowerCase().includes(searchLower) ||
+      (assignment.examen.code_examen && assignment.examen.code_examen.toLowerCase().includes(searchLower))
+    );
+  });
 
   if (!activeSession) {
     return (
@@ -261,18 +292,29 @@ export const PreAssignmentManager = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
             <div>
               <label className="block text-sm font-medium mb-2">Examen</label>
-              <Select value={selectedExamen} onValueChange={setSelectedExamen}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un examen" />
-                </SelectTrigger>
-                <SelectContent>
-                  {validExamens.map((examen) => (
-                    <SelectItem key={examen.id} value={examen.id}>
-                      {formatExamenLabel(examen)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Rechercher par matière, salle ou code..."
+                    value={examenSearch}
+                    onChange={(e) => setExamenSearch(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <Select value={selectedExamen} onValueChange={setSelectedExamen}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un examen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {validExamens.map((examen) => (
+                      <SelectItem key={examen.id} value={examen.id}>
+                        {formatExamenLabel(examen)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div>
@@ -316,14 +358,14 @@ export const PreAssignmentManager = () => {
 
           {/* Liste des pré-assignations */}
           <div className="space-y-2">
-            <h4 className="font-medium">Pré-assignations existantes ({preAssignments.length})</h4>
-            {preAssignments.length === 0 ? (
+            <h4 className="font-medium">Pré-assignations existantes ({filteredPreAssignments.length})</h4>
+            {filteredPreAssignments.length === 0 ? (
               <p className="text-gray-500 text-center py-4">
-                Aucune pré-assignation obligatoire définie.
+                {examenSearch ? "Aucune pré-assignation trouvée avec ces critères." : "Aucune pré-assignation obligatoire définie."}
               </p>
             ) : (
               <div className="space-y-2">
-                {preAssignments.map((assignment) => (
+                {filteredPreAssignments.map((assignment) => (
                   <div key={assignment.id} className="flex items-center justify-between p-3 bg-white border rounded-lg">
                     <div className="flex-1">
                       <div className="font-medium">

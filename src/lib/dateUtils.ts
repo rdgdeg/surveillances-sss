@@ -38,7 +38,7 @@ export const convertExcelSerialToDate = (serial: string | number): string | null
   return format(date, 'yyyy-MM-dd');
 };
 
-// Fonction pour parser différents formats de date
+// Fonction pour parser différents formats de date avec correction pour les années à 2 chiffres
 export const parseFlexibleDate = (dateValue: string | number): string | null => {
   if (!dateValue) return null;
   
@@ -60,16 +60,38 @@ export const parseFlexibleDate = (dateValue: string | number): string | null => 
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
   
+  // Si c'est au format DD/MM/YY (2 chiffres pour l'année)
+  if (/^\d{1,2}\/\d{1,2}\/\d{2}$/.test(dateString)) {
+    const [day, month, year] = dateString.split('/');
+    // Convertir l'année 2 chiffres en 4 chiffres (assumant 2000-2099)
+    const fullYear = parseInt(year) < 50 ? `20${year}` : `19${year}`;
+    return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  
   // Si c'est au format DD-MM-YYYY
   if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateString)) {
     const [day, month, year] = dateString.split('-');
     return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   }
   
+  // Si c'est au format DD-MM-YY (2 chiffres pour l'année)
+  if (/^\d{1,2}-\d{1,2}-\d{2}$/.test(dateString)) {
+    const [day, month, year] = dateString.split('-');
+    // Convertir l'année 2 chiffres en 4 chiffres (assumant 2000-2099)
+    const fullYear = parseInt(year) < 50 ? `20${year}` : `19${year}`;
+    return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  }
+  
   // Essayer de parser comme date normale
   try {
     const date = new Date(dateString);
     if (!isNaN(date.getTime())) {
+      // Vérifier si l'année semble correcte (entre 2000 et 2100)
+      const year = date.getFullYear();
+      if (year < 2000 || year > 2100) {
+        console.warn('Date année suspecte:', dateString, 'parsed as:', date);
+        return null;
+      }
       return format(date, 'yyyy-MM-dd');
     }
   } catch (error) {
