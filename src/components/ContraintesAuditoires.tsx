@@ -37,24 +37,40 @@ export const ContraintesAuditoires = () => {
   const [bulkAuditoires, setBulkAuditoires] = useState<string>("");
   const [showBulkImport, setShowBulkImport] = useState<boolean>(false);
 
-  // Récupérer les contraintes existantes
-  const { data: contraintes = [], isLoading } = useQuery({
+  // Récupérer les contraintes existantes - requête simplifiée pour déboguer
+  const { data: contraintes = [], isLoading, error } = useQuery({
     queryKey: ['contraintes-auditoires'],
     queryFn: async () => {
       console.log("Fetching contraintes auditoires...");
-      const { data, error } = await supabase
-        .from('contraintes_auditoires')
-        .select('*')
-        .order('auditoire');
       
-      if (error) {
-        console.error("Error fetching contraintes:", error);
-        throw error;
+      try {
+        const { data, error } = await supabase
+          .from('contraintes_auditoires')
+          .select('*')
+          .order('auditoire');
+        
+        if (error) {
+          console.error("Error fetching contraintes:", error);
+          throw error;
+        }
+        
+        console.log("Contraintes fetched successfully:", data);
+        console.log("Number of contraintes:", data?.length || 0);
+        
+        return data as ContrainteAuditoire[];
+      } catch (err) {
+        console.error("Fetch error:", err);
+        throw err;
       }
-      console.log("Contraintes fetched:", data);
-      return data as ContrainteAuditoire[];
-    }
+    },
+    retry: 3,
+    retryDelay: 1000
   });
+
+  // Log pour déboguer
+  console.log("Current contraintes state:", contraintes);
+  console.log("Is loading:", isLoading);
+  console.log("Has error:", error);
 
   // Récupérer les auditoires utilisés dans les examens
   const { data: auditoriesFromExams = [] } = useQuery({
@@ -75,6 +91,15 @@ export const ContraintesAuditoires = () => {
     },
     enabled: !!activeSession?.id
   });
+
+  // Force refresh button pour déboguer
+  const forceRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['contraintes-auditoires'] });
+    toast({
+      title: "Actualisation",
+      description: "Données actualisées.",
+    });
+  };
 
   // Fonction pour parser les auditoires depuis le texte en vrac
   const parseAuditoires = (text: string): string[] => {
@@ -356,6 +381,23 @@ export const ContraintesAuditoires = () => {
     );
   }
 
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center space-y-4">
+            <p className="text-red-500">Erreur lors du chargement des contraintes</p>
+            <p className="text-sm text-gray-500">Erreur: {error.message}</p>
+            <Button onClick={forceRefresh}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Réessayer
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -363,6 +405,9 @@ export const ContraintesAuditoires = () => {
           <CardTitle className="flex items-center space-x-2">
             <Building className="h-5 w-5" />
             <span>Contraintes par Auditoire</span>
+            <Button onClick={forceRefresh} size="sm" variant="outline">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </CardTitle>
           <CardDescription>
             Définissez le nombre de surveillants requis pour chaque auditoire.
@@ -529,9 +574,15 @@ export const ContraintesAuditoires = () => {
           <div className="space-y-2">
             <h4 className="font-medium">Contraintes configurées ({contraintes.length})</h4>
             {contraintes.length === 0 ? (
-              <p className="text-gray-500 text-center py-4">
-                Aucune contrainte définie. La règle par défaut (1 surveillant) s'applique à tous les auditoires.
-              </p>
+              <div className="text-center py-8 space-y-4">
+                <p className="text-gray-500">
+                  Aucune contrainte définie. Les auditoires semblent ne pas avoir été chargés correctement.
+                </p>
+                <Button onClick={forceRefresh} variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Actualiser les données
+                </Button>
+              </div>
             ) : (
               <div className="space-y-2">
                 {contraintes.map((contrainte) => (
