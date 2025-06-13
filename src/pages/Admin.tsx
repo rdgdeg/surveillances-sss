@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { SessionSelector } from "@/components/SessionSelector";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
@@ -22,7 +21,7 @@ const Admin = () => {
   const [uploadStates, setUploadStates] = useState({
     surveillants: false,
     examens: false,
-    indisponibilites: false,
+    disponibilites: false,
     quotas: false
   });
 
@@ -132,8 +131,8 @@ const Admin = () => {
                     description="Matrice des disponibilités par surveillant et créneau (recoupement par email)"
                     fileType="disponibilites"
                     expectedFormat={["Email", "Date", "Heure début", "Heure fin", "Disponible"]}
-                    onUpload={(success) => handleUpload('indisponibilites', success)}
-                    uploaded={uploadStates.indisponibilites}
+                    onUpload={(success) => handleUpload('disponibilites', success)}
+                    uploaded={uploadStates.disponibilites}
                   />
                 </div>
 
@@ -187,8 +186,8 @@ const Admin = () => {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm">Disponibilités</span>
-                    <span className={`text-sm px-2 py-1 rounded ${uploadStates.indisponibilites ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                      {uploadStates.indisponibilites ? 'Importé ✓' : 'Recommandé'}
+                    <span className={`text-sm px-2 py-1 rounded ${uploadStates.disponibilites ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                      {uploadStates.disponibilites ? 'Importé ✓' : 'Recommandé'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
