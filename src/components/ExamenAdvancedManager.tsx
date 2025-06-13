@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, CheckSquare, Settings, Users, History } from "lucide-react";
-import { ExamenCodeUploader } from "./ExamenCodeUploader";
+import { StandardExcelImporter } from "./StandardExcelImporter";
 import { ExamenValidationProcessor } from "./ExamenValidationProcessor";
 import { ExamenReviewManager } from "./ExamenReviewManager";
 
@@ -28,7 +28,7 @@ export const ExamenAdvancedManager = () => {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="import" className="flex items-center space-x-2">
             <FileText className="h-4 w-4" />
-            <span>1. Import</span>
+            <span>1. Import Standard</span>
           </TabsTrigger>
           <TabsTrigger value="validation" className="flex items-center space-x-2">
             <CheckSquare className="h-4 w-4" />
@@ -41,17 +41,18 @@ export const ExamenAdvancedManager = () => {
         </TabsList>
 
         <TabsContent value="import" className="space-y-4">
-          <ExamenCodeUploader />
+          <StandardExcelImporter />
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-3">
-                <h3 className="font-medium">Instructions d'import :</h3>
+                <h3 className="font-medium">Import Excel Standardisé :</h3>
                 <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
-                  <li>Préparez un fichier Excel avec les colonnes : Code, Matière, Date, Heure Début, Heure Fin, Salle, Nb Surveillants, Type</li>
-                  <li>Les codes d'examens seront classifiés automatiquement (=E pour écrit, =O pour oral, etc.)</li>
-                  <li>Les créneaux de surveillance seront générés avec 45 minutes de préparation</li>
-                  <li>Les examens oraux (=O) seront automatiquement rejetés</li>
-                  <li>Les cas complexes nécessiteront une validation manuelle</li>
+                  <li>Utilisez le fichier Excel standardisé fourni par le secrétariat</li>
+                  <li>Format : Jour | Durée | Début | Fin | Activité | Code | Auditoires | Étudiants | Enseignants</li>
+                  <li>Les codes d'examens sont extraits de la colonne "Activité" (ex: WDENT2152=E)</li>
+                  <li>Les auditoires multiples sont automatiquement séparés (ex: "51 A, 51 B, 51 C" → 3 examens)</li>
+                  <li>Classification automatique : =E (écrit) validé, =O (oral) rejeté, autres nécessitent validation</li>
+                  <li>Calcul automatique du nombre de surveillants selon le nombre d'étudiants</li>
                 </ul>
               </div>
             </CardContent>
@@ -63,13 +64,14 @@ export const ExamenAdvancedManager = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-3">
-                <h3 className="font-medium">Processus de validation :</h3>
+                <h3 className="font-medium">Processus de validation amélioré :</h3>
                 <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
                   <li><strong>Validés automatiquement :</strong> Codes se terminant par "=E" (examens écrits)</li>
                   <li><strong>Rejetés automatiquement :</strong> Codes se terminant par "=O" (examens oraux)</li>
                   <li><strong>Validation manuelle requise :</strong> Codes mixtes (=E+O) ou avec texte supplémentaire</li>
-                  <li>Vous pouvez traiter les validations une par une ou en lot</li>
-                  <li>Saisissez votre nom pour traçabilité des modifications</li>
+                  <li>Actions en lot pour traiter plusieurs examens similaires</li>
+                  <li>Historique complet des validations avec nom du validateur</li>
+                  <li>Filtrage par statut pour se concentrer sur les cas à traiter</li>
                 </ul>
               </div>
             </CardContent>
@@ -81,12 +83,14 @@ export const ExamenAdvancedManager = () => {
           <Card>
             <CardContent className="pt-6">
               <div className="space-y-3">
-                <h3 className="font-medium">Configuration des besoins :</h3>
+                <h3 className="font-medium">Configuration par auditoire :</h3>
                 <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
-                  <li>Ajustez le nombre de surveillants enseignants, amenés et pré-assignés</li>
-                  <li>Le calcul automatique des "surveillants à attribuer" se met à jour en temps réel</li>
-                  <li>Les contraintes d'auditoires sont prises en compte automatiquement</li>
-                  <li>Sauvegardez vos modifications avant de passer à l'attribution</li>
+                  <li>Vue détaillée par examen et auditoire séparé</li>
+                  <li>Ajustement des besoins : surveillants enseignants, amenés et pré-assignés</li>
+                  <li>Calcul automatique des "surveillants à attribuer" selon les contraintes d'auditoires</li>
+                  <li>Gestion des personnes aidantes par examen spécifique</li>
+                  <li>Application automatique des contraintes de salles existantes</li>
+                  <li>Validation enseignant avec tokens personnalisés</li>
                 </ul>
               </div>
             </CardContent>
