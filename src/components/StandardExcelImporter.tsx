@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +20,7 @@ interface StandardExamenData {
   activite: string;
   code: string;
   auditoires: string;
+  auditoires_originaux: string; // Nouvelle colonne pour les données originales
   groupes_etudiants: string;
   enseignants: string;
   code_cours_extrait: string;
@@ -83,18 +83,37 @@ export const StandardExcelImporter = () => {
     }
     
     if (typeof dureeValue === 'string') {
-      // Format comme "04h30" ou "4:30"
-      const match = dureeValue.match(/(\d+)[h:](\d+)/);
-      if (match) {
-        const heures = parseInt(match[1]);
-        const minutes = parseInt(match[2]);
-        return heures + (minutes / 60);
+      const cleaned = dureeValue.trim();
+      
+      // Format avec "h" comme "08h30" -> "08:30"
+      const matchH = cleaned.match(/(\d{1,2})h(\d{2})/i);
+      if (matchH) {
+        const heures = matchH[1].padStart(2, '0');
+        const minutes = matchH[2];
+        return `${heures}:${minutes}`;
       }
       
-      // Format décimal comme "4.5"
-      const decimal = parseFloat(dureeValue);
-      if (!isNaN(decimal)) {
-        return decimal;
+      // Format avec "h" seul comme "08h" -> "08:00"
+      const matchH2 = cleaned.match(/(\d{1,2})h$/i);
+      if (matchH2) {
+        const heures = matchH2[1].padStart(2, '0');
+        return `${heures}:00`;
+      }
+      
+      // Format déjà correct "HH:MM"
+      if (/^\d{1,2}:\d{2}$/.test(cleaned)) {
+        const [h, m] = cleaned.split(':');
+        return `${h.padStart(2, '0')}:${m}`;
+      }
+      
+      // Format "HHMM" -> "HH:MM"
+      if (/^\d{4}$/.test(cleaned)) {
+        return `${cleaned.slice(0, 2)}:${cleaned.slice(2, 4)}`;
+      }
+      
+      // Format "H:MM" -> "HH:MM"
+      if (/^\d{1}:\d{2}$/.test(cleaned)) {
+        return `0${cleaned}`;
       }
     }
     
@@ -180,6 +199,7 @@ export const StandardExcelImporter = () => {
                 activite: activite,
                 code: String(row[5] || '').trim(),
                 auditoires: auditoire,
+                auditoires_originaux: auditoires, // Garder les données originales
                 groupes_etudiants: String(row[7] || '').trim(),
                 enseignants: String(row[8] || '').trim(),
                 code_cours_extrait: codeCours,
@@ -225,6 +245,21 @@ export const StandardExcelImporter = () => {
     
     if (typeof value === 'string') {
       const cleaned = value.trim();
+      
+      // Format avec "h" comme "08h30" -> "08:30"
+      const matchH = cleaned.match(/(\d{1,2})h(\d{2})/i);
+      if (matchH) {
+        const heures = matchH[1].padStart(2, '0');
+        const minutes = matchH[2];
+        return `${heures}:${minutes}`;
+      }
+      
+      // Format avec "h" seul comme "08h" -> "08:00"
+      const matchH2 = cleaned.match(/(\d{1,2})h$/i);
+      if (matchH2) {
+        const heures = matchH2[1].padStart(2, '0');
+        return `${heures}:00`;
+      }
       
       // Format déjà correct "HH:MM"
       if (/^\d{1,2}:\d{2}$/.test(cleaned)) {
@@ -688,6 +723,7 @@ export const StandardExcelImporter = () => {
                     <th className="p-3 text-left">Arrivée</th>
                     <th className="p-3 text-left">Activité</th>
                     <th className="p-3 text-left">Auditoire</th>
+                    <th className="p-3 text-left">Auditoires Orig.</th>
                     <th className="p-3 text-left">Groupes</th>
                     <th className="p-3 text-left">Enseignants</th>
                   </tr>
@@ -736,6 +772,7 @@ export const StandardExcelImporter = () => {
                         <td className="p-3 text-blue-600">{examen.heure_arrivee_surveillance}</td>
                         <td className="p-3 max-w-48 truncate">{renderEditableCell(examen, 'activite', actualIndex)}</td>
                         <td className="p-3">{renderEditableCell(examen, 'auditoires', actualIndex)}</td>
+                        <td className="p-3 text-xs bg-gray-50">{examen.auditoires_originaux}</td>
                         <td className="p-3 text-xs">{renderEditableCell(examen, 'groupes_etudiants', actualIndex)}</td>
                         <td className="p-3 text-xs">{renderEditableCell(examen, 'enseignants', actualIndex)}</td>
                       </tr>
