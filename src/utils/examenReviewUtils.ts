@@ -36,22 +36,24 @@ export interface ExamenGroupe {
   surveillants_a_attribuer_total: number;
 }
 
-// Fonction pour unifier SEULEMENT les cas spécifiques (Neerveld)
+// Fonction pour unifier les auditoires Neerveld et normaliser les autres
 export const unifierAuditoire = (salle: string): string => {
   const salleNormalisee = salle.trim();
   
-  // Cas spécifique pour Neerveld A, B, C, etc. - les unifier
+  // Cas spécifique pour Neerveld - unifier toutes les variantes
+  // Patterns supportés: "Neerveld A", "Neerveld B", "Neerveld C", etc.
   if (salleNormalisee.match(/^Neerveld\s+[A-Z]$/i)) {
+    console.log(`Unification de "${salleNormalisee}" vers "Neerveld"`);
     return "Neerveld";
   }
   
-  // Pour tous les autres auditoires, garder le nom complet
+  // Pour tous les autres auditoires, garder le nom complet normalisé
   return salleNormalisee;
 };
 
-// Fonction pour calculer la contrainte avec logique améliorée
+// Fonction pour calculer la contrainte avec logique améliorée pour Neerveld
 export const getContrainteUnifiee = (auditoire: string, contraintesOriginales: ContrainteAuditoire[]): number => {
-  console.log(`Recherche contrainte pour auditoire: "${auditoire}"`);
+  console.log(`Recherche contrainte pour auditoire unifié: "${auditoire}"`);
   
   if (auditoire === "Neerveld") {
     // Cas spécial : sommer toutes les contraintes Neerveld A, B, C, etc.
@@ -59,8 +61,8 @@ export const getContrainteUnifiee = (auditoire: string, contraintesOriginales: C
       c.auditoire.match(/^Neerveld\s+[A-Z]$/i)
     );
     const total = contraintesNeerveld.reduce((sum, c) => sum + c.nombre_surveillants_requis, 0);
-    console.log(`Contraintes Neerveld trouvées:`, contraintesNeerveld, `Total: ${total}`);
-    return total || 1;
+    console.log(`Contraintes Neerveld trouvées:`, contraintesNeerveld.map(c => `${c.auditoire}: ${c.nombre_surveillants_requis}`), `Total: ${total}`);
+    return total || 1; // Au minimum 1 surveillant si aucune contrainte trouvée
   }
   
   // 1. Chercher d'abord une correspondance exacte
@@ -79,23 +81,35 @@ export const groupExamens = (examens: ExamenReview[], contraintesAuditoires: Con
   const groupes = new Map<string, ExamenGroupe>();
 
   examens.forEach(examen => {
+    // Unifier l'auditoire (Neerveld A, B, C deviennent tous "Neerveld")
     const auditoire_unifie = unifierAuditoire(examen.salle);
+    
+    // Créer une clé unique pour grouper les examens
     const cle = `${examen.code_examen}-${examen.date_examen}-${examen.heure_debut}-${auditoire_unifie}`;
+    
+    console.log(`Traitement examen: ${examen.code_examen}, salle: "${examen.salle}" -> unifié: "${auditoire_unifie}", clé: "${cle}"`);
     
     if (groupes.has(cle)) {
       // Ajouter à un groupe existant
       const groupe = groupes.get(cle)!;
       groupe.examens.push(examen);
-      groupe.nombre_surveillants_total += examen.nombre_surveillants;
+      // Recalculer les totaux avec la contrainte unifiée
+      const contrainteUnifiee = getContrainteUnifiee(auditoire_unifie, contraintesAuditoires);
+      groupe.nombre_surveillants_total = contrainteUnifiee;
       groupe.surveillants_enseignant_total += examen.surveillants_enseignant || 0;
       groupe.surveillants_amenes_total += examen.surveillants_amenes || 0;
       groupe.surveillants_pre_assignes_total += examen.surveillants_pre_assignes || 0;
-      groupe.surveillants_a_attribuer_total += examen.surveillants_a_attribuer || 0;
+      groupe.surveillants_a_attribuer_total = Math.max(0, contrainteUnifiee - 
+        groupe.surveillants_enseignant_total - 
+        groupe.surveillants_amenes_total - 
+        groupe.surveillants_pre_assignes_total);
+      
+      console.log(`Ajouté au groupe existant. Nouveau total surveillants: ${groupe.nombre_surveillants_total}`);
     } else {
       // Créer un nouveau groupe
       const contrainteUnifiee = getContrainteUnifiee(auditoire_unifie, contraintesAuditoires);
       
-      groupes.set(cle, {
+      const nouveauGroupe: ExamenGroupe = {
         code_examen: examen.code_examen,
         matiere: examen.matiere,
         date_examen: examen.date_examen,
@@ -103,7 +117,7 @@ export const groupExamens = (examens: ExamenReview[], contraintesAuditoires: Con
         heure_fin: examen.heure_fin,
         auditoire_unifie,
         examens: [examen],
-        nombre_surveillants_total: contrainteUnifiee, // Utiliser la contrainte par défaut
+        nombre_surveillants_total: contrainteUnifiee,
         surveillants_enseignant_total: examen.surveillants_enseignant || 0,
         surveillants_amenes_total: examen.surveillants_amenes || 0,
         surveillants_pre_assignes_total: examen.surveillants_pre_assignes || 0,
@@ -111,20 +125,33 @@ export const groupExamens = (examens: ExamenReview[], contraintesAuditoires: Con
           (examen.surveillants_enseignant || 0) - 
           (examen.surveillants_amenes || 0) - 
           (examen.surveillants_pre_assignes || 0))
-      });
+      };
+      
+      groupes.set(cle, nouveauGroupe);
+      console.log(`Nouveau groupe créé pour "${auditoire_unifie}" avec contrainte: ${contrainteUnifiee}`);
     }
   });
 
-  return Array.from(groupes.values()).sort((a, b) => {
-    // Tri par date, puis heure, puis code d'examen
+  const groupesArray = Array.from(groupes.values());
+  
+  // Tri par date, puis heure, puis code d'examen
+  const groupesTries = groupesArray.sort((a, b) => {
+    // Tri par date
     if (a.date_examen !== b.date_examen) {
       return a.date_examen.localeCompare(b.date_examen);
     }
+    // Puis par heure de début
     if (a.heure_debut !== b.heure_debut) {
       return a.heure_debut.localeCompare(b.heure_debut);
     }
+    // Enfin par code d'examen
     return a.code_examen.localeCompare(b.code_examen);
   });
+
+  console.log(`Groupement terminé. ${groupesTries.length} groupes créés:`, 
+    groupesTries.map(g => `${g.code_examen} - ${g.auditoire_unifie} (${g.examens.length} salles)`));
+
+  return groupesTries;
 };
 
 export const generateSearchTerms = (examensGroupes: ExamenGroupe[]): string[] => {
@@ -139,10 +166,13 @@ export const generateSearchTerms = (examensGroupes: ExamenGroupe[]): string[] =>
 };
 
 export const filterExamens = (examensGroupes: ExamenGroupe[], searchTerm: string): ExamenGroupe[] => {
+  if (!searchTerm.trim()) return examensGroupes;
+  
+  const searchLower = searchTerm.toLowerCase();
   return examensGroupes.filter(groupe => 
-    groupe.code_examen.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    groupe.matiere.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    groupe.auditoire_unifie.toLowerCase().includes(searchTerm.toLowerCase())
+    groupe.code_examen.toLowerCase().includes(searchLower) ||
+    groupe.matiere.toLowerCase().includes(searchLower) ||
+    groupe.auditoire_unifie.toLowerCase().includes(searchLower)
   );
 };
 
