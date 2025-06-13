@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import * as XLSX from 'xlsx';
 interface ExcelFileUploaderProps {
   title: string;
   description: string;
-  fileType: 'surveillants' | 'examens' | 'indisponibilites' | 'quotas';
+  fileType: 'surveillants' | 'examens' | 'indisponibilites' | 'quotas' | 'disponibilites';
   expectedFormat: string[];
   onUpload: (success: boolean) => void;
   uploaded: boolean;
@@ -88,6 +87,8 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
         return await processExamens(headers, rows, activeSession.id);
       case 'indisponibilites':
         return await processIndisponibilites(headers, rows, activeSession.id);
+      case 'disponibilites':
+        return await processDisponibilites(headers, rows, activeSession.id);
       case 'quotas':
         return await processQuotas(headers, rows, activeSession.id);
       default:
@@ -212,6 +213,58 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
     if (error) throw error;
 
     return { processed: examens.length, type: 'examens' };
+  };
+
+  const processDisponibilites = async (headers: string[], rows: string[][], sessionId: string) => {
+    const disponibilites = [];
+
+    for (const row of rows) {
+      const dispo: any = { session_id: sessionId };
+      let email = "";
+      
+      headers.forEach((header, index) => {
+        const value = row[index] ? String(row[index]).trim() : "";
+        switch (header.toLowerCase()) {
+          case 'email':
+            email = value;
+            break;
+          case 'date':
+            dispo.date_examen = value;
+            break;
+          case 'heure début':
+          case 'heure debut':
+            dispo.heure_debut = value;
+            break;
+          case 'heure fin':
+            dispo.heure_fin = value;
+            break;
+          case 'disponible':
+            dispo.est_disponible = value.toLowerCase() === 'oui' || value.toLowerCase() === 'true' || value === '1';
+            break;
+        }
+      });
+
+      if (email && dispo.date_examen && dispo.heure_debut && dispo.heure_fin) {
+        const { data: surveillant } = await supabase
+          .from('surveillants')
+          .select('id')
+          .eq('email', email)
+          .single();
+
+        if (surveillant) {
+          dispo.surveillant_id = surveillant.id;
+          disponibilites.push(dispo);
+        }
+      }
+    }
+
+    const { error } = await supabase
+      .from('disponibilites')
+      .insert(disponibilites);
+
+    if (error) throw error;
+
+    return { processed: disponibilites.length, type: 'disponibilités' };
   };
 
   const processIndisponibilites = async (headers: string[], rows: string[][], sessionId: string) => {
