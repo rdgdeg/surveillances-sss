@@ -132,22 +132,29 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
   ];
 
   return (
-    <div className="w-64 bg-white shadow-lg border-r">
-      <div className="p-6 border-b">
-        <h1 className="text-xl font-bold text-gray-900">Administration</h1>
-        <p className="text-sm text-gray-600">Gestion des surveillances</p>
+    <div className="w-64 bg-uclouvain-blue shadow-lg border-r border-uclouvain-blue/20">
+      <div className="p-6 border-b border-uclouvain-cyan/30">
+        <div className="flex items-center space-x-3 mb-2">
+          <img 
+            src="/lovable-uploads/f6a7054d-ce38-4ede-84cf-87b92a350bea.png" 
+            alt="UCLouvain" 
+            className="h-8 w-auto"
+          />
+        </div>
+        <h1 className="text-xl font-bold text-white">Administration</h1>
+        <p className="text-sm text-uclouvain-cyan">Gestion des surveillances</p>
       </div>
       
-      <nav className="p-4 space-y-2">
+      <nav className="p-4 space-y-2 max-h-[calc(100vh-120px)] overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
           return (
             <Button
               key={item.id}
-              variant={activeView === item.id ? "default" : "ghost"}
+              variant="ghost"
               className={cn(
-                "w-full justify-start text-left h-auto p-3",
-                activeView === item.id && "bg-primary text-primary-foreground"
+                "w-full justify-start text-left h-auto p-3 text-white hover:bg-uclouvain-cyan/20 hover:text-uclouvain-cyan transition-colors",
+                activeView === item.id && "bg-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-cyan hover:text-uclouvain-blue"
               )}
               onClick={() => onViewChange(item.id)}
             >

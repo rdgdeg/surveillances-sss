@@ -1,3 +1,5 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,88 +9,87 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 212 100% 14%; /* Bleu nuit UCLouvain */
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 212 100% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 212 100% 14%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 212 100% 14%; /* Bleu nuit UCLouvain #00214e */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 196 62% 75%; /* Cyan UCLouvain #5db3e6 */
+    --secondary-foreground: 212 100% 14%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 216 27% 84%; /* Bleu gris UCLouvain #9cb7d4 */
+    --muted-foreground: 212 100% 14%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 196 62% 75%; /* Cyan UCLouvain */
+    --accent-foreground: 212 100% 14%;
 
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 216 27% 84%;
+    --input: 216 27% 84%;
+    --ring: 212 100% 14%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
+    --sidebar-background: 212 100% 14%; /* Bleu nuit pour sidebar */
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 196 62% 75%; /* Cyan pour les éléments actifs */
+    --sidebar-primary-foreground: 212 100% 14%;
+    --sidebar-accent: 212 80% 20%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 212 80% 20%;
+    --sidebar-ring: 196 62% 75%;
 
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* UCLouvain specific colors */
+    --uclouvain-blue: 212 100% 14%; /* #00214e */
+    --uclouvain-cyan: 196 62% 75%; /* #5db3e6 */
+    --uclouvain-blue-grey: 216 27% 84%; /* #9cb7d4 */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 212 100% 14%;
+    --foreground: 0 0% 100%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 212 80% 20%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 212 80% 20%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 196 62% 75%;
+    --primary-foreground: 212 100% 14%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 216 27% 84%;
+    --secondary-foreground: 212 100% 14%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 212 60% 30%;
+    --muted-foreground: 0 0% 80%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 196 62% 75%;
+    --accent-foreground: 212 100% 14%;
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 212 60% 30%;
+    --input: 212 60% 30%;
+    --ring: 196 62% 75%;
+
+    --sidebar-background: 212 100% 8%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 196 62% 75%;
+    --sidebar-primary-foreground: 212 100% 14%;
+    --sidebar-accent: 212 60% 25%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 212 60% 25%;
+    --sidebar-ring: 196 62% 75%;
   }
 }
 
@@ -98,6 +99,49 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-montserrat;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-montserrat font-semibold;
+  }
+}
+
+/* UCLouvain specific utilities */
+@layer utilities {
+  .text-uclouvain-blue {
+    color: hsl(var(--uclouvain-blue));
+  }
+  
+  .text-uclouvain-cyan {
+    color: hsl(var(--uclouvain-cyan));
+  }
+  
+  .text-uclouvain-blue-grey {
+    color: hsl(var(--uclouvain-blue-grey));
+  }
+  
+  .bg-uclouvain-blue {
+    background-color: hsl(var(--uclouvain-blue));
+  }
+  
+  .bg-uclouvain-cyan {
+    background-color: hsl(var(--uclouvain-cyan));
+  }
+  
+  .bg-uclouvain-blue-grey {
+    background-color: hsl(var(--uclouvain-blue-grey));
+  }
+
+  .border-uclouvain-blue {
+    border-color: hsl(var(--uclouvain-blue));
+  }
+  
+  .border-uclouvain-cyan {
+    border-color: hsl(var(--uclouvain-cyan));
+  }
+
+  .gradient-uclouvain {
+    background: linear-gradient(135deg, hsl(var(--uclouvain-blue)) 0%, hsl(var(--uclouvain-cyan)) 100%);
   }
 }

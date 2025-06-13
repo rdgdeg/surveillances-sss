@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -18,6 +19,10 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				'montserrat': ['Montserrat', 'sans-serif'],
+				'sans': ['Montserrat', 'sans-serif'],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -61,6 +66,12 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				// UCLouvain specific colors
+				'uclouvain': {
+					'blue': 'hsl(var(--uclouvain-blue))',
+					'cyan': 'hsl(var(--uclouvain-cyan))',
+					'blue-grey': 'hsl(var(--uclouvain-blue-grey))'
 				}
 			},
 			borderRadius: {

@@ -148,9 +148,9 @@ export const CollecteSurveillants = () => {
   if (!activeSession) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <Card>
+        <Card className="border-uclouvain-blue/20">
           <CardContent className="pt-6">
-            <p className="text-center text-gray-500">
+            <p className="text-center text-muted-foreground">
               Aucune session de surveillance active pour le moment.
             </p>
           </CardContent>
@@ -162,9 +162,9 @@ export const CollecteSurveillants = () => {
   if (submitted) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <Card>
+        <Card className="border-uclouvain-cyan">
           <CardHeader className="text-center">
-            <CardTitle className="text-green-600">Disponibilités enregistrées !</CardTitle>
+            <CardTitle className="text-uclouvain-blue">Disponibilités enregistrées !</CardTitle>
             <CardDescription>
               Merci pour votre candidature. Vos disponibilités ont été transmises au service des surveillances.
             </CardDescription>
@@ -176,18 +176,26 @@ export const CollecteSurveillants = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
-      <div className="text-center space-y-4">
+      {/* Header avec logo UCLouvain */}
+      <div className="text-center space-y-4 py-8 bg-gradient-uclouvain rounded-lg text-white">
+        <div className="flex justify-center mb-4">
+          <img 
+            src="/lovable-uploads/5ff3f8eb-c734-4f43-bde5-5d591faf4b9a.png" 
+            alt="UCLouvain" 
+            className="h-16 w-auto"
+          />
+        </div>
         <h1 className="text-3xl font-bold">Gestion des Surveillances d'Examen</h1>
-        <h2 className="text-xl text-muted-foreground">Secteur des Sciences de la Santé</h2>
-        <p className="text-muted-foreground">
+        <h2 className="text-xl text-uclouvain-cyan">Secteur des Sciences de la Santé</h2>
+        <p className="text-white/90">
           Session {activeSession.name} - Candidature pour la surveillance d'examens
         </p>
       </div>
 
       {/* Liens vers les consignes */}
-      <Card>
+      <Card className="border-uclouvain-blue/20">
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
+          <CardTitle className="flex items-center space-x-2 text-uclouvain-blue">
             <BookOpen className="h-5 w-5" />
             <span>Documentation et Consignes</span>
           </CardTitle>
@@ -201,41 +209,41 @@ export const CollecteSurveillants = () => {
               href="https://www.uclouvain.be/fr/sss/consignes-de-surveillance" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center space-x-2 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/10 hover:border-uclouvain-cyan transition-colors"
             >
-              <BookOpen className="h-4 w-4" />
-              <span>Consignes de surveillance</span>
-              <ExternalLink className="h-4 w-4 ml-auto" />
+              <BookOpen className="h-4 w-4 text-uclouvain-blue" />
+              <span className="text-uclouvain-blue">Consignes de surveillance</span>
+              <ExternalLink className="h-4 w-4 ml-auto text-uclouvain-cyan" />
             </a>
             <a 
               href="https://www.uclouvain.be/fr/sss/faq-surveillants" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center space-x-2 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/10 hover:border-uclouvain-cyan transition-colors"
             >
-              <HelpCircle className="h-4 w-4" />
-              <span>FAQ Surveillants</span>
-              <ExternalLink className="h-4 w-4 ml-auto" />
+              <HelpCircle className="h-4 w-4 text-uclouvain-blue" />
+              <span className="text-uclouvain-blue">FAQ Surveillants</span>
+              <ExternalLink className="h-4 w-4 ml-auto text-uclouvain-cyan" />
             </a>
             <a 
               href="https://www.uclouvain.be/fr/sss/devenir-jobiste" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center space-x-2 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/10 hover:border-uclouvain-cyan transition-colors"
             >
-              <Users className="h-4 w-4" />
-              <span>Devenir jobiste</span>
-              <ExternalLink className="h-4 w-4 ml-auto" />
+              <Users className="h-4 w-4 text-uclouvain-blue" />
+              <span className="text-uclouvain-blue">Devenir jobiste</span>
+              <ExternalLink className="h-4 w-4 ml-auto text-uclouvain-cyan" />
             </a>
             <a 
               href="https://www.uclouvain.be/fr/sss/auditoires-et-locaux" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center space-x-2 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/10 hover:border-uclouvain-cyan transition-colors"
             >
-              <Building2 className="h-4 w-4" />
-              <span>Auditoires et locaux</span>
-              <ExternalLink className="h-4 w-4 ml-auto" />
+              <Building2 className="h-4 w-4 text-uclouvain-blue" />
+              <span className="text-uclouvain-blue">Auditoires et locaux</span>
+              <ExternalLink className="h-4 w-4 ml-auto text-uclouvain-cyan" />
             </a>
           </div>
         </CardContent>
@@ -243,9 +251,9 @@ export const CollecteSurveillants = () => {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Informations personnelles */}
-        <Card>
+        <Card className="border-uclouvain-blue/20">
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
+            <CardTitle className="flex items-center space-x-2 text-uclouvain-blue">
               <UserPlus className="h-5 w-5" />
               <span>Informations personnelles</span>
             </CardTitle>
@@ -322,9 +330,9 @@ export const CollecteSurveillants = () => {
         </Card>
 
         {/* Disponibilités */}
-        <Card>
+        <Card className="border-uclouvain-blue/20">
           <CardHeader>
-            <CardTitle>Disponibilités</CardTitle>
+            <CardTitle className="text-uclouvain-blue">Disponibilités</CardTitle>
             <CardDescription>
               Cochez les créneaux d'examen où vous êtes disponible pour surveiller
             </CardDescription>
@@ -332,7 +340,7 @@ export const CollecteSurveillants = () => {
           <CardContent>
             <div className="space-y-4">
               {examens?.map((examen) => (
-                <div key={examen.id} className="flex items-center space-x-3 p-3 border rounded-lg">
+                <div key={examen.id} className="flex items-center space-x-3 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/5 transition-colors">
                   <Checkbox
                     id={`examen-${examen.id}`}
                     checked={formData.disponibilites[examen.id] || false}
@@ -340,10 +348,10 @@ export const CollecteSurveillants = () => {
                   />
                   <Label htmlFor={`examen-${examen.id}`} className="flex-1 cursor-pointer">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                      <div className="font-medium">{examen.date_examen}</div>
+                      <div className="font-medium text-uclouvain-blue">{examen.date_examen}</div>
                       <div className="text-sm text-muted-foreground">{examen.heure_debut} - {examen.heure_fin}</div>
-                      <div>{examen.matiere}</div>
-                      <Badge variant="outline">{examen.salle}</Badge>
+                      <div className="text-uclouvain-blue">{examen.matiere}</div>
+                      <Badge variant="outline" className="border-uclouvain-cyan text-uclouvain-cyan">{examen.salle}</Badge>
                     </div>
                   </Label>
                 </div>
@@ -357,7 +365,7 @@ export const CollecteSurveillants = () => {
             type="submit" 
             size="lg" 
             disabled={submitMutation.isPending}
-            className="px-8"
+            className="px-8 bg-uclouvain-blue hover:bg-uclouvain-blue/90 text-white"
           >
             {submitMutation.isPending ? "Envoi en cours..." : "Envoyer mes disponibilités"}
           </Button>
