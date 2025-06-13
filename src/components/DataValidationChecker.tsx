@@ -123,6 +123,10 @@ export const DataValidationChecker = () => {
     }
   };
 
+  const handleRefresh = () => {
+    refetch();
+  };
+
   useEffect(() => {
     if (examensData.length > 0) {
       checkValidationIssues();
@@ -151,7 +155,7 @@ export const DataValidationChecker = () => {
           </div>
           <div className="flex items-center space-x-2">
             <Button
-              onClick={refetch}
+              onClick={handleRefresh}
               variant="outline"
               size="sm"
             >
