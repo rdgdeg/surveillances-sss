@@ -239,6 +239,51 @@ export type Database = {
           },
         ]
       }
+      creneaux_surveillance: {
+        Row: {
+          created_at: string
+          date_surveillance: string
+          examen_id: string
+          heure_debut_surveillance: string
+          heure_fin_surveillance: string
+          id: string
+          type_creneau: string
+        }
+        Insert: {
+          created_at?: string
+          date_surveillance: string
+          examen_id: string
+          heure_debut_surveillance: string
+          heure_fin_surveillance: string
+          id?: string
+          type_creneau?: string
+        }
+        Update: {
+          created_at?: string
+          date_surveillance?: string
+          examen_id?: string
+          heure_debut_surveillance?: string
+          heure_fin_surveillance?: string
+          id?: string
+          type_creneau?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creneaux_surveillance_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "examens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creneaux_surveillance_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["examen_id"]
+          },
+        ]
+      }
       disponibilites: {
         Row: {
           created_at: string
@@ -300,16 +345,23 @@ export type Database = {
       examens: {
         Row: {
           auditoire_original: string | null
+          besoins_confirmes_par_enseignant: boolean | null
+          code_examen: string | null
           created_at: string
+          date_confirmation_enseignant: string | null
           date_examen: string
+          enseignant_email: string | null
+          enseignant_nom: string | null
           faculte: string | null
           heure_debut: string
           heure_fin: string
           id: string
+          lien_enseignant_token: string | null
           matiere: string
           nombre_surveillants: number
           salle: string
           session_id: string
+          statut_validation: string | null
           surveillants_a_attribuer: number | null
           surveillants_amenes: number | null
           surveillants_enseignant: number | null
@@ -319,16 +371,23 @@ export type Database = {
         }
         Insert: {
           auditoire_original?: string | null
+          besoins_confirmes_par_enseignant?: boolean | null
+          code_examen?: string | null
           created_at?: string
+          date_confirmation_enseignant?: string | null
           date_examen: string
+          enseignant_email?: string | null
+          enseignant_nom?: string | null
           faculte?: string | null
           heure_debut: string
           heure_fin: string
           id?: string
+          lien_enseignant_token?: string | null
           matiere: string
           nombre_surveillants?: number
           salle: string
           session_id: string
+          statut_validation?: string | null
           surveillants_a_attribuer?: number | null
           surveillants_amenes?: number | null
           surveillants_enseignant?: number | null
@@ -338,16 +397,23 @@ export type Database = {
         }
         Update: {
           auditoire_original?: string | null
+          besoins_confirmes_par_enseignant?: boolean | null
+          code_examen?: string | null
           created_at?: string
+          date_confirmation_enseignant?: string | null
           date_examen?: string
+          enseignant_email?: string | null
+          enseignant_nom?: string | null
           faculte?: string | null
           heure_debut?: string
           heure_fin?: string
           id?: string
+          lien_enseignant_token?: string | null
           matiere?: string
           nombre_surveillants?: number
           salle?: string
           session_id?: string
+          statut_validation?: string | null
           surveillants_a_attribuer?: number | null
           surveillants_amenes?: number | null
           surveillants_enseignant?: number | null
@@ -362,6 +428,60 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sessions"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      examens_validation: {
+        Row: {
+          code_original: string
+          commentaire: string | null
+          created_at: string
+          date_validation: string | null
+          examen_id: string
+          id: string
+          statut_validation: string
+          type_detecte: string | null
+          updated_at: string
+          valide_par: string | null
+        }
+        Insert: {
+          code_original: string
+          commentaire?: string | null
+          created_at?: string
+          date_validation?: string | null
+          examen_id: string
+          id?: string
+          statut_validation?: string
+          type_detecte?: string | null
+          updated_at?: string
+          valide_par?: string | null
+        }
+        Update: {
+          code_original?: string
+          commentaire?: string | null
+          created_at?: string
+          date_validation?: string | null
+          examen_id?: string
+          id?: string
+          statut_validation?: string
+          type_detecte?: string | null
+          updated_at?: string
+          valide_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "examens_validation_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "examens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "examens_validation_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["examen_id"]
           },
         ]
       }
@@ -461,6 +581,63 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sessions"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      personnes_aidantes: {
+        Row: {
+          ajoute_par: string | null
+          compte_dans_quota: boolean
+          created_at: string
+          email: string | null
+          est_assistant: boolean
+          examen_id: string
+          id: string
+          nom: string
+          prenom: string
+          present_sur_place: boolean
+          updated_at: string
+        }
+        Insert: {
+          ajoute_par?: string | null
+          compte_dans_quota?: boolean
+          created_at?: string
+          email?: string | null
+          est_assistant?: boolean
+          examen_id: string
+          id?: string
+          nom: string
+          prenom: string
+          present_sur_place?: boolean
+          updated_at?: string
+        }
+        Update: {
+          ajoute_par?: string | null
+          compte_dans_quota?: boolean
+          created_at?: string
+          email?: string | null
+          est_assistant?: boolean
+          examen_id?: string
+          id?: string
+          nom?: string
+          prenom?: string
+          present_sur_place?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "personnes_aidantes_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "examens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "personnes_aidantes_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["examen_id"]
           },
         ]
       }
@@ -654,6 +831,27 @@ export type Database = {
       }
     }
     Functions: {
+      calculer_creneaux_surveillance: {
+        Args: {
+          p_examen_id: string
+          p_date_examen: string
+          p_heure_debut: string
+          p_heure_fin: string
+        }
+        Returns: undefined
+      }
+      classifier_code_examen: {
+        Args: { code_original: string }
+        Returns: {
+          type_detecte: string
+          statut_validation: string
+          commentaire: string
+        }[]
+      }
+      generate_teacher_token: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       is_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean

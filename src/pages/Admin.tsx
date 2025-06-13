@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,6 +22,7 @@ import { DataConsistencyChecker } from "@/components/DataConsistencyChecker";
 import { SensitiveDataManager } from "@/components/SensitiveDataManager";
 import SurveillanceHistory from "@/components/SurveillanceHistory";
 import { DemandeChangement } from "@/components/DemandeChangement";
+import { ExamenAdvancedManager } from "@/components/ExamenAdvancedManager";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("dashboard");
@@ -148,6 +148,9 @@ const Admin = () => {
       
       case "examens":
         return <ExamenReviewManager />;
+      
+      case "examens-advanced":
+        return <ExamenAdvancedManager />;
       
       case "candidats":
         return <CandidatsSurveillance />;
