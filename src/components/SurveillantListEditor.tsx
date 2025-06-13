@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,7 +13,7 @@ import { useActiveSession } from "@/hooks/useSessions";
 import { useSurveillantSensitiveData } from "@/hooks/useSurveillantSensitiveData";
 import { SensitiveDataManager } from "./SensitiveDataManager";
 import { supabase } from "@/integrations/supabase/client";
-import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin, Search, Filter, SortAsc, SortDesc } from "lucide-react";
+import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin, Search, Filter, SortAsc, SortDesc, CheckSquare, Square } from "lucide-react";
 
 interface SurveillantData {
   id: string;
@@ -46,8 +47,13 @@ export const SurveillantListEditor = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [faculteFilter, setFaculteFilter] = useState<string>("all");
+  const [affectationFilter, setAffectationFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField>('nom');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  
+  // Sélection en masse
+  const [selectedSurvaillants, setSelectedSurvaillants] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
   
   const { data: activeSession } = useActiveSession();
   const {
@@ -142,6 +148,12 @@ export const SurveillantListEditor = () => {
       // Filtre par faculté interdite
       if (faculteFilter !== "all" && s.faculte_interdite !== faculteFilter) return false;
 
+      // Filtre par affectation
+      if (affectationFilter !== "all") {
+        if (affectationFilter === "none" && s.affectation_fac !== null) return false;
+        if (affectationFilter !== "none" && s.affectation_fac !== affectationFilter) return false;
+      }
+
       return true;
     });
 
@@ -166,7 +178,75 @@ export const SurveillantListEditor = () => {
     });
 
     return filtered;
-  }, [surveillants, activeTab, searchTerm, typeFilter, faculteFilter, sortField, sortDirection]);
+  }, [surveillants, activeTab, searchTerm, typeFilter, faculteFilter, affectationFilter, sortField, sortDirection]);
+
+  // Gestion de la sélection en masse
+  const handleSelectAll = (checked: boolean) => {
+    setSelectAll(checked);
+    if (checked) {
+      const newSelected = new Set(filteredAndSortedSurvaillants.map(s => s.id));
+      setSelectedSurvaillants(newSelected);
+    } else {
+      setSelectedSurvaillants(new Set());
+    }
+  };
+
+  const handleSelectSurveillant = (surveillantId: string, checked: boolean) => {
+    const newSelected = new Set(selectedSurvaillants);
+    if (checked) {
+      newSelected.add(surveillantId);
+    } else {
+      newSelected.delete(surveillantId);
+      setSelectAll(false);
+    }
+    setSelectedSurvaillants(newSelected);
+  };
+
+  // Actions en masse
+  const handleBulkActivation = async (activate: boolean) => {
+    if (selectedSurvaillants.size === 0) {
+      toast({
+        title: "Aucune sélection",
+        description: "Veuillez sélectionner au moins un surveillant.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const updates = Array.from(selectedSurvaillants).map(surveillantId => 
+        supabase
+          .from('surveillant_sessions')
+          .update({ is_active: activate })
+          .eq('surveillant_id', surveillantId)
+          .eq('session_id', activeSession!.id)
+      );
+
+      await Promise.all(updates);
+
+      // Mettre à jour l'état local
+      setSurvaillants(prev => prev.map(s => 
+        selectedSurvaillants.has(s.id) ? { ...s, is_active: activate } : s
+      ));
+
+      setSelectedSurvaillants(new Set());
+      setSelectAll(false);
+
+      toast({
+        title: "Mise à jour réussie",
+        description: `${selectedSurvaillants.size} surveillant(s) ${activate ? 'activé(s)' : 'désactivé(s)'}.`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour les surveillants",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Statistiques pour les badges
   const stats = useMemo(() => {
@@ -465,7 +545,63 @@ export const SurveillantListEditor = () => {
                   ))}
                 </SelectContent>
               </Select>
+
+              <Select value={affectationFilter} onValueChange={setAffectationFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Affectation" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes affectations</SelectItem>
+                  <SelectItem value="none">Non renseigné</SelectItem>
+                  {affectationOptions.slice(1).map((affectation) => (
+                    <SelectItem key={affectation.value} value={affectation.value}>
+                      {affectation.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
+            {/* Actions de sélection en masse */}
+            {selectedSurvaillants.size > 0 && (
+              <div className="flex items-center justify-between bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <CheckSquare className="h-4 w-4 text-blue-600" />
+                  <span className="text-blue-800">
+                    {selectedSurvaillants.size} surveillant(s) sélectionné(s)
+                  </span>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkActivation(true)}
+                    disabled={saving}
+                  >
+                    Activer
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBulkActivation(false)}
+                    disabled={saving}
+                  >
+                    Désactiver
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedSurvaillants(new Set());
+                      setSelectAll(false);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Onglets avec statistiques */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -527,6 +663,12 @@ export const SurveillantListEditor = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        checked={selectAll}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
                     <SortableHeader field="nom">Nom</SortableHeader>
                     <SortableHeader field="prenom">Prénom</SortableHeader>
                     <SortableHeader field="email">Email</SortableHeader>
@@ -566,6 +708,14 @@ export const SurveillantListEditor = () => {
                           contractExpiring ? 'bg-orange-50' : ''
                         }
                       >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedSurvaillants.has(surveillant.id)}
+                            onCheckedChange={(checked) => 
+                              handleSelectSurveillant(surveillant.id, checked as boolean)
+                            }
+                          />
+                        </TableCell>
                         <TableCell>
                           {editingId === surveillant.id ? (
                             <EditableCell
