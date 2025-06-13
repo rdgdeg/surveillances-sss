@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { ClipboardList, Users, Save, Eye, Building2, Search } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ClipboardList, Users, Save, Eye, Building2, Search, Check, CheckCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatDateBelgian } from "@/lib/dateUtils";
 
@@ -100,6 +101,7 @@ export const ExamenReviewManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedGroupes, setSelectedGroupes] = useState<Set<string>>(new Set());
 
   const { data: examens, isLoading } = useQuery({
     queryKey: ['examens-review', activeSession?.id],
@@ -278,6 +280,36 @@ export const ExamenReviewManager = () => {
     }
   });
 
+  const validateExamensMutation = useMutation({
+    mutationFn: async (groupes: ExamenGroupe[]) => {
+      const examensToValidate = groupes.flatMap(groupe => groupe.examens);
+      
+      for (const examen of examensToValidate) {
+        const { error } = await supabase
+          .from('examens')
+          .update({ statut_validation: 'VALIDE' })
+          .eq('id', examen.id);
+
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, groupes) => {
+      queryClient.invalidateQueries({ queryKey: ['examens-review'] });
+      setSelectedGroupes(new Set());
+      toast({
+        title: "Examens validés",
+        description: `${groupes.length} groupe(s) d'examens ont été validés avec succès.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de valider les examens.",
+        variant: "destructive"
+      });
+    }
+  });
+
   const applquerContraintesAuditoiresMutation = useMutation({
     mutationFn: async () => {
       if (!examens || !contraintesAuditoires) return;
@@ -329,6 +361,42 @@ export const ExamenReviewManager = () => {
       groupe,
       updates
     });
+  };
+
+  const handleValidateGroupe = (groupe: ExamenGroupe) => {
+    validateExamensMutation.mutate([groupe]);
+  };
+
+  const handleValidateSelected = () => {
+    const groupesToValidate = filteredExamens.filter(groupe => {
+      const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
+      return selectedGroupes.has(groupeKey);
+    });
+    
+    if (groupesToValidate.length > 0) {
+      validateExamensMutation.mutate(groupesToValidate);
+    }
+  };
+
+  const handleSelectGroupe = (groupeKey: string, selected: boolean) => {
+    const newSelected = new Set(selectedGroupes);
+    if (selected) {
+      newSelected.add(groupeKey);
+    } else {
+      newSelected.delete(groupeKey);
+    }
+    setSelectedGroupes(newSelected);
+  };
+
+  const handleSelectAll = (selected: boolean) => {
+    if (selected) {
+      const allKeys = filteredExamens.map(groupe => 
+        `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`
+      );
+      setSelectedGroupes(new Set(allKeys));
+    } else {
+      setSelectedGroupes(new Set());
+    }
   };
 
   const getFieldValue = (groupe: ExamenGroupe, field: keyof ExamenGroupe) => {
@@ -411,6 +479,16 @@ export const ExamenReviewManager = () => {
               <Building2 className="h-4 w-4 mr-2" />
               Appliquer contraintes auditoires
             </Button>
+            {selectedGroupes.size > 0 && (
+              <Button
+                onClick={handleValidateSelected}
+                disabled={validateExamensMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Valider sélection ({selectedGroupes.size})
+              </Button>
+            )}
           </div>
 
           {/* Information sur les statuts NON_TRAITE */}
@@ -426,6 +504,12 @@ export const ExamenReviewManager = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedGroupes.size === filteredExamens.length && filteredExamens.length > 0}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Code/Matière</TableHead>
                   <TableHead>Date/Heure</TableHead>
                   <TableHead>Auditoire</TableHead>
@@ -442,9 +526,16 @@ export const ExamenReviewManager = () => {
                 {filteredExamens?.map((groupe) => {
                   const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
                   const contrainteUnifiee = getContrainteUnifiee(groupe.auditoire_unifie, contraintesAuditoires || []);
+                  const isSelected = selectedGroupes.has(groupeKey);
                   
                   return (
                     <TableRow key={groupeKey} className="hover:bg-gray-50">
+                      <TableCell>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => handleSelectGroupe(groupeKey, !!checked)}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="space-y-1">
                           <div className="font-mono text-sm">{groupe.code_examen}</div>
@@ -478,7 +569,7 @@ export const ExamenReviewManager = () => {
                         <Input
                           type="number"
                           min="0"
-                          value={getFieldValue(groupe, 'nombre_surveillants_total')}
+                          value={getFieldValue(groupe, 'nombre_surveillants_total') as number}
                           onChange={(e) => handleFieldChange(groupeKey, 'nombre_surveillants_total', parseInt(e.target.value) || 0)}
                           className="w-20"
                         />
@@ -492,7 +583,7 @@ export const ExamenReviewManager = () => {
                         <Input
                           type="number"
                           min="0"
-                          value={getFieldValue(groupe, 'surveillants_enseignant_total')}
+                          value={getFieldValue(groupe, 'surveillants_enseignant_total') as number}
                           onChange={(e) => handleFieldChange(groupeKey, 'surveillants_enseignant_total', parseInt(e.target.value) || 0)}
                           className="w-20"
                         />
@@ -501,7 +592,7 @@ export const ExamenReviewManager = () => {
                         <Input
                           type="number"
                           min="0"
-                          value={getFieldValue(groupe, 'surveillants_amenes_total')}
+                          value={getFieldValue(groupe, 'surveillants_amenes_total') as number}
                           onChange={(e) => handleFieldChange(groupeKey, 'surveillants_amenes_total', parseInt(e.target.value) || 0)}
                           className="w-20"
                         />
@@ -510,7 +601,7 @@ export const ExamenReviewManager = () => {
                         <Input
                           type="number"
                           min="0"
-                          value={getFieldValue(groupe, 'surveillants_pre_assignes_total')}
+                          value={getFieldValue(groupe, 'surveillants_pre_assignes_total') as number}
                           onChange={(e) => handleFieldChange(groupeKey, 'surveillants_pre_assignes_total', parseInt(e.target.value) || 0)}
                           className="w-20"
                         />
@@ -533,6 +624,15 @@ export const ExamenReviewManager = () => {
                             disabled={!editingExamens[groupeKey] || updateExamenMutation.isPending}
                           >
                             <Save className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleValidateGroupe(groupe)}
+                            disabled={validateExamensMutation.isPending}
+                            className="border-green-200 hover:bg-green-50"
+                          >
+                            <Check className="h-4 w-4 text-green-600" />
                           </Button>
                         </div>
                       </TableCell>
