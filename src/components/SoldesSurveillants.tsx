@@ -20,56 +20,52 @@ interface SoldeSurveillant {
   sessions_imposees: number;
 }
 
-interface ViewData {
-  surveillant_id: string | null;
-  nom: string | null;
-  prenom: string | null;
-  email: string | null;
-  surveillant_type: string | null;
-  quota: number | null;
-  attributions_actuelles: number | null;
-  sessions_imposees: number | null;
-}
-
 export const SoldesSurveillants = () => {
   const { data: activeSession } = useActiveSession();
 
-  const { data: soldes, isLoading } = useQuery({
+  const { data: soldes, isLoading } = useQuery<SoldeSurveillant[]>({
     queryKey: ['soldes-surveillants', activeSession?.id],
     queryFn: async () => {
-      if (!activeSession?.id) return [] as SoldeSurveillant[];
+      if (!activeSession?.id) {
+        return [];
+      }
 
       const { data, error } = await supabase
         .from('surveillance_assignments_view')
         .select('surveillant_id, nom, prenom, email, surveillant_type, quota, attributions_actuelles, sessions_imposees')
         .eq('session_id', activeSession.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching soldes:', error);
+        throw error;
+      }
+
+      if (!data) {
+        return [];
+      }
 
       // Grouper par surveillant et calculer les soldes
       const surveillantsMap = new Map<string, SoldeSurveillant>();
       
-      if (data) {
-        data.forEach((row: ViewData) => {
-          if (row.surveillant_id && !surveillantsMap.has(row.surveillant_id)) {
-            const attributions = row.attributions_actuelles || 0;
-            const quota = row.quota || 0;
-            const solde = quota - attributions;
-            
-            surveillantsMap.set(row.surveillant_id, {
-              id: row.surveillant_id,
-              nom: row.nom || '',
-              prenom: row.prenom || '',
-              email: row.email || '',
-              type: row.surveillant_type || '',
-              quota: quota,
-              attributions_actuelles: attributions,
-              solde: solde,
-              sessions_imposees: row.sessions_imposees || 0
-            });
-          }
-        });
-      }
+      data.forEach((row) => {
+        if (row.surveillant_id && !surveillantsMap.has(row.surveillant_id)) {
+          const attributions = row.attributions_actuelles || 0;
+          const quota = row.quota || 0;
+          const solde = quota - attributions;
+          
+          surveillantsMap.set(row.surveillant_id, {
+            id: row.surveillant_id,
+            nom: row.nom || '',
+            prenom: row.prenom || '',
+            email: row.email || '',
+            type: row.surveillant_type || '',
+            quota: quota,
+            attributions_actuelles: attributions,
+            solde: solde,
+            sessions_imposees: row.sessions_imposees || 0
+          });
+        }
+      });
 
       return Array.from(surveillantsMap.values());
     },
