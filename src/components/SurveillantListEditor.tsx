@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
 import { useSurveillantSensitiveData } from "@/hooks/useSurveillantSensitiveData";
 import { SensitiveDataManager } from "./SensitiveDataManager";
 import { supabase } from "@/integrations/supabase/client";
-import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin } from "lucide-react";
+import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin, Search, Filter, SortAsc, SortDesc } from "lucide-react";
 
 interface SurveillantData {
   id: string;
@@ -32,11 +32,23 @@ interface SurveillantData {
   campus: string | null;
 }
 
+type SortField = 'nom' | 'prenom' | 'email' | 'type' | 'quota' | 'date_fin_contrat';
+type SortDirection = 'asc' | 'desc';
+
 export const SurveillantListEditor = () => {
   const [surveillants, setSurvaillants] = useState<SurveillantData[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("actifs");
+  
+  // Filtres et recherche
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [faculteFilter, setFaculteFilter] = useState<string>("all");
+  const [sortField, setSortField] = useState<SortField>('nom');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  
   const { data: activeSession } = useActiveSession();
   const {
     showSensitiveData,
@@ -98,6 +110,81 @@ export const SurveillantListEditor = () => {
       setLoading(false);
     }
   };
+
+  // Fonction pour déterminer si un contrat est expiré
+  const isContractExpired = (dateFinContrat: string | null): boolean => {
+    if (!dateFinContrat) return false;
+    const today = new Date();
+    const contractEnd = new Date(dateFinContrat);
+    return contractEnd < today;
+  };
+
+  // Filtrage et tri des surveillants
+  const filteredAndSortedSurvaillants = useMemo(() => {
+    let filtered = surveillants.filter(s => {
+      // Filtre par onglet actif
+      if (activeTab === "actifs" && !s.is_active) return false;
+      if (activeTab === "inactifs" && s.is_active) return false;
+      if (activeTab === "expires") {
+        const contractExpired = isContractExpired(s.date_fin_contrat);
+        const contractExpiring = isContractExpiringSoon(s.date_fin_contrat);
+        if (!contractExpired && !contractExpiring) return false;
+      }
+
+      // Filtre par terme de recherche
+      if (searchTerm && !`${s.nom} ${s.prenom} ${s.email}`.toLowerCase().includes(searchTerm.toLowerCase())) {
+        return false;
+      }
+
+      // Filtre par type
+      if (typeFilter !== "all" && s.type !== typeFilter) return false;
+
+      // Filtre par faculté interdite
+      if (faculteFilter !== "all" && s.faculte_interdite !== faculteFilter) return false;
+
+      return true;
+    });
+
+    // Tri
+    filtered.sort((a, b) => {
+      let aValue = a[sortField];
+      let bValue = b[sortField];
+
+      if (sortField === 'date_fin_contrat') {
+        aValue = aValue ? new Date(aValue as string).getTime() : 0;
+        bValue = bValue ? new Date(bValue as string).getTime() : 0;
+      }
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return filtered;
+  }, [surveillants, activeTab, searchTerm, typeFilter, faculteFilter, sortField, sortDirection]);
+
+  // Statistiques pour les badges
+  const stats = useMemo(() => {
+    const actifs = surveillants.filter(s => s.is_active);
+    const inactifs = surveillants.filter(s => !s.is_active);
+    const expires = surveillants.filter(s => 
+      isContractExpired(s.date_fin_contrat) || isContractExpiringSoon(s.date_fin_contrat)
+    );
+    const exclus = surveillants.filter(s => 
+      shouldExcludeFromAssignment({ 
+        affectation_fac: s.affectation_fac, 
+        date_fin_contrat: s.date_fin_contrat, 
+        statut: 'actif' 
+      }).exclude
+    );
+
+    return { actifs, inactifs, expires, exclus };
+  }, [surveillants, shouldExcludeFromAssignment]);
 
   const updateSurveillant = async (id: string, updatedData: Partial<SurveillantData>) => {
     setSaving(true);
@@ -163,16 +250,13 @@ export const SurveillantListEditor = () => {
     }
   };
 
-  const handleEdit = (id: string) => {
-    setEditingId(id);
-  };
-
-  const handleCancel = () => {
-    setEditingId(null);
-  };
-
-  const handleSave = (surveillant: SurveillantData) => {
-    updateSurveillant(surveillant.id, surveillant);
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
   };
 
   const EditableCell = ({ 
@@ -304,16 +388,18 @@ export const SurveillantListEditor = () => {
     );
   }
 
-  const excludedSurvaillants = surveillants.filter(s => 
-    shouldExcludeFromAssignment({ 
-      affectation_fac: s.affectation_fac, 
-      date_fin_contrat: s.date_fin_contrat, 
-      statut: 'actif' 
-    }).exclude
-  );
-
-  const expiringSoon = surveillants.filter(s => 
-    isContractExpiringSoon(s.date_fin_contrat)
+  const SortableHeader = ({ field, children }: { field: SortField, children: React.ReactNode }) => (
+    <TableHead 
+      className="cursor-pointer hover:bg-gray-50" 
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center space-x-1">
+        <span>{children}</span>
+        {sortField === field && (
+          sortDirection === 'asc' ? <SortAsc className="h-3 w-3" /> : <SortDesc className="h-3 w-3" />
+        )}
+      </div>
+    </TableHead>
   );
 
   return (
@@ -327,76 +413,158 @@ export const SurveillantListEditor = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Users className="h-5 w-5" />
-            <span>Éditeur de Liste des Surveillants</span>
+            <span>Gestion des Surveillants</span>
           </CardTitle>
           <CardDescription>
-            Modifiez les informations, quotas et données sensibles des surveillants avant l'attribution.
+            Gérez les surveillants par catégorie avec filtres et options de recherche avancées.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                {surveillants.length} surveillant(s) dans la session active
+            {/* Filtres et recherche */}
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex-1 min-w-[250px]">
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Rechercher par nom, prénom ou email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Badge variant="outline" className="text-green-600">
-                  {surveillants.filter(s => s.is_active).length} Actifs
-                </Badge>
-                <Badge variant="outline" className="text-gray-600">
-                  {surveillants.filter(s => !s.is_active).length} Inactifs
-                </Badge>
-                {excludedSurvaillants.length > 0 && (
-                  <Badge variant="destructive">
-                    {excludedSurvaillants.length} Exclus
-                  </Badge>
-                )}
-                {expiringSoon.length > 0 && (
-                  <Badge variant="outline" className="text-orange-600">
-                    <AlertTriangle className="h-3 w-3 mr-1" />
-                    {expiringSoon.length} Contrats exp.
-                  </Badge>
-                )}
-              </div>
+              
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les types</SelectItem>
+                  {typeOptions.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={faculteFilter} onValueChange={setFaculteFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue placeholder="Faculté" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Toutes facultés</SelectItem>
+                  <SelectItem value="none">Aucune restriction</SelectItem>
+                  {faculteOptions.slice(1).map((faculte) => (
+                    <SelectItem key={faculte.value} value={faculte.value}>
+                      {faculte.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
+            {/* Onglets avec statistiques */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="actifs" className="flex items-center space-x-2">
+                  <span>Actifs</span>
+                  <Badge variant="outline" className="text-green-600">
+                    {stats.actifs.length}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="inactifs" className="flex items-center space-x-2">
+                  <span>Inactifs</span>
+                  <Badge variant="outline" className="text-gray-600">
+                    {stats.inactifs.length}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="expires" className="flex items-center space-x-2">
+                  <span>Contrats expirés/expirant</span>
+                  <Badge variant="outline" className="text-orange-600">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {stats.expires.length}
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="actifs" className="mt-4">
+                <div className="text-sm text-gray-600 mb-2">
+                  {filteredAndSortedSurvaillants.length} surveillant(s) actif(s) affiché(s)
+                </div>
+              </TabsContent>
+
+              <TabsContent value="inactifs" className="mt-4">
+                <div className="text-sm text-gray-600 mb-2">
+                  {filteredAndSortedSurvaillants.length} surveillant(s) inactif(s) affiché(s)
+                </div>
+              </TabsContent>
+
+              <TabsContent value="expires" className="mt-4">
+                <div className="text-sm text-orange-600 mb-2">
+                  {filteredAndSortedSurvaillants.length} surveillant(s) avec contrat expiré ou expirant prochainement
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {/* Informations additionnelles */}
+            {stats.exclus.length > 0 && (
+              <div className="flex items-center space-x-2">
+                <Badge variant="destructive">
+                  {stats.exclus.length} Exclus de l'attribution
+                </Badge>
+                <span className="text-sm text-gray-500">
+                  (affectation FSM ou contrat expiré)
+                </span>
+              </div>
+            )}
+
+            {/* Tableau des surveillants */}
             <div className="border rounded-lg overflow-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>Prénom</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Type</TableHead>
+                    <SortableHeader field="nom">Nom</SortableHeader>
+                    <SortableHeader field="prenom">Prénom</SortableHeader>
+                    <SortableHeader field="email">Email</SortableHeader>
+                    <SortableHeader field="type">Type</SortableHeader>
                     <TableHead>Faculté interdite</TableHead>
                     {showSensitiveData && (
                       <>
                         <TableHead>EFT</TableHead>
                         <TableHead>Affectation</TableHead>
-                        <TableHead>Fin contrat</TableHead>
+                        <SortableHeader field="date_fin_contrat">Fin contrat</SortableHeader>
                         <TableHead>GSM</TableHead>
                         <TableHead>Campus</TableHead>
                       </>
                     )}
-                    <TableHead>Quota</TableHead>
+                    <SortableHeader field="quota">Quota</SortableHeader>
                     <TableHead>Sessions imposées</TableHead>
                     <TableHead>Actif</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {surveillants.map((surveillant) => {
+                  {filteredAndSortedSurvaillants.map((surveillant) => {
                     const exclusionInfo = shouldExcludeFromAssignment({
                       affectation_fac: surveillant.affectation_fac,
                       date_fin_contrat: surveillant.date_fin_contrat,
                       statut: 'actif'
                     });
                     const contractExpiring = isContractExpiringSoon(surveillant.date_fin_contrat);
+                    const contractExpired = isContractExpired(surveillant.date_fin_contrat);
 
                     return (
                       <TableRow 
                         key={surveillant.id}
-                        className={exclusionInfo.exclude ? 'bg-red-50' : contractExpiring ? 'bg-orange-50' : ''}
+                        className={
+                          exclusionInfo.exclude ? 'bg-red-50' : 
+                          contractExpired ? 'bg-red-100' :
+                          contractExpiring ? 'bg-orange-50' : ''
+                        }
                       >
                         <TableCell>
                           {editingId === surveillant.id ? (
@@ -412,6 +580,11 @@ export const SurveillantListEditor = () => {
                               {exclusionInfo.exclude && (
                                 <div title={exclusionInfo.reason}>
                                   <AlertTriangle className="h-3 w-3 text-red-500" />
+                                </div>
+                              )}
+                              {contractExpired && (
+                                <div title="Contrat expiré">
+                                  <AlertTriangle className="h-3 w-3 text-red-600" />
                                 </div>
                               )}
                             </div>
@@ -527,7 +700,12 @@ export const SurveillantListEditor = () => {
                                   <span className="text-sm">
                                     {formatSensitiveDisplay(surveillant.date_fin_contrat, 'date')}
                                   </span>
-                                  {contractExpiring && (
+                                  {contractExpired && (
+                                    <div title="Contrat expiré">
+                                      <AlertTriangle className="h-3 w-3 text-red-600" />
+                                    </div>
+                                  )}
+                                  {contractExpiring && !contractExpired && (
                                     <div title="Contrat expire bientôt">
                                       <Calendar className="h-3 w-3 text-orange-500" />
                                     </div>
@@ -651,6 +829,12 @@ export const SurveillantListEditor = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {filteredAndSortedSurvaillants.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                Aucun surveillant trouvé avec les filtres actuels.
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
