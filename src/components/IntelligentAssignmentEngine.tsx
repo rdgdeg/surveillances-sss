@@ -24,6 +24,40 @@ interface AssignmentResult {
   warnings: string[];
 }
 
+interface SurveillantsData {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  type: string;
+  faculte_interdite: string | null;
+  surveillant_sessions: {
+    quota: number;
+    sessions_imposees: number | null;
+    is_active: boolean;
+  }[];
+}
+
+interface ExamensData {
+  id: string;
+  session_id: string;
+  date_examen: string;
+  heure_debut: string;
+  heure_fin: string;
+  matiere: string;
+  salle: string;
+  nombre_surveillants: number;
+  type_requis: string;
+  faculte: string | null;
+  auditoire_original: string | null;
+  created_at: string;
+  updated_at: string;
+  surveillants_a_attribuer: number | null;
+  surveillants_amenes: number | null;
+  surveillants_enseignant: number | null;
+  surveillants_pre_assignes: number | null;
+}
+
 export const IntelligentAssignmentEngine = () => {
   const [isAssigning, setIsAssigning] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -49,14 +83,14 @@ export const IntelligentAssignmentEngine = () => {
       setProgress(10);
       console.log("🔄 Récupération des données...");
 
-      const { data: examens } = await supabase
+      const { data: examens, error: examensError } = await supabase
         .from('examens')
         .select('*')
         .eq('session_id', activeSession.id)
         .order('date_examen', { ascending: true })
         .order('heure_debut', { ascending: true });
 
-      const { data: surveillants } = await supabase
+      const { data: surveillantsRaw, error: surveillantsError } = await supabase
         .from('surveillants')
         .select(`
           id, nom, prenom, email, type, faculte_interdite,
@@ -65,26 +99,33 @@ export const IntelligentAssignmentEngine = () => {
         .eq('statut', 'actif')
         .eq('surveillant_sessions.session_id', activeSession.id);
 
-      const { data: disponibilites } = await supabase
+      const { data: disponibilites, error: dispError } = await supabase
         .from('disponibilites')
         .select('*')
         .eq('session_id', activeSession.id)
         .eq('est_disponible', true);
 
-      const { data: contraintes } = await supabase
+      const { data: contraintes, error: contrError } = await supabase
         .from('contraintes_salles')
         .select('*')
         .eq('session_id', activeSession.id);
 
-      const { data: preAssignations } = await supabase
+      const { data: preAssignations, error: preError } = await supabase
         .from('attributions')
         .select('*')
         .eq('session_id', activeSession.id)
         .eq('is_pre_assigne', true);
 
-      if (!examens || !surveillants || !disponibilites) {
+      if (examensError || surveillantsError || dispError || contrError || preError) {
+        throw new Error(`Erreur lors de la récupération des données: ${examensError?.message || surveillantsError?.message || dispError?.message || contrError?.message || preError?.message}`);
+      }
+
+      if (!examens || !surveillantsRaw || !disponibilites) {
         throw new Error("Données manquantes pour l'attribution");
       }
+
+      // Typer correctement les surveillants
+      const surveillants = surveillantsRaw as SurveillantsData[];
 
       // Filtrer les surveillants actifs pour l'attribution automatique
       const surveillantsActifs = surveillants.filter(s => 
@@ -141,7 +182,7 @@ export const IntelligentAssignmentEngine = () => {
       });
 
       for (let i = 0; i < examens.length; i++) {
-        const examen = examens[i];
+        const examen = examens[i] as ExamensData;
         const examProgress = 50 + (i / examens.length) * 40;
         setProgress(examProgress);
 

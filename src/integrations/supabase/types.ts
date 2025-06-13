@@ -299,8 +299,10 @@ export type Database = {
       }
       examens: {
         Row: {
+          auditoire_original: string | null
           created_at: string
           date_examen: string
+          faculte: string | null
           heure_debut: string
           heure_fin: string
           id: string
@@ -316,8 +318,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auditoire_original?: string | null
           created_at?: string
           date_examen: string
+          faculte?: string | null
           heure_debut: string
           heure_fin: string
           id?: string
@@ -333,8 +337,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auditoire_original?: string | null
           created_at?: string
           date_examen?: string
+          faculte?: string | null
           heure_debut?: string
           heure_fin?: string
           id?: string
@@ -547,6 +553,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string
+          faculte_interdite: string | null
           id: string
           nom: string
           prenom: string
@@ -558,6 +565,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email: string
+          faculte_interdite?: string | null
           id?: string
           nom: string
           prenom: string
@@ -569,6 +577,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string
+          faculte_interdite?: string | null
           id?: string
           nom?: string
           prenom?: string

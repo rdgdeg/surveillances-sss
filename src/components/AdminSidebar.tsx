@@ -15,7 +15,8 @@ import {
   MessageSquare,
   Building2,
   ClipboardList,
-  Users
+  Users,
+  UserCheck
 } from "lucide-react";
 
 import {
@@ -123,6 +124,15 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
                 >
                   <Users className="h-4 w-4" />
                   <span>Candidats Surveillance</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onViewChange("surveillant-list-editor")}
+                  isActive={activeView === "surveillant-list-editor"}
+                >
+                  <UserCheck className="h-4 w-4" />
+                  <span>Éditer Surveillants</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

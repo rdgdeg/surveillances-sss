@@ -1,357 +1,277 @@
+
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, FileSpreadsheet } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { Download, FileText, Calendar, Users } from "lucide-react";
 import * as XLSX from 'xlsx';
-import { formatDateBelgian } from "@/lib/dateUtils";
-
-interface Template {
-  name: string;
-  description: string;
-  filename: string;
-  columns: string[];
-  instructions: string[];
-  examples: any[];
-}
-
-const templates: Template[] = [
-  {
-    name: "Surveillants",
-    description: "Liste des surveillants avec informations personnelles et type",
-    filename: "template_surveillants.xlsx",
-    columns: ["Nom", "Prénom", "Email", "Type", "Statut"],
-    instructions: [
-      "1. Remplissez une ligne par surveillant",
-      "2. Type doit être: PAT, Assistant, ou Jobiste",
-      "3. Statut doit être: actif ou inactif",
-      "4. L'email doit être unique et valide (clé de recoupement)",
-      "5. Tous les champs sont obligatoires sauf le statut (par défaut: actif)",
-      "6. Cette liste servira de référence pour tous les autres fichiers"
-    ],
-    examples: [
-      ["Dupont", "Marie", "marie.dupont@uclouvain.be", "PAT", "actif"],
-      ["Martin", "Jean", "jean.martin@uclouvain.be", "Assistant", "actif"],
-      ["Durand", "Sophie", "sophie.durand@uclouvain.be", "Jobiste", "actif"]
-    ]
-  },
-  {
-    name: "Examens",
-    description: "Planning des examens avec salles et contraintes",
-    filename: "template_examens.xlsx",
-    columns: ["Date", "Heure début", "Heure fin", "Matière", "Salle", "Nombre surveillants", "Type requis"],
-    instructions: [
-      "1. Date au format YYYY-MM-DD (ex: 2025-01-15)",
-      "2. Heures au format HH:MM (ex: 08:00)",
-      "3. Type requis: PAT, Assistant, ou Jobiste",
-      "4. Nombre surveillants: nombre entier positif",
-      "5. Vérifiez qu'il n'y a pas de conflits d'horaires dans la même salle",
-      "6. Ces créneaux serviront de base pour la matrice des disponibilités"
-    ],
-    examples: [
-      ["2025-01-15", "08:00", "10:00", "Mathématiques L1", "Amphi A", 2, "PAT"],
-      ["2025-01-15", "10:30", "12:30", "Physique L2", "Salle 203", 1, "Assistant"],
-      ["2025-01-16", "14:00", "16:00", "Chimie L3", "Labo 101", 3, "Jobiste"]
-    ]
-  },
-  {
-    name: "Disponibilités",
-    description: "Matrice des disponibilités par surveillant et créneau",
-    filename: "template_disponibilites.xlsx",
-    columns: ["Email", "Date", "Heure début", "Heure fin", "Disponible"],
-    instructions: [
-      "1. Email doit correspondre EXACTEMENT à un surveillant de la liste",
-      "2. Date au format YYYY-MM-DD",
-      "3. Heures au format HH:MM",
-      "4. Disponible: OUI ou NON (ou 1/0)",
-      "5. Chaque ligne = une disponibilité pour un créneau spécifique",
-      "6. IMPORTANT: Tous les surveillants actifs doivent avoir leurs disponibilités",
-      "7. Alternative: utilisez l'import Cally pour une matrice complète"
-    ],
-    examples: [
-      ["marie.dupont@uclouvain.be", "2025-01-15", "08:00", "10:00", "OUI"],
-      ["marie.dupont@uclouvain.be", "2025-01-15", "10:30", "12:30", "NON"],
-      ["jean.martin@uclouvain.be", "2025-01-15", "08:00", "10:00", "OUI"]
-    ]
-  },
-  {
-    name: "Indisponibilités",
-    description: "Périodes d'indisponibilité du personnel",
-    filename: "template_indisponibilites.xlsx",
-    columns: ["Email", "Date début", "Date fin", "Motif"],
-    instructions: [
-      "1. Email doit correspondre à un surveillant existant",
-      "2. Dates au format YYYY-MM-DD",
-      "3. Date début doit être <= Date fin",
-      "4. Motif est optionnel mais recommandé",
-      "5. Une ligne par période d'indisponibilité",
-      "6. ATTENTION: Les indisponibilités priment sur les disponibilités"
-    ],
-    examples: [
-      ["marie.dupont@uclouvain.be", "2025-01-10", "2025-01-12", "Congé maladie"],
-      ["jean.martin@uclouvain.be", "2025-01-20", "2025-01-20", "Formation"],
-      ["sophie.durand@uclouvain.be", "2025-01-25", "2025-01-27", "Congé personnel"]
-    ]
-  },
-  {
-    name: "Quotas",
-    description: "Quotas personnalisés par surveillant pour la session",
-    filename: "template_quotas.xlsx",
-    columns: ["Email", "Quota", "Sessions imposées"],
-    instructions: [
-      "1. Email doit correspondre EXACTEMENT à un surveillant existant",
-      "2. Quota: nombre maximum de surveillances par session",
-      "3. Sessions imposées: nombre de surveillances obligatoires",
-      "4. Sessions imposées doit être <= Quota",
-      "5. Quotas par défaut: PAT=12, Assistant=6, Jobiste=4",
-      "6. Ne listez que les surveillants avec des quotas différents du défaut"
-    ],
-    examples: [
-      ["marie.dupont@uclouvain.be", 15, 3],
-      ["jean.martin@uclouvain.be", 8, 1],
-      ["sophie.durand@uclouvain.be", 2, 0]
-    ]
-  },
-  {
-    name: "Pré-assignations",
-    description: "Surveillances obligatoires spécifiques par surveillant",
-    filename: "template_preassignations.xlsx",
-    columns: ["Email", "Date", "Heure début", "Heure fin", "Matière", "Salle", "Motif"],
-    instructions: [
-      "1. Email doit correspondre à un surveillant existant",
-      "2. Date au format YYYY-MM-DD",
-      "3. Heures au format HH:MM",
-      "4. Matière et Salle doivent correspondre à un examen existant",
-      "5. Motif: raison de l'assignation obligatoire",
-      "6. Ces assignations sont prioritaires sur l'attribution automatique",
-      "7. Vérifiez que le surveillant est disponible sur ce créneau"
-    ],
-    examples: [
-      ["marie.dupont@uclouvain.be", "2025-01-15", "08:00", "10:00", "Mathématiques L1", "Amphi A", "Responsable matière"],
-      ["jean.martin@uclouvain.be", "2025-01-16", "14:00", "16:00", "Physique L2", "Labo 201", "Spécialiste équipement"]
-    ]
-  }
-];
-
-const getExpectedFormat = (templateType: string) => {
-  switch (templateType) {
-    case 'surveillants':
-      return ['Nom', 'Prénom', 'Email', 'Type', 'Statut'];
-    case 'examens':
-      return ['Date (jj/mm/aaaa)', 'Heure début', 'Heure fin', 'Matière', 'Salle', 'Nombre surveillants', 'Type requis'];
-    case 'disponibilites':
-      return ['Email', 'Date (jj/mm/aaaa)', 'Heure début', 'Heure fin', 'Disponible'];
-    case 'quotas':
-      return ['Email', 'Quota', 'Sessions imposées'];
-    case 'indisponibilites':
-      return ['Email', 'Date début (jj/mm/aaaa)', 'Date fin (jj/mm/aaaa)', 'Motif'];
-    default:
-      return [];
-  }
-};
-
-const generateExcelTemplate = (template: Template) => {
-  try {
-    // Create a new workbook
-    const workbook = XLSX.utils.book_new();
-
-    // Create instructions sheet
-    const instructionsData = [
-      ["Instructions pour " + template.name],
-      [""],
-      ["Description:", template.description],
-      [""],
-      ["Instructions détaillées:"],
-      ...template.instructions.map(instruction => [instruction]),
-      [""],
-      ["Informations importantes:"],
-      ["- Respectez exactement les formats indiqués"],
-      ["- Ne modifiez pas les en-têtes de colonnes"],
-      ["- Sauvegardez le fichier au format Excel (.xlsx)"],
-      ["- En cas d'erreur, consultez l'onglet 'Exemples'"],
-      [""],
-      ["Support technique: admin@uclouvain.be"]
-    ];
-
-    const instructionsSheet = XLSX.utils.aoa_to_sheet(instructionsData);
-    
-    // Style the instructions sheet
-    if (!instructionsSheet['!cols']) instructionsSheet['!cols'] = [];
-    instructionsSheet['!cols'][0] = { width: 50 };
-    
-    XLSX.utils.book_append_sheet(workbook, instructionsSheet, "Instructions");
-
-    // Create main data sheet
-    const mainData = [
-      template.columns,
-      ...Array(10).fill(null).map(() => new Array(template.columns.length).fill(""))
-    ];
-
-    const mainSheet = XLSX.utils.aoa_to_sheet(mainData);
-    
-    // Style the main sheet
-    if (!mainSheet['!cols']) mainSheet['!cols'] = [];
-    template.columns.forEach((_, index) => {
-      mainSheet['!cols'][index] = { width: 20 };
-    });
-
-    // Add header styling
-    const headerRange = XLSX.utils.decode_range(mainSheet['!ref'] || 'A1');
-    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
-      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
-      if (!mainSheet[cellAddress]) continue;
-      if (!mainSheet[cellAddress].s) mainSheet[cellAddress].s = {};
-      mainSheet[cellAddress].s.font = { bold: true };
-      mainSheet[cellAddress].s.fill = { fgColor: { rgb: "CCCCCC" } };
-    }
-
-    XLSX.utils.book_append_sheet(workbook, mainSheet, "Données");
-
-    // Create examples sheet
-    const examplesData = [
-      template.columns,
-      ...template.examples
-    ];
-
-    const examplesSheet = XLSX.utils.aoa_to_sheet(examplesData);
-    
-    // Style the examples sheet
-    if (!examplesSheet['!cols']) examplesSheet['!cols'] = [];
-    template.columns.forEach((_, index) => {
-      examplesSheet['!cols'][index] = { width: 20 };
-    });
-
-    XLSX.utils.book_append_sheet(workbook, examplesSheet, "Exemples");
-
-    // Create validation sheet with allowed values
-    const validationData = [
-      ["Valeurs autorisées"],
-      [""],
-      ["Types de surveillants:", "PAT, Assistant, Jobiste"],
-      ["Statuts:", "actif, inactif"],
-      ["Format date:", "YYYY-MM-DD (ex: 2025-01-15)"],
-      ["Format heure:", "HH:MM (ex: 08:00)"],
-      [""],
-      ["Quotas par défaut:"],
-      ["PAT:", "12 surveillances"],
-      ["Assistant:", "6 surveillances"],
-      ["Jobiste:", "4 surveillances"]
-    ];
-
-    const validationSheet = XLSX.utils.aoa_to_sheet(validationData);
-    if (!validationSheet['!cols']) validationSheet['!cols'] = [];
-    validationSheet['!cols'][0] = { width: 25 };
-    validationSheet['!cols'][1] = { width: 30 };
-
-    XLSX.utils.book_append_sheet(workbook, validationSheet, "Validation");
-
-    // Generate and download the file
-    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', template.filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-  } catch (error) {
-    console.error('Erreur lors de la génération du fichier Excel:', error);
-    throw new Error('Impossible de générer le fichier Excel');
-  }
-};
+import { toast } from "@/hooks/use-toast";
 
 export const TemplateDownloader = () => {
-  const handleDownload = (template: Template) => {
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const createExcelTemplate = (type: string, data: any[], filename: string) => {
+    setDownloading(type);
+    
     try {
-      generateExcelTemplate(template);
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Template");
+      
+      // Ajuster la largeur des colonnes
+      const colWidths = Object.keys(data[0] || {}).map(() => ({ wch: 20 }));
+      ws['!cols'] = colWidths;
+      
+      XLSX.writeFile(wb, filename);
+      
       toast({
-        title: "Template Excel téléchargé",
-        description: `Le template ${template.name} a été téléchargé avec succès. L'email est la clé de recoupement entre tous les fichiers.`,
+        title: "Template téléchargé",
+        description: `Le fichier ${filename} a été téléchargé avec succès.`,
       });
-    } catch (error: any) {
+    } catch (error) {
       toast({
-        title: "Erreur de téléchargement",
-        description: error.message || "Une erreur s'est produite lors du téléchargement.",
+        title: "Erreur",
+        description: "Impossible de générer le template.",
         variant: "destructive"
       });
+    } finally {
+      setDownloading(null);
     }
   };
+
+  const downloadSurveillantTemplate = () => {
+    const templateData = [
+      {
+        nom: "Dupont",
+        prenom: "Jean", 
+        email: "jean.dupont@uclouvain.be",
+        type: "PAT",
+        faculte_interdite: "FASB"
+      },
+      {
+        nom: "Martin",
+        prenom: "Marie",
+        email: "marie.martin@uclouvain.be", 
+        type: "Assistant",
+        faculte_interdite: ""
+      },
+      {
+        nom: "Bernard",
+        prenom: "Pierre",
+        email: "pierre.bernard@uclouvain.be",
+        type: "Doctorant", 
+        faculte_interdite: "EPL"
+      },
+      {
+        nom: "Leroy",
+        prenom: "Sophie",
+        email: "sophie.leroy@uclouvain.be",
+        type: "Jobiste",
+        faculte_interdite: ""
+      }
+    ];
+    
+    createExcelTemplate("surveillants", templateData, "template_surveillants.xlsx");
+  };
+
+  const downloadExamenTemplate = () => {
+    const templateData = [
+      {
+        date_examen: "2024-01-15",
+        heure_debut: "08:30",
+        heure_fin: "11:30", 
+        matiere: "LPHYS1201 - Physique générale",
+        salle: "HALL01",
+        nombre_surveillants: 3,
+        type_requis: "PAT",
+        faculte: "FASB",
+        auditoire_original: "HALL01, HALL02"
+      },
+      {
+        date_examen: "2024-01-15",
+        heure_debut: "08:30", 
+        heure_fin: "11:30",
+        matiere: "LPHYS1201 - Physique générale",
+        salle: "HALL02", 
+        nombre_surveillants: 2,
+        type_requis: "PAT",
+        faculte: "FASB",
+        auditoire_original: "HALL01, HALL02"
+      },
+      {
+        date_examen: "2024-01-16",
+        heure_debut: "13:30",
+        heure_fin: "16:30",
+        matiere: "LMECA2170 - Mécanique des fluides", 
+        salle: "HALL03",
+        nombre_surveillants: 4,
+        type_requis: "Assistant",
+        faculte: "EPL",
+        auditoire_original: ""
+      }
+    ];
+    
+    createExcelTemplate("examens", templateData, "template_examens.xlsx");
+  };
+
+  const downloadDisponibiliteTemplate = () => {
+    const templateData = [
+      {
+        email: "jean.dupont@uclouvain.be",
+        date_examen: "2024-01-15",
+        heure_debut: "08:30",
+        heure_fin: "11:30",
+        est_disponible: "OUI"
+      },
+      {
+        email: "jean.dupont@uclouvain.be", 
+        date_examen: "2024-01-15",
+        heure_debut: "13:30",
+        heure_fin: "16:30",
+        est_disponible: "NON"
+      },
+      {
+        email: "marie.martin@uclouvain.be",
+        date_examen: "2024-01-15", 
+        heure_debut: "08:30",
+        heure_fin: "11:30",
+        est_disponible: "OUI"
+      }
+    ];
+    
+    createExcelTemplate("disponibilites", templateData, "template_disponibilites.xlsx");
+  };
+
+  const downloadContraintesTemplate = () => {
+    const templateData = [
+      {
+        salle: "HALL01",
+        min_non_jobistes: 2
+      },
+      {
+        salle: "HALL02", 
+        min_non_jobistes: 1
+      },
+      {
+        salle: "HALL03",
+        min_non_jobistes: 3
+      }
+    ];
+    
+    createExcelTemplate("contraintes", templateData, "template_contraintes_salles.xlsx");
+  };
+
+  const templates = [
+    {
+      id: "surveillants",
+      title: "Template Surveillants",
+      description: "Liste des surveillants avec informations personnelles et contraintes de faculté",
+      icon: Users,
+      columns: ["nom", "prenom", "email", "type", "faculte_interdite"], 
+      action: downloadSurveillantTemplate,
+      color: "bg-blue-50 border-blue-200 text-blue-800"
+    },
+    {
+      id: "examens", 
+      title: "Template Examens",
+      description: "Planning des examens avec facultés organisatrices et auditoires multiples",
+      icon: Calendar,
+      columns: ["date_examen", "heure_debut", "heure_fin", "matiere", "salle", "nombre_surveillants", "type_requis", "faculte", "auditoire_original"],
+      action: downloadExamenTemplate,
+      color: "bg-green-50 border-green-200 text-green-800"
+    },
+    {
+      id: "disponibilites",
+      title: "Template Disponibilités", 
+      description: "Disponibilités des surveillants par créneau d'examen",
+      icon: FileText,
+      columns: ["email", "date_examen", "heure_debut", "heure_fin", "est_disponible"],
+      action: downloadDisponibiliteTemplate,
+      color: "bg-orange-50 border-orange-200 text-orange-800"
+    },
+    {
+      id: "contraintes",
+      title: "Template Contraintes Salles",
+      description: "Contraintes par salle (minimum de non-jobistes requis)",
+      icon: FileText, 
+      columns: ["salle", "min_non_jobistes"],
+      action: downloadContraintesTemplate,
+      color: "bg-purple-50 border-purple-200 text-purple-800"
+    }
+  ];
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
-          <FileSpreadsheet className="h-5 w-5" />
-          <span>Templates Excel Compatibles</span>
+          <Download className="h-5 w-5" />
+          <span>Templates Excel</span>
         </CardTitle>
         <CardDescription>
-          Templates avec recoupement par email et contrôles de cohérence intégrés
+          Téléchargez les templates Excel pour importer vos données. Inclut les nouvelles colonnes pour les facultés.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h4 className="font-medium text-blue-900 mb-2">🔗 Système de recoupement par email</h4>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• L'email est la clé unique pour recouper toutes les informations</li>
-            <li>• Ordre recommandé: 1. Surveillants → 2. Examens → 3. Disponibilités → 4. Quotas → 5. Pré-assignations</li>
-            <li>• Contrôles automatiques de cohérence lors de l'import</li>
-            <li>• Détection des surveillants manquants dans les disponibilités</li>
-          </ul>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {templates.map((template) => (
-            <div key={template.name} className="border rounded-lg p-4 space-y-3 hover:bg-gray-50 transition-colors">
-              <div>
-                <h4 className="font-medium text-lg">{template.name}</h4>
-                <p className="text-sm text-gray-600">{template.description}</p>
+            <div 
+              key={template.id}
+              className={`p-4 border rounded-lg ${template.color}`}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center space-x-2">
+                  <template.icon className="h-5 w-5" />
+                  <h3 className="font-medium">{template.title}</h3>
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {template.columns.length} colonnes
+                </Badge>
               </div>
               
-              <div>
-                <p className="text-xs text-gray-500 mb-2">Colonnes incluses :</p>
+              <p className="text-sm mb-3 opacity-80">
+                {template.description}
+              </p>
+              
+              <div className="space-y-2 mb-4">
+                <p className="text-xs font-medium">Colonnes incluses :</p>
                 <div className="flex flex-wrap gap-1">
-                  {template.columns.map((column) => (
-                    <span key={column} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                      {column}
-                    </span>
+                  {template.columns.map((col) => (
+                    <Badge key={col} variant="secondary" className="text-xs">
+                      {col}
+                    </Badge>
                   ))}
                 </div>
               </div>
-
-              <div>
-                <p className="text-xs text-gray-500 mb-1">Le fichier contient :</p>
-                <ul className="text-xs text-gray-600 space-y-1">
-                  <li>• Onglet Instructions détaillées</li>
-                  <li>• Onglet Données à remplir</li>
-                  <li>• Onglet Exemples concrets</li>
-                  <li>• Onglet Validation des formats</li>
-                </ul>
-              </div>
-
-              <Button
+              
+              <Button 
+                onClick={template.action}
+                disabled={downloading === template.id}
+                className="w-full"
                 size="sm"
-                onClick={() => handleDownload(template)}
-                className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700"
               >
-                <Download className="h-4 w-4" />
-                <span>Télécharger {template.filename}</span>
+                {downloading === template.id ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin w-3 h-3 border border-white border-t-transparent rounded-full"></div>
+                    <span>Téléchargement...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Download className="h-3 w-3" />
+                    <span>Télécharger</span>
+                  </div>
+                )}
               </Button>
             </div>
           ))}
         </div>
-
-        <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
-          <h4 className="font-medium text-green-900 mb-2">✅ Contrôles de cohérence automatiques</h4>
-          <ul className="text-sm text-green-800 space-y-1">
-            <li>• Vérification que tous les emails existent dans la liste des surveillants</li>
-            <li>• Détection des surveillants actifs sans disponibilités</li>
-            <li>• Validation des quotas par rapport au type de surveillant</li>
-            <li>• Contrôle des conflits de planning et des doubles assignations</li>
-            <li>• Alerte sur les pré-assignations sans disponibilité correspondante</li>
+        
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h4 className="font-medium text-blue-900 mb-2">📝 Nouvelles fonctionnalités</h4>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• <strong>Faculté interdite</strong> : Colonne pour les conflits d'intérêt (ex: FASB, EPL, FIAL...)</li>
+            <li>• <strong>Faculté organisatrice</strong> : Colonne pour identifier la faculté de chaque examen</li>
+            <li>• <strong>Auditoire original</strong> : Pour les examens répartis sur plusieurs salles</li>
+            <li>• <strong>Édition post-import</strong> : Modifiez quotas et statuts après l'import</li>
           </ul>
         </div>
       </CardContent>
