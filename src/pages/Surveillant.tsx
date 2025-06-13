@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Search, Calendar, Clock, MapPin, Users, Calculator } from "lucide-react";
+import { Search, Calendar, Clock, MapPin, Users, Calculator, Home, Shield } from "lucide-react";
 import { useState } from "react";
 import { Footer } from "@/components/Footer";
+import { Link } from "react-router-dom";
 
 interface SurveillanceData {
   id: string;
@@ -115,10 +116,36 @@ const Surveillant = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Header avec navigation */}
+      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div className="flex items-center space-x-2">
+              <Shield className="h-8 w-8 text-primary" />
+              <h1 className="text-2xl font-bold text-gray-900">Espace Surveillant</h1>
+            </div>
+            <div className="flex items-center space-x-4">
+              <Button variant="outline" asChild>
+                <Link to="/collecte">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Mes Disponibilités
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <Link to="/">
+                  <Home className="h-4 w-4 mr-2" />
+                  Retour à l'accueil
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </header>
+
       <div className="flex-1">
         <div className="max-w-6xl mx-auto p-6 space-y-6">
           <div className="text-center space-y-4">
-            <h1 className="text-3xl font-bold">Espace Surveillant</h1>
+            <h2 className="text-3xl font-bold">Mes Surveillances</h2>
             <p className="text-muted-foreground">
               Consultez vos surveillances attribuées en saisissant votre adresse e-mail
             </p>
