@@ -24,8 +24,10 @@ const AppContent = () => {
   
   return (
     <Routes>
-      {/* Pages publiques - accessibles à tous */}
+      {/* Page d'accueil par défaut - accessible à tous */}
       <Route path="/" element={<Index />} />
+      
+      {/* Pages publiques - accessibles à tous */}
       <Route path="/candidature" element={<PublicForm />} />
       <Route path="/surveillant" element={<Surveillant />} />
       <Route path="/privacy" element={<Privacy />} />
@@ -34,7 +36,7 @@ const AppContent = () => {
       {/* Page d'authentification */}
       <Route path="/auth" element={<Auth />} />
       
-      {/* Pages protégées - nécessitent une authentification */}
+      {/* Pages protégées - nécessitent une authentification admin */}
       <Route 
         path="/admin" 
         element={
