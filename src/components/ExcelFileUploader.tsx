@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -71,14 +70,48 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
 
     console.log(`Processing ${fileType} data:`, { headers, rows });
 
-    // Validate headers
-    const expectedHeaders = expectedFormat;
-    const missingHeaders = expectedHeaders.filter(expected => 
-      !headers.some(header => header.toLowerCase() === expected.toLowerCase())
+    // Validate headers based on file type with more flexible matching
+    let requiredHeaders: string[] = [];
+    switch (fileType) {
+      case 'surveillants':
+        requiredHeaders = ['nom', 'prénom', 'email', 'type'];
+        break;
+      case 'examens':
+        requiredHeaders = ['date', 'heure début', 'heure fin', 'matière', 'salle'];
+        break;
+      case 'indisponibilites':
+        requiredHeaders = ['email', 'date début', 'date fin'];
+        break;
+      case 'disponibilites':
+        requiredHeaders = ['email', 'date', 'heure début', 'heure fin'];
+        break;
+      case 'quotas':
+        requiredHeaders = ['email', 'quota'];
+        break;
+    }
+
+    // More flexible header matching (case insensitive, accent insensitive)
+    const normalizeHeader = (header: string) => 
+      header.toLowerCase()
+        .replace(/é/g, 'e')
+        .replace(/è/g, 'e')
+        .replace(/à/g, 'a')
+        .replace(/ç/g, 'c')
+        .replace(/[^a-z0-9]/g, '');
+
+    const normalizedHeaders = headers.map(normalizeHeader);
+    const normalizedRequired = requiredHeaders.map(normalizeHeader);
+
+    const missingHeaders = normalizedRequired.filter(required => 
+      !normalizedHeaders.includes(required)
     );
     
     if (missingHeaders.length > 0) {
-      throw new Error(`Colonnes manquantes: ${missingHeaders.join(', ')}`);
+      const originalMissing = missingHeaders.map(missing => {
+        const index = normalizedRequired.indexOf(missing);
+        return requiredHeaders[index];
+      });
+      throw new Error(`Colonnes manquantes: ${originalMissing.join(', ')}`);
     }
 
     switch (fileType) {
@@ -98,11 +131,25 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
   };
 
   const processSurveillants = async (headers: string[], rows: string[][], sessionId: string) => {
-    const surveillants = rows.map(row => {
+    let processed = 0;
+    let updated = 0;
+    let skipped = 0;
+
+    console.log('Processing surveillants with headers:', headers);
+
+    for (const row of rows) {
       const surveillant: any = {};
+      let email = "";
+      
       headers.forEach((header, index) => {
         const value = row[index] ? String(row[index]).trim() : "";
-        switch (header.toLowerCase()) {
+        const normalizedHeader = header.toLowerCase()
+          .replace(/é/g, 'e')
+          .replace(/è/g, 'e')
+          .replace(/à/g, 'a')
+          .replace(/ç/g, 'c');
+
+        switch (normalizedHeader) {
           case 'nom':
             surveillant.nom = value;
             break;
@@ -111,6 +158,7 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
             surveillant.prenom = value;
             break;
           case 'email':
+            email = value;
             surveillant.email = value;
             break;
           case 'type':
@@ -119,58 +167,121 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
           case 'statut':
             surveillant.statut = value || 'actif';
             break;
+          case 'faculte interdite':
+          case 'faculte_interdite':
+            surveillant.faculte_interdite = value;
+            break;
+          case 'eft':
+            const eftValue = parseFloat(value);
+            surveillant.eft = !isNaN(eftValue) ? eftValue : null;
+            break;
+          case 'affectation fac':
+          case 'affectation_fac':
+            surveillant.affectation_fac = value;
+            break;
+          case 'date fin contrat':
+          case 'date_fin_contrat':
+            surveillant.date_fin_contrat = value;
+            break;
+          case 'telephone gsm':
+          case 'telephone_gsm':
+            surveillant.telephone_gsm = value;
+            break;
+          case 'campus':
+            surveillant.campus = value;
+            break;
         }
       });
-      return surveillant;
-    }).filter(s => s.nom && s.prenom && s.email && s.type);
 
-    // Validate data
-    const validTypes = ['PAT', 'Assistant', 'Jobiste'];
-    const validStatuts = ['actif', 'inactif'];
-    
-    for (const surveillant of surveillants) {
-      if (!validTypes.includes(surveillant.type)) {
-        throw new Error(`Type invalide "${surveillant.type}" pour ${surveillant.nom}. Types autorisés: ${validTypes.join(', ')}`);
+      // Skip if missing required fields
+      if (!surveillant.nom || !surveillant.prenom || !email || !surveillant.type) {
+        console.log('Skipping row with missing required fields:', surveillant);
+        skipped++;
+        continue;
       }
-      if (!validStatuts.includes(surveillant.statut)) {
-        throw new Error(`Statut invalide "${surveillant.statut}" pour ${surveillant.nom}. Statuts autorisés: ${validStatuts.join(', ')}`);
-      }
-    }
 
-    // Insert or update surveillants
-    for (const surveillant of surveillants) {
-      const { data: existing } = await supabase
+      // Set default values
+      if (!surveillant.statut) surveillant.statut = 'actif';
+
+      console.log('Processing surveillant:', surveillant);
+
+      // Check for existing surveillant by email to avoid duplicates
+      const { data: existing, error: checkError } = await supabase
         .from('surveillants')
         .select('id')
-        .eq('email', surveillant.email)
+        .eq('email', email)
         .single();
 
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing surveillant:', checkError);
+        throw checkError;
+      }
+
       if (existing) {
-        await supabase
+        // Update existing surveillant
+        const { error: updateError } = await supabase
           .from('surveillants')
           .update(surveillant)
-          .eq('email', surveillant.email);
+          .eq('email', email);
+
+        if (updateError) {
+          console.error('Error updating surveillant:', updateError);
+          throw updateError;
+        }
+
+        updated++;
+        console.log('Updated existing surveillant:', email);
       } else {
-        const { data: newSurveillant } = await supabase
+        // Insert new surveillant
+        const { data: newSurveillant, error: insertError } = await supabase
           .from('surveillants')
           .insert(surveillant)
           .select('id')
           .single();
 
+        if (insertError) {
+          console.error('Error inserting surveillant:', insertError);
+          throw insertError;
+        }
+
+        console.log('Inserted new surveillant:', newSurveillant);
+
         if (newSurveillant) {
-          const defaultQuota = surveillant.type === 'PAT' ? 12 : surveillant.type === 'Assistant' ? 6 : 4;
-          await supabase
+          // Calculate default quota based on type and EFT
+          let defaultQuota = 6; // Default for Assistant and others
+          if (surveillant.type === 'PAT') defaultQuota = 12;
+          else if (surveillant.type === 'Jobiste') defaultQuota = 4;
+          
+          // Adjust quota based on EFT if provided
+          if (surveillant.eft && surveillant.eft > 0) {
+            defaultQuota = Math.round(defaultQuota * surveillant.eft);
+            defaultQuota = Math.max(1, defaultQuota); // Minimum 1
+          }
+
+          // Add to current session
+          const { error: sessionError } = await supabase
             .from('surveillant_sessions')
             .insert({
               surveillant_id: newSurveillant.id,
               session_id: sessionId,
               quota: defaultQuota
             });
+
+          if (sessionError) {
+            console.error('Error adding to session:', sessionError);
+            throw sessionError;
+          }
+
+          processed++;
+          console.log('Added to session with quota:', defaultQuota);
         }
       }
     }
 
-    return { processed: surveillants.length, type: 'surveillants' };
+    let message = `${processed} nouveaux, ${updated} mis à jour`;
+    if (skipped > 0) message += `, ${skipped} ignorés`;
+
+    return { processed: processed + updated, type: 'surveillants', message };
   };
 
   const processExamens = async (headers: string[], rows: string[][], sessionId: string) => {
@@ -178,19 +289,25 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
       const examen: any = { session_id: sessionId };
       headers.forEach((header, index) => {
         const value = row[index] ? String(row[index]).trim() : "";
-        switch (header.toLowerCase()) {
+        const normalizedHeader = header.toLowerCase()
+          .replace(/é/g, 'e')
+          .replace(/è/g, 'e')
+          .replace(/à/g, 'a')
+          .replace(/ç/g, 'c');
+
+        switch (normalizedHeader) {
           case 'date':
             examen.date_examen = value;
             break;
           case 'heure début':
-          case 'heure debut':
+          case 'heure début':
             examen.heure_debut = value;
             break;
           case 'heure fin':
             examen.heure_fin = value;
             break;
-          case 'matière':
           case 'matiere':
+          case 'matière':
             examen.matiere = value;
             break;
           case 'salle':
@@ -225,7 +342,13 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
       
       headers.forEach((header, index) => {
         const value = row[index] ? String(row[index]).trim() : "";
-        switch (header.toLowerCase()) {
+        const normalizedHeader = header.toLowerCase()
+          .replace(/é/g, 'e')
+          .replace(/è/g, 'e')
+          .replace(/à/g, 'a')
+          .replace(/ç/g, 'c');
+
+        switch (normalizedHeader) {
           case 'email':
             email = value;
             break;
@@ -233,7 +356,7 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
             dispo.date_examen = value;
             break;
           case 'heure début':
-          case 'heure debut':
+          case 'heure début':
             dispo.heure_debut = value;
             break;
           case 'heure fin':
@@ -277,12 +400,18 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
       
       headers.forEach((header, index) => {
         const value = row[index] ? String(row[index]).trim() : "";
-        switch (header.toLowerCase()) {
+        const normalizedHeader = header.toLowerCase()
+          .replace(/é/g, 'e')
+          .replace(/è/g, 'e')
+          .replace(/à/g, 'a')
+          .replace(/ç/g, 'c');
+
+        switch (normalizedHeader) {
           case 'email':
             email = value;
             break;
           case 'date début':
-          case 'date debut':
+          case 'date début':
             indispo.date_debut = value;
             break;
           case 'date fin':
@@ -325,15 +454,21 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
       
       headers.forEach((header, index) => {
         const value = row[index] ? String(row[index]).trim() : "";
-        switch (header.toLowerCase()) {
+        const normalizedHeader = header.toLowerCase()
+          .replace(/é/g, 'e')
+          .replace(/è/g, 'e')
+          .replace(/à/g, 'a')
+          .replace(/ç/g, 'c');
+
+        switch (normalizedHeader) {
           case 'email':
             email = value;
             break;
           case 'quota':
             quota = parseInt(value) || 6;
             break;
-          case 'sessions imposées':
           case 'sessions imposees':
+          case 'sessions imposées':
             sessionsImposees = parseInt(value) || 0;
             break;
         }
@@ -392,7 +527,7 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
       
       toast({
         title: "Import réussi",
-        description: `${result.processed} ${result.type} importé(s) avec succès.`,
+        description: result.message || `${result.processed} ${result.type} importé(s) avec succès.`,
       });
       
       onUpload(true);

@@ -20,6 +20,7 @@ interface ProcessResult {
   processed: number;
   type: string;
   excluded?: number;
+  updated?: number;
   message?: string;
 }
 
@@ -60,6 +61,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
 
   const processSurveillants = async (headers: string[], rows: string[][], sessionId: string): Promise<ProcessResult> => {
     let processed = 0;
+    let updated = 0;
     let excluded = 0;
 
     // Vérifier les colonnes requises selon le template
@@ -94,6 +96,8 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
       if (row.length > 8 && row[8]) surveillantData.telephone_gsm = row[8];
       if (row.length > 9 && row[9]) surveillantData.campus = row[9];
 
+      console.log('Processing CSV surveillant:', surveillantData);
+
       // Vérifier si c'est un surveillant FSM (à exclure)
       if (surveillantData.affectation_fac?.toUpperCase().includes('FSM')) {
         console.log(`Exclusion surveillant FSM: ${surveillantData.email}`);
@@ -112,24 +116,72 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
         }
       }
 
-      // Insert or update surveillant
-      const { data: existing } = await supabase
+      // Check for existing surveillant by email to avoid duplicates
+      const { data: existing, error: checkError } = await supabase
         .from('surveillants')
         .select('id')
         .eq('email', surveillantData.email)
         .single();
 
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking existing surveillant:', checkError);
+        throw checkError;
+      }
+
       if (existing) {
-        await supabase
+        // Update existing surveillant
+        const { error: updateError } = await supabase
           .from('surveillants')
           .update(surveillantData)
           .eq('email', surveillantData.email);
+
+        if (updateError) {
+          console.error('Error updating surveillant:', updateError);
+          throw updateError;
+        }
+
+        updated++;
+        console.log('Updated existing surveillant:', surveillantData.email);
+
+        // Check if already in session
+        const { data: inSession } = await supabase
+          .from('surveillant_sessions')
+          .select('id')
+          .eq('surveillant_id', existing.id)
+          .eq('session_id', sessionId)
+          .single();
+
+        if (!inSession) {
+          // Add to session if not already there
+          let defaultQuota = surveillantData.type === 'PAT' ? 12 : 6;
+          
+          if (surveillantData.eft && surveillantData.eft > 0) {
+            defaultQuota = Math.round(defaultQuota * surveillantData.eft);
+            defaultQuota = Math.max(1, defaultQuota);
+          }
+
+          await supabase
+            .from('surveillant_sessions')
+            .insert({
+              surveillant_id: existing.id,
+              session_id: sessionId,
+              quota: defaultQuota
+            });
+        }
       } else {
-        const { data: newSurveillant } = await supabase
+        // Insert new surveillant
+        const { data: newSurveillant, error: insertError } = await supabase
           .from('surveillants')
           .insert(surveillantData)
           .select('id')
           .single();
+
+        if (insertError) {
+          console.error('Error inserting surveillant:', insertError);
+          throw insertError;
+        }
+
+        console.log('Inserted new surveillant:', newSurveillant);
 
         // Add to current session with adjusted quota based on EFT
         if (newSurveillant) {
@@ -141,23 +193,34 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
             defaultQuota = Math.max(1, defaultQuota); // Minimum 1
           }
 
-          await supabase
+          const { error: sessionError } = await supabase
             .from('surveillant_sessions')
             .insert({
               surveillant_id: newSurveillant.id,
               session_id: sessionId,
               quota: defaultQuota
             });
+
+          if (sessionError) {
+            console.error('Error adding to session:', sessionError);
+            throw sessionError;
+          }
+
+          processed++;
+          console.log('Added to session with quota:', defaultQuota);
         }
       }
-      processed++;
     }
 
+    let message = `${processed} nouveaux, ${updated} mis à jour`;
+    if (excluded > 0) message += `, ${excluded} exclus (FSM/contrat expiré)`;
+
     return { 
-      processed, 
+      processed: processed + updated, 
       type: 'surveillants',
       excluded,
-      message: excluded > 0 ? `${processed} importés, ${excluded} exclus (FSM ou contrat expiré)` : undefined
+      updated,
+      message
     };
   };
 
@@ -276,7 +339,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
       toast({
         title: "Import réussi",
         description: result.message || `${result.processed} ${result.type} importé(s) avec succès.`,
-        variant: (result.excluded && result.excluded > 0) ? "default" : "default"
+        variant: "default"
       });
       
       onUpload(true);
@@ -361,7 +424,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
             <Shield className="h-5 w-5 text-red-600" />
             <div className="text-red-800 text-sm">
               <p className="font-medium">Données sensibles incluses :</p>
-              <p className="text-xs mt-1">EFT, affectations, contrats, GSM - Exclusion automatique FSM</p>
+              <p className="text-xs mt-1">EFT, affectations, contrats, GSM - Exclusion automatique FSM - Gestion des doublons par email</p>
             </div>
           </div>
         )}
