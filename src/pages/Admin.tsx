@@ -28,6 +28,7 @@ import SurveillanceHistory from "@/components/SurveillanceHistory";
 import { DemandeChangement } from "@/components/DemandeChangement";
 import { ExamenAdvancedManager } from "@/components/ExamenAdvancedManager";
 import { AuditoireComplianceChecker } from "@/components/AuditoireComplianceChecker";
+import { DataValidationChecker } from "@/components/DataValidationChecker";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("dashboard");
@@ -54,6 +55,7 @@ const Admin = () => {
           <div className="space-y-6">
             <DashboardOverview />
             <AuditoireComplianceChecker />
+            <DataValidationChecker />
           </div>
         );
       
@@ -66,6 +68,7 @@ const Admin = () => {
             </div>
             
             <AuditoireComplianceChecker />
+            <DataValidationChecker />
             
             <ImportVerification />
             
@@ -145,6 +148,7 @@ const Admin = () => {
         return (
           <div className="space-y-6">
             <AuditoireComplianceChecker />
+            <DataValidationChecker />
             <ExamenValidationProcessor />
           </div>
         );
@@ -197,7 +201,12 @@ const Admin = () => {
         return <RoomConstraintsManager />;
       
       case "consistency":
-        return <DataConsistencyChecker />;
+        return (
+          <div className="space-y-6">
+            <DataValidationChecker />
+            <DataConsistencyChecker />
+          </div>
+        );
       
       case "sensitive":
         return <SensitiveDataManager 
