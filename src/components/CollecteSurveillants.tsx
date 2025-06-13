@@ -109,14 +109,14 @@ export const CollecteSurveillants = () => {
     onSuccess: () => {
       setSubmitted(true);
       toast({
-        title: "Candidature enregistrée",
-        description: "Vos informations ont été enregistrées avec succès.",
+        title: "Disponibilités enregistrées",
+        description: "Vos disponibilités ont été enregistrées avec succès.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Erreur",
-        description: error.message || "Impossible d'enregistrer vos informations.",
+        description: error.message || "Impossible d'enregistrer vos disponibilités.",
         variant: "destructive"
       });
     }
@@ -164,9 +164,9 @@ export const CollecteSurveillants = () => {
       <div className="max-w-4xl mx-auto p-6">
         <Card>
           <CardHeader className="text-center">
-            <CardTitle className="text-green-600">Candidature enregistrée !</CardTitle>
+            <CardTitle className="text-green-600">Disponibilités enregistrées !</CardTitle>
             <CardDescription>
-              Merci pour votre candidature. Vos informations ont été transmises au service des surveillances.
+              Merci pour votre candidature. Vos disponibilités ont été transmises au service des surveillances.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -359,7 +359,7 @@ export const CollecteSurveillants = () => {
             disabled={submitMutation.isPending}
             className="px-8"
           >
-            {submitMutation.isPending ? "Envoi en cours..." : "Envoyer ma candidature"}
+            {submitMutation.isPending ? "Envoi en cours..." : "Envoyer mes disponibilités"}
           </Button>
         </div>
       </form>

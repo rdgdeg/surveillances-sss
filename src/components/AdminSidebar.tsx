@@ -1,35 +1,24 @@
 
-import {
-  LayoutDashboard,
-  Calendar,
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { 
+  LayoutDashboard, 
+  Upload, 
+  Download, 
+  Users, 
+  Calendar, 
+  ClipboardList, 
+  BarChart3, 
+  Zap, 
   FileText,
-  Upload,
-  CheckCircle2,
-  Settings,
+  UserCheck,
   UserPlus,
-  Lock,
-  Clock,
-  BarChart4,
-  ListChecks,
-  Calculator,
-  MessageSquare,
-  Building2,
-  ClipboardList,
-  Users,
-  UserCheck
+  Settings,
+  CheckSquare,
+  Shield,
+  History,
+  MessageSquare
 } from "lucide-react";
-
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupLabel,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar";
 
 interface AdminSidebarProps {
   activeView: string;
@@ -37,234 +26,140 @@ interface AdminSidebarProps {
 }
 
 export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) => {
+  const menuItems = [
+    {
+      id: "dashboard",
+      label: "Tableau de bord",
+      icon: LayoutDashboard,
+      description: "Vue d'ensemble"
+    },
+    {
+      id: "import",
+      label: "Import de données",
+      icon: Upload,
+      description: "Importer CSV/Excel"
+    },
+    {
+      id: "templates", 
+      label: "Templates",
+      icon: Download,
+      description: "Télécharger modèles"
+    },
+    {
+      id: "surveillants",
+      label: "Surveillants",
+      icon: Users,
+      description: "Gérer la liste"
+    },
+    {
+      id: "disponibilites",
+      label: "Disponibilités",
+      icon: Calendar,
+      description: "Matrice horaire"
+    },
+    {
+      id: "planning",
+      label: "Planning",
+      icon: ClipboardList,
+      description: "Visualiser attributions"
+    },
+    {
+      id: "soldes",
+      label: "Soldes",
+      icon: BarChart3,
+      description: "Quotas surveillants"
+    },
+    {
+      id: "assignment",
+      label: "Attribution",
+      icon: Zap,
+      description: "Moteur intelligent"
+    },
+    {
+      id: "examens",
+      label: "Examens",
+      icon: FileText,
+      description: "Réviser examens"
+    },
+    {
+      id: "candidats",
+      label: "Candidats",
+      icon: UserCheck,
+      description: "Gérer candidats"
+    },
+    {
+      id: "candidatures",
+      label: "Candidatures",
+      icon: UserPlus,
+      description: "Formulaires reçus"
+    },
+    {
+      id: "pre-assignment",
+      label: "Pré-attribution",
+      icon: Settings,
+      description: "Gestion avancée"
+    },
+    {
+      id: "contraintes",
+      label: "Contraintes",
+      icon: CheckSquare,
+      description: "Auditoires"
+    },
+    {
+      id: "consistency",
+      label: "Cohérence",
+      icon: CheckSquare,
+      description: "Vérifier données"
+    },
+    {
+      id: "sensitive",
+      label: "Données sensibles",
+      icon: Shield,
+      description: "Gestion sécurisée"
+    },
+    {
+      id: "history",
+      label: "Historique",
+      icon: History,
+      description: "Suivi modifications"
+    },
+    {
+      id: "changements",
+      label: "Changements",
+      icon: MessageSquare,
+      description: "Demandes reçues"
+    }
+  ];
+
   return (
-    <Sidebar>
-      <SidebarContent>
-        {/* Vue d'ensemble */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Vue d'ensemble</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("dashboard")}
-                  isActive={activeView === "dashboard"}
-                >
-                  <BarChart4 className="h-4 w-4" />
-                  <span>Tableau de Bord</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Configuration de base */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Configuration</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("sessions")}
-                  isActive={activeView === "sessions"}
-                >
-                  <LayoutDashboard className="h-4 w-4" />
-                  <span>Sessions</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("templates")}
-                  isActive={activeView === "templates"}
-                >
-                  <FileText className="h-4 w-4" />
-                  <span>Templates</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("surveillant-creator")}
-                  isActive={activeView === "surveillant-creator"}
-                >
-                  <UserPlus className="h-4 w-4" />
-                  <span>Créer Surveillants</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Import et traitement */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Import & Traitement</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("import")}
-                  isActive={activeView === "import"}
-                >
-                  <Upload className="h-4 w-4" />
-                  <span>Import</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("cally-import")}
-                  isActive={activeView === "cally-import"}
-                >
-                  <Clock className="h-4 w-4" />
-                  <span>Import Cally</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("candidats-surveillance")}
-                  isActive={activeView === "candidats-surveillance"}
-                >
-                  <Users className="h-4 w-4" />
-                  <span>Candidats Surveillance</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("surveillant-list-editor")}
-                  isActive={activeView === "surveillant-list-editor"}
-                >
-                  <UserCheck className="h-4 w-4" />
-                  <span>Éditer Surveillants</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("consistency")}
-                  isActive={activeView === "consistency"}
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>Cohérence</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Gestion des contraintes */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Contraintes</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("constraints")}
-                  isActive={activeView === "constraints"}
-                >
-                  <ListChecks className="h-4 w-4" />
-                  <span>Contraintes par Salle</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("contraintes-auditoires")}
-                  isActive={activeView === "contraintes-auditoires"}
-                >
-                  <Building2 className="h-4 w-4" />
-                  <span>Contraintes Auditoires</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("availability")}
-                  isActive={activeView === "availability"}
-                >
-                  <Calendar className="h-4 w-4" />
-                  <span>Disponibilités</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Attribution et planification */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Attribution</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("examen-review")}
-                  isActive={activeView === "examen-review"}
-                >
-                  <ClipboardList className="h-4 w-4" />
-                  <span>Révision Examens</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("pre-assignments")}
-                  isActive={activeView === "pre-assignments"}
-                >
-                  <Lock className="h-4 w-4" />
-                  <span>Pré-assignations</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("assignment")}
-                  isActive={activeView === "assignment"}
-                >
-                  <Settings className="h-4 w-4" />
-                  <span>Attribution</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("planning")}
-                  isActive={activeView === "planning"}
-                >
-                  <LayoutDashboard className="h-4 w-4" />
-                  <span>Planning</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Suivi et gestion */}
-        <SidebarGroup>
-          <SidebarGroupLabel>Suivi</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("soldes")}
-                  isActive={activeView === "soldes"}
-                >
-                  <Calculator className="h-4 w-4" />
-                  <span>Soldes</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("demandes")}
-                  isActive={activeView === "demandes"}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  <span>Demandes</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("history")}
-                  isActive={activeView === "history"}
-                >
-                  <BarChart4 className="h-4 w-4" />
-                  <span>Historique</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-    </Sidebar>
+    <div className="w-64 bg-white shadow-lg border-r">
+      <div className="p-6 border-b">
+        <h1 className="text-xl font-bold text-gray-900">Administration</h1>
+        <p className="text-sm text-gray-600">Gestion des surveillances</p>
+      </div>
+      
+      <nav className="p-4 space-y-2">
+        {menuItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Button
+              key={item.id}
+              variant={activeView === item.id ? "default" : "ghost"}
+              className={cn(
+                "w-full justify-start text-left h-auto p-3",
+                activeView === item.id && "bg-primary text-primary-foreground"
+              )}
+              onClick={() => onViewChange(item.id)}
+            >
+              <Icon className="mr-3 h-4 w-4 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="font-medium">{item.label}</div>
+                <div className="text-xs opacity-70 truncate">{item.description}</div>
+              </div>
+            </Button>
+          );
+        })}
+      </nav>
+    </div>
   );
 };
