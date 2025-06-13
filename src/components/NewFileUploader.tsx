@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,13 @@ interface NewFileUploaderProps {
   uploaded: boolean;
 }
 
+interface ProcessResult {
+  processed: number;
+  type: string;
+  excluded?: number;
+  message?: string;
+}
+
 export const NewFileUploader = ({ title, description, fileType, expectedFormat, onUpload, uploaded }: NewFileUploaderProps) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -27,7 +35,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
     return lines.map(line => line.split(';').map(cell => cell.trim()));
   };
 
-  const processData = async (data: string[][], fileType: string) => {
+  const processData = async (data: string[][], fileType: string): Promise<ProcessResult> => {
     if (!activeSession) {
       throw new Error("Aucune session active");
     }
@@ -51,7 +59,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
     }
   };
 
-  const processSurveillants = async (headers: string[], rows: string[][], sessionId: string) => {
+  const processSurveillants = async (headers: string[], rows: string[][], sessionId: string): Promise<ProcessResult> => {
     let processed = 0;
     let excluded = 0;
 
@@ -141,7 +149,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
     };
   };
 
-  const processExamens = async (headers: string[], rows: string[][], sessionId: string) => {
+  const processExamens = async (headers: string[], rows: string[][], sessionId: string): Promise<ProcessResult> => {
     const examens = rows.map(row => ({
       session_id: sessionId,
       date_examen: row[0],
@@ -162,7 +170,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
     return { processed: examens.length, type: 'examens' };
   };
 
-  const processIndisponibilites = async (headers: string[], rows: string[][], sessionId: string) => {
+  const processIndisponibilites = async (headers: string[], rows: string[][], sessionId: string): Promise<ProcessResult> => {
     const indisponibilites = [];
 
     for (const row of rows) {
@@ -192,7 +200,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
     return { processed: indisponibilites.length, type: 'indisponibilites' };
   };
 
-  const processQuotas = async (headers: string[], rows: string[][], sessionId: string) => {
+  const processQuotas = async (headers: string[], rows: string[][], sessionId: string): Promise<ProcessResult> => {
     let updated = 0;
 
     for (const row of rows) {
@@ -254,7 +262,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
       toast({
         title: "Import réussi",
         description: result.message || `${result.processed} ${result.type} importé(s) avec succès.`,
-        variant: result.excluded && result.excluded > 0 ? "default" : "default"
+        variant: (result.excluded && result.excluded > 0) ? "default" : "default"
       });
       
       onUpload(true);
@@ -305,7 +313,9 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
             <FileSpreadsheet className="h-5 w-5" />
             <span>{title}</span>
             {isSensitiveFileType && (
-              <Shield className="h-4 w-4 text-red-600" title="Contient des données sensibles" />
+              <div title="Contient des données sensibles">
+                <Shield className="h-4 w-4 text-red-600" />
+              </div>
             )}
           </div>
           {uploaded && (
@@ -355,15 +365,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
               e.preventDefault();
               setIsDragOver(false);
             }}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragOver(false);
-              
-              const file = e.dataTransfer.files[0];
-              if (file) {
-                handleFileUpload(file);
-              }
-            }}
+            onDrop={handleDrop}
           >
             {isUploading ? (
               <div className="space-y-2">
@@ -388,13 +390,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
                       type="file"
                       className="hidden"
                       accept=".csv"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handleFileUpload(file);
-                        }
-                        e.target.value = '';
-                      }}
+                      onChange={handleFileSelect}
                       disabled={!activeSession}
                     />
                   </label>

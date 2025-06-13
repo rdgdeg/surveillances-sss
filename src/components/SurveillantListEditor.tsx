@@ -408,7 +408,9 @@ export const SurveillantListEditor = () => {
                             <div className="flex items-center space-x-2">
                               <span>{surveillant.nom}</span>
                               {exclusionInfo.exclude && (
-                                <AlertTriangle className="h-3 w-3 text-red-500" title={exclusionInfo.reason} />
+                                <div title={exclusionInfo.reason}>
+                                  <AlertTriangle className="h-3 w-3 text-red-500" />
+                                </div>
                               )}
                             </div>
                           )}
@@ -524,7 +526,9 @@ export const SurveillantListEditor = () => {
                                     {formatSensitiveDisplay(surveillant.date_fin_contrat, 'date')}
                                   </span>
                                   {contractExpiring && (
-                                    <Calendar className="h-3 w-3 text-orange-500" title="Contrat expire bientôt" />
+                                    <div title="Contrat expire bientôt">
+                                      <Calendar className="h-3 w-3 text-orange-500" />
+                                    </div>
                                   )}
                                 </div>
                               )}
