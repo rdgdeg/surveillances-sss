@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ClipboardList, Users, Save, Eye, Building2, Search } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { formatDateBelgian } from "@/lib/dateUtils";
 
 interface ExamenReview {
   id: string;
@@ -33,11 +34,72 @@ interface ContrainteAuditoire {
   nombre_surveillants_requis: number;
 }
 
+interface ExamenGroupe {
+  code_examen: string;
+  matiere: string;
+  date_examen: string;
+  heure_debut: string;
+  heure_fin: string;
+  auditoire_unifie: string;
+  examens: ExamenReview[];
+  nombre_surveillants_total: number;
+  surveillants_enseignant_total: number;
+  surveillants_amenes_total: number;
+  surveillants_pre_assignes_total: number;
+  surveillants_a_attribuer_total: number;
+}
+
+// Fonction pour unifier les noms d'auditoires similaires
+const unifierAuditoire = (salle: string): string => {
+  // Nettoyer et normaliser le nom de salle
+  const salleNormalisee = salle.trim();
+  
+  // Cas spécifique pour Neerveld A, B, C, etc.
+  if (salleNormalisee.match(/^Neerveld\s+[A-Z]$/i)) {
+    return "Neerveld";
+  }
+  
+  // Autres cas similaires peuvent être ajoutés ici
+  // Ex: "Salle 1A", "Salle 1B" → "Salle 1"
+  const match = salleNormalisee.match(/^(.+?)\s+[A-Z]$/);
+  if (match) {
+    return match[1];
+  }
+  
+  return salleNormalisee;
+};
+
+// Fonction pour calculer la contrainte unifiée
+const getContrainteUnifiee = (auditoire: string, contraintesOriginales: ContrainteAuditoire[]): number => {
+  if (auditoire === "Neerveld") {
+    // Compter toutes les contraintes Neerveld A, B, C, etc.
+    const contraintesNeerveld = contraintesOriginales.filter(c => 
+      c.auditoire.match(/^Neerveld\s+[A-Z]$/i)
+    );
+    return contraintesNeerveld.reduce((sum, c) => sum + c.nombre_surveillants_requis, 0) || 1;
+  }
+  
+  // Pour d'autres auditoires, chercher la contrainte directe ou calculer
+  const contrainteDirecte = contraintesOriginales.find(c => c.auditoire === auditoire);
+  if (contrainteDirecte) {
+    return contrainteDirecte.nombre_surveillants_requis;
+  }
+  
+  // Chercher des contraintes similaires (ex: "Salle 1A", "Salle 1B" pour "Salle 1")
+  const contraintesSimilaires = contraintesOriginales.filter(c => 
+    c.auditoire.startsWith(auditoire + " ")
+  );
+  
+  return contraintesSimilaires.reduce((sum, c) => sum + c.nombre_surveillants_requis, 0) || 1;
+};
+
 export const ExamenReviewManager = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
-  const [editingExamens, setEditingExamens] = useState<Record<string, Partial<ExamenReview>>>({});
+  const [editingExamens, setEditingExamens] = useState<Record<string, Partial<ExamenGroupe>>>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const { data: examens, isLoading } = useQuery({
     queryKey: ['examens-review', activeSession?.id],
@@ -50,7 +112,8 @@ export const ExamenReviewManager = () => {
         .eq('session_id', activeSession.id)
         .eq('statut_validation', 'NON_TRAITE')
         .order('date_examen', { ascending: true })
-        .order('heure_debut', { ascending: true });
+        .order('heure_debut', { ascending: true })
+        .order('code_examen', { ascending: true });
 
       if (error) throw error;
       return data || [];
@@ -70,27 +133,146 @@ export const ExamenReviewManager = () => {
     }
   });
 
-  const updateExamenMutation = useMutation({
-    mutationFn: async ({ examenId, updates }: { examenId: string; updates: Partial<ExamenReview> }) => {
-      const { error } = await supabase
-        .from('examens')
-        .update(updates)
-        .eq('id', examenId);
+  // Grouper et fusionner les examens par code/date/heure + auditoire unifié
+  const examensGroupes: ExamenGroupe[] = useMemo(() => {
+    if (!examens || !contraintesAuditoires) return [];
 
-      if (error) throw error;
+    const groupes = new Map<string, ExamenGroupe>();
+
+    examens.forEach(examen => {
+      const auditoire_unifie = unifierAuditoire(examen.salle);
+      const cle = `${examen.code_examen}-${examen.date_examen}-${examen.heure_debut}-${auditoire_unifie}`;
+      
+      if (groupes.has(cle)) {
+        // Ajouter à un groupe existant
+        const groupe = groupes.get(cle)!;
+        groupe.examens.push(examen);
+        groupe.nombre_surveillants_total += examen.nombre_surveillants;
+        groupe.surveillants_enseignant_total += examen.surveillants_enseignant || 0;
+        groupe.surveillants_amenes_total += examen.surveillants_amenes || 0;
+        groupe.surveillants_pre_assignes_total += examen.surveillants_pre_assignes || 0;
+        groupe.surveillants_a_attribuer_total += examen.surveillants_a_attribuer || 0;
+      } else {
+        // Créer un nouveau groupe
+        const contrainteUnifiee = getContrainteUnifiee(auditoire_unifie, contraintesAuditoires);
+        
+        groupes.set(cle, {
+          code_examen: examen.code_examen,
+          matiere: examen.matiere,
+          date_examen: examen.date_examen,
+          heure_debut: examen.heure_debut,
+          heure_fin: examen.heure_fin,
+          auditoire_unifie,
+          examens: [examen],
+          nombre_surveillants_total: contrainteUnifiee, // Utiliser la contrainte par défaut
+          surveillants_enseignant_total: examen.surveillants_enseignant || 0,
+          surveillants_amenes_total: examen.surveillants_amenes || 0,
+          surveillants_pre_assignes_total: examen.surveillants_pre_assignes || 0,
+          surveillants_a_attribuer_total: Math.max(0, contrainteUnifiee - 
+            (examen.surveillants_enseignant || 0) - 
+            (examen.surveillants_amenes || 0) - 
+            (examen.surveillants_pre_assignes || 0))
+        });
+      }
+    });
+
+    return Array.from(groupes.values()).sort((a, b) => {
+      // Tri par date, puis heure, puis code d'examen
+      if (a.date_examen !== b.date_examen) {
+        return a.date_examen.localeCompare(b.date_examen);
+      }
+      if (a.heure_debut !== b.heure_debut) {
+        return a.heure_debut.localeCompare(b.heure_debut);
+      }
+      return a.code_examen.localeCompare(b.code_examen);
+    });
+  }, [examens, contraintesAuditoires]);
+
+  // Suggestions pour l'autocomplétion
+  const allSearchTerms = useMemo(() => {
+    if (!examensGroupes) return [];
+    
+    const terms = new Set<string>();
+    examensGroupes.forEach(groupe => {
+      terms.add(groupe.code_examen.toLowerCase());
+      terms.add(groupe.matiere.toLowerCase());
+      terms.add(groupe.auditoire_unifie.toLowerCase());
+    });
+    
+    return Array.from(terms);
+  }, [examensGroupes]);
+
+  // Mise à jour des suggestions de recherche
+  const updateSearchSuggestions = (value: string) => {
+    if (value.length < 2) {
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const filtered = allSearchTerms
+      .filter(term => term.includes(value.toLowerCase()))
+      .slice(0, 5);
+    
+    setSearchSuggestions(filtered);
+    setShowSuggestions(filtered.length > 0);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    updateSearchSuggestions(value);
+  };
+
+  const selectSuggestion = (suggestion: string) => {
+    setSearchTerm(suggestion);
+    setShowSuggestions(false);
+  };
+
+  const updateExamenMutation = useMutation({
+    mutationFn: async ({ groupe, updates }: { groupe: ExamenGroupe; updates: Partial<ExamenGroupe> }) => {
+      // Mettre à jour tous les examens du groupe
+      for (const examen of groupe.examens) {
+        const examenUpdates: any = {};
+        
+        if (updates.nombre_surveillants_total !== undefined) {
+          // Répartir le total sur tous les examens du groupe
+          examenUpdates.nombre_surveillants = Math.ceil(updates.nombre_surveillants_total / groupe.examens.length);
+        }
+        
+        if (updates.surveillants_enseignant_total !== undefined) {
+          examenUpdates.surveillants_enseignant = Math.ceil(updates.surveillants_enseignant_total / groupe.examens.length);
+        }
+        
+        if (updates.surveillants_amenes_total !== undefined) {
+          examenUpdates.surveillants_amenes = Math.ceil(updates.surveillants_amenes_total / groupe.examens.length);
+        }
+        
+        if (updates.surveillants_pre_assignes_total !== undefined) {
+          examenUpdates.surveillants_pre_assignes = Math.ceil(updates.surveillants_pre_assignes_total / groupe.examens.length);
+        }
+
+        if (Object.keys(examenUpdates).length > 0) {
+          const { error } = await supabase
+            .from('examens')
+            .update(examenUpdates)
+            .eq('id', examen.id);
+
+          if (error) throw error;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['examens-review'] });
       setEditingExamens({});
       toast({
-        title: "Examen mis à jour",
+        title: "Examens mis à jour",
         description: "Les modifications ont été sauvegardées avec succès.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Erreur",
-        description: error.message || "Impossible de mettre à jour l'examen.",
+        description: error.message || "Impossible de mettre à jour les examens.",
         variant: "destructive"
       });
     }
@@ -100,21 +282,14 @@ export const ExamenReviewManager = () => {
     mutationFn: async () => {
       if (!examens || !contraintesAuditoires) return;
 
-      const updates = examens.map(examen => {
-        const contrainte = contraintesAuditoires.find(c => c.auditoire === examen.salle);
-        const nouveauNombre = contrainte ? contrainte.nombre_surveillants_requis : 1;
+      for (const examen of examens) {
+        const auditoire_unifie = unifierAuditoire(examen.salle);
+        const contrainteUnifiee = getContrainteUnifiee(auditoire_unifie, contraintesAuditoires);
         
-        return {
-          id: examen.id,
-          nombre_surveillants: nouveauNombre
-        };
-      });
-
-      for (const update of updates) {
         const { error } = await supabase
           .from('examens')
-          .update({ nombre_surveillants: update.nombre_surveillants })
-          .eq('id', update.id);
+          .update({ nombre_surveillants: contrainteUnifiee })
+          .eq('id', examen.id);
 
         if (error) throw error;
       }
@@ -135,47 +310,36 @@ export const ExamenReviewManager = () => {
     }
   });
 
-  const getContrainteAuditoire = (salle: string): number | null => {
-    const contrainte = contraintesAuditoires?.find(c => c.auditoire === salle);
-    return contrainte ? contrainte.nombre_surveillants_requis : null;
-  };
-
-  const handleFieldChange = (examenId: string, field: string, value: string | number) => {
+  const handleFieldChange = (groupeKey: string, field: string, value: string | number) => {
     setEditingExamens(prev => ({
       ...prev,
-      [examenId]: {
-        ...prev[examenId],
+      [groupeKey]: {
+        ...prev[groupeKey],
         [field]: value
       }
     }));
   };
 
-  const handleSaveExamen = (examen: ExamenReview) => {
-    const updates = editingExamens[examen.id];
+  const handleSaveGroupe = (groupe: ExamenGroupe) => {
+    const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
+    const updates = editingExamens[groupeKey];
     if (!updates || Object.keys(updates).length === 0) return;
 
     updateExamenMutation.mutate({
-      examenId: examen.id,
+      groupe,
       updates
     });
   };
 
-  const getStatusColor = (statut: string) => {
-    switch (statut) {
-      case "VALIDE": return "bg-green-100 text-green-800";
-      case "NON_TRAITE": return "bg-gray-100 text-gray-800";
-      default: return "bg-blue-100 text-blue-800";
-    }
+  const getFieldValue = (groupe: ExamenGroupe, field: keyof ExamenGroupe) => {
+    const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
+    return editingExamens[groupeKey]?.[field] ?? groupe[field];
   };
 
-  const getFieldValue = (examen: ExamenReview, field: keyof ExamenReview) => {
-    return editingExamens[examen.id]?.[field] ?? examen[field];
-  };
-
-  const filteredExamens = examens?.filter(examen => 
-    examen.code_examen.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    examen.matiere.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    examen.salle.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredExamens = examensGroupes?.filter(groupe => 
+    groupe.code_examen.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    groupe.matiere.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    groupe.auditoire_unifie.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   if (!activeSession) {
@@ -209,7 +373,7 @@ export const ExamenReviewManager = () => {
             <span>Révision des Besoins par Auditoire</span>
           </CardTitle>
           <CardDescription>
-            Configurez les besoins en surveillance pour chaque examen et auditoire
+            Configurez les besoins en surveillance pour chaque examen et auditoire (groupés par similarité)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -218,11 +382,26 @@ export const ExamenReviewManager = () => {
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Rechercher un examen..."
+                placeholder="Rechercher un examen (code, matière, auditoire)..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={() => setShowSuggestions(searchSuggestions.length > 0)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                 className="pl-8"
               />
+              {showSuggestions && (
+                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                  {searchSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                      onClick={() => selectSuggestion(suggestion)}
+                    >
+                      {suggestion}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <Button
               onClick={() => applquerContraintesAuditoiresMutation.mutate()}
@@ -234,20 +413,14 @@ export const ExamenReviewManager = () => {
             </Button>
           </div>
 
-          {/* Résumé des contraintes appliquées */}
-          {contraintesAuditoires && contraintesAuditoires.length > 0 && (
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <h4 className="font-medium text-purple-800 mb-2">Contraintes d'auditoires disponibles</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                {contraintesAuditoires.map(contrainte => (
-                  <div key={contrainte.auditoire} className="bg-white p-2 rounded text-sm">
-                    <span className="font-medium">{contrainte.auditoire}:</span>
-                    <span className="ml-1 text-purple-600">{contrainte.nombre_surveillants_requis} surveillant(s)</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* Information sur les statuts NON_TRAITE */}
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h4 className="font-medium text-blue-800 mb-2">À propos du statut "NON_TRAITE"</h4>
+            <p className="text-sm text-blue-700">
+              Les examens apparaissent comme "NON_TRAITE" car ils n'ont pas encore été validés dans le processus de validation des examens. 
+              Une fois validés, ils passeront automatiquement au statut "VALIDE" et pourront être utilisés pour l'attribution des surveillants.
+            </p>
+          </div>
 
           <div className="overflow-x-auto">
             <Table>
@@ -258,7 +431,6 @@ export const ExamenReviewManager = () => {
                   <TableHead>Auditoire</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead>Base</TableHead>
-                  <TableHead>Contrainte</TableHead>
                   <TableHead>Enseig.</TableHead>
                   <TableHead>Amenés</TableHead>
                   <TableHead>Pré-ass.</TableHead>
@@ -267,56 +439,61 @@ export const ExamenReviewManager = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredExamens?.map((examen) => {
-                  const contrainteAuditoire = getContrainteAuditoire(examen.salle);
+                {filteredExamens?.map((groupe) => {
+                  const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
+                  const contrainteUnifiee = getContrainteUnifiee(groupe.auditoire_unifie, contraintesAuditoires || []);
+                  
                   return (
-                    <TableRow key={examen.id} className="hover:bg-gray-50">
+                    <TableRow key={groupeKey} className="hover:bg-gray-50">
                       <TableCell>
                         <div className="space-y-1">
-                          <div className="font-mono text-sm">{examen.code_examen}</div>
-                          <div className="text-sm text-gray-600">{examen.matiere}</div>
+                          <div className="font-mono text-sm">{groupe.code_examen}</div>
+                          <div className="text-sm text-gray-600">{groupe.matiere}</div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          <div>{examen.date_examen}</div>
+                          <div>{formatDateBelgian(groupe.date_examen)}</div>
                           <div className="text-gray-500">
-                            {examen.heure_debut} - {examen.heure_fin}
+                            {groupe.heure_debut} - {groupe.heure_fin}
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{examen.salle}</div>
+                        <div className="font-medium">
+                          {groupe.auditoire_unifie}
+                          {groupe.examens.length > 1 && (
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              {groupe.examens.length} salles
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(examen.statut_validation)}>
-                          {examen.statut_validation}
+                        <Badge className="bg-gray-100 text-gray-800">
+                          NON_TRAITE
                         </Badge>
                       </TableCell>
                       <TableCell>
                         <Input
                           type="number"
                           min="0"
-                          value={getFieldValue(examen, 'nombre_surveillants')}
-                          onChange={(e) => handleFieldChange(examen.id, 'nombre_surveillants', parseInt(e.target.value) || 0)}
+                          value={getFieldValue(groupe, 'nombre_surveillants_total')}
+                          onChange={(e) => handleFieldChange(groupeKey, 'nombre_surveillants_total', parseInt(e.target.value) || 0)}
                           className="w-20"
                         />
-                      </TableCell>
-                      <TableCell>
-                        {contrainteAuditoire ? (
-                          <Badge variant="outline" className="bg-purple-50 text-purple-800">
-                            {contrainteAuditoire}
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">1 (défaut)</Badge>
+                        {contrainteUnifiee && (
+                          <div className="text-xs text-purple-600 mt-1">
+                            Contrainte: {contrainteUnifiee}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell>
                         <Input
                           type="number"
                           min="0"
-                          value={getFieldValue(examen, 'surveillants_enseignant')}
-                          onChange={(e) => handleFieldChange(examen.id, 'surveillants_enseignant', parseInt(e.target.value) || 0)}
+                          value={getFieldValue(groupe, 'surveillants_enseignant_total')}
+                          onChange={(e) => handleFieldChange(groupeKey, 'surveillants_enseignant_total', parseInt(e.target.value) || 0)}
                           className="w-20"
                         />
                       </TableCell>
@@ -324,8 +501,8 @@ export const ExamenReviewManager = () => {
                         <Input
                           type="number"
                           min="0"
-                          value={getFieldValue(examen, 'surveillants_amenes')}
-                          onChange={(e) => handleFieldChange(examen.id, 'surveillants_amenes', parseInt(e.target.value) || 0)}
+                          value={getFieldValue(groupe, 'surveillants_amenes_total')}
+                          onChange={(e) => handleFieldChange(groupeKey, 'surveillants_amenes_total', parseInt(e.target.value) || 0)}
                           className="w-20"
                         />
                       </TableCell>
@@ -333,18 +510,18 @@ export const ExamenReviewManager = () => {
                         <Input
                           type="number"
                           min="0"
-                          value={getFieldValue(examen, 'surveillants_pre_assignes')}
-                          onChange={(e) => handleFieldChange(examen.id, 'surveillants_pre_assignes', parseInt(e.target.value) || 0)}
+                          value={getFieldValue(groupe, 'surveillants_pre_assignes_total')}
+                          onChange={(e) => handleFieldChange(groupeKey, 'surveillants_pre_assignes_total', parseInt(e.target.value) || 0)}
                           className="w-20"
                         />
                       </TableCell>
                       <TableCell>
                         <div className="font-medium text-center">
                           {Math.max(0, 
-                            (getFieldValue(examen, 'nombre_surveillants') as number) - 
-                            (getFieldValue(examen, 'surveillants_enseignant') as number) - 
-                            (getFieldValue(examen, 'surveillants_amenes') as number) - 
-                            (getFieldValue(examen, 'surveillants_pre_assignes') as number)
+                            (getFieldValue(groupe, 'nombre_surveillants_total') as number) - 
+                            (getFieldValue(groupe, 'surveillants_enseignant_total') as number) - 
+                            (getFieldValue(groupe, 'surveillants_amenes_total') as number) - 
+                            (getFieldValue(groupe, 'surveillants_pre_assignes_total') as number)
                           )}
                         </div>
                       </TableCell>
@@ -352,8 +529,8 @@ export const ExamenReviewManager = () => {
                         <div className="flex gap-1">
                           <Button
                             size="sm"
-                            onClick={() => handleSaveExamen(examen)}
-                            disabled={!editingExamens[examen.id] || updateExamenMutation.isPending}
+                            onClick={() => handleSaveGroupe(groupe)}
+                            disabled={!editingExamens[groupeKey] || updateExamenMutation.isPending}
                           >
                             <Save className="h-4 w-4" />
                           </Button>
@@ -384,32 +561,32 @@ export const ExamenReviewManager = () => {
                 <div className="bg-blue-50 p-3 rounded-lg text-center">
                   <div className="font-bold text-blue-600">
                     {filteredExamens.length}
-                    {searchTerm && examens && ` / ${examens.length}`}
+                    {searchTerm && examensGroupes && ` / ${examensGroupes.length}`}
                   </div>
                   <div className="text-blue-800">
-                    {searchTerm ? 'Examens trouvés' : 'Examens non traités'}
+                    {searchTerm ? 'Examens trouvés' : 'Examens groupés'}
                   </div>
                 </div>
                 <div className="bg-green-50 p-3 rounded-lg text-center">
                   <div className="font-bold text-green-600">
-                    {filteredExamens.reduce((sum, e) => sum + Math.max(0, 
-                      (e.nombre_surveillants || 0) - 
-                      (e.surveillants_enseignant || 0) - 
-                      (e.surveillants_amenes || 0) - 
-                      (e.surveillants_pre_assignes || 0)
+                    {filteredExamens.reduce((sum, g) => sum + Math.max(0, 
+                      (g.nombre_surveillants_total || 0) - 
+                      (g.surveillants_enseignant_total || 0) - 
+                      (g.surveillants_amenes_total || 0) - 
+                      (g.surveillants_pre_assignes_total || 0)
                     ), 0)}
                   </div>
                   <div className="text-green-800">Total à attribuer</div>
                 </div>
                 <div className="bg-purple-50 p-3 rounded-lg text-center">
                   <div className="font-bold text-purple-600">
-                    {new Set(filteredExamens.map(e => e.salle)).size}
+                    {new Set(filteredExamens.map(g => g.auditoire_unifie)).size}
                   </div>
-                  <div className="text-purple-800">Auditoires distincts</div>
+                  <div className="text-purple-800">Auditoires unifiés</div>
                 </div>
                 <div className="bg-orange-50 p-3 rounded-lg text-center">
                   <div className="font-bold text-orange-600">
-                    {new Set(filteredExamens.map(e => e.date_examen)).size}
+                    {new Set(filteredExamens.map(g => g.date_examen)).size}
                   </div>
                   <div className="text-orange-800">Jours d'examens</div>
                 </div>
