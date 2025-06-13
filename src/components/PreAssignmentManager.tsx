@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Lock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Trash2, Plus, Lock, Search } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
 
@@ -28,6 +29,7 @@ interface Examen {
   salle: string;
   nombre_surveillants: number;
   type_requis: string;
+  code_examen?: string;
 }
 
 interface PreAssignment {
@@ -44,6 +46,7 @@ export const PreAssignmentManager = () => {
   const queryClient = useQueryClient();
   const [selectedExamen, setSelectedExamen] = useState<string>("");
   const [selectedSurveillant, setSelectedSurveillant] = useState<string>("");
+  const [surveillantSearch, setSurveillantSearch] = useState<string>("");
 
   // Récupérer les surveillants actifs de la session
   const { data: surveillants = [] } = useQuery({
@@ -61,8 +64,14 @@ export const PreAssignmentManager = () => {
       
       if (error) throw error;
       const result = data.map(item => item.surveillant).filter(Boolean) as Surveillant[];
-      console.log('Surveillants data:', result);
-      return result;
+      // Trier par ordre alphabétique (nom, puis prénom)
+      return result.sort((a, b) => {
+        const nameCompare = a.nom.localeCompare(b.nom);
+        if (nameCompare === 0) {
+          return a.prenom.localeCompare(b.prenom);
+        }
+        return nameCompare;
+      });
     },
     enabled: !!activeSession?.id
   });
@@ -81,7 +90,6 @@ export const PreAssignmentManager = () => {
         .order('heure_debut', { ascending: true });
       
       if (error) throw error;
-      console.log('Examens data:', data);
       return data as Examen[];
     },
     enabled: !!activeSession?.id
@@ -185,49 +193,25 @@ export const PreAssignmentManager = () => {
     return `${surveillant.nom} ${surveillant.prenom} (${surveillant.type})`;
   };
 
-  // Filter out items with empty or invalid IDs - most robust filtering possible
-  const validExamens = examens.filter(examen => {
-    if (!examen) {
-      console.log('Null/undefined examen found');
-      return false;
-    }
-    if (!examen.id) {
-      console.log('Examen without id found:', examen);
-      return false;
-    }
-    if (typeof examen.id !== 'string') {
-      console.log('Examen with non-string id found:', examen);
-      return false;
-    }
-    if (examen.id.trim() === '') {
-      console.log('Examen with empty string id found:', examen);
-      return false;
-    }
-    return true;
-  });
-  
-  const validSurveillants = surveillants.filter(surveillant => {
-    if (!surveillant) {
-      console.log('Null/undefined surveillant found');
-      return false;
-    }
-    if (!surveillant.id) {
-      console.log('Surveillant without id found:', surveillant);
-      return false;
-    }
-    if (typeof surveillant.id !== 'string') {
-      console.log('Surveillant with non-string id found:', surveillant);
-      return false;
-    }
-    if (surveillant.id.trim() === '') {
-      console.log('Surveillant with empty string id found:', surveillant);
-      return false;
-    }
-    return true;
+  // Filtrer les surveillants selon la recherche
+  const filteredSurveillants = surveillants.filter(surveillant => {
+    if (!surveillantSearch) return true;
+    const searchLower = surveillantSearch.toLowerCase();
+    return (
+      surveillant.nom.toLowerCase().includes(searchLower) ||
+      surveillant.prenom.toLowerCase().includes(searchLower) ||
+      surveillant.email.toLowerCase().includes(searchLower)
+    );
   });
 
-  console.log('Valid examens count:', validExamens.length);
-  console.log('Valid surveillants count:', validSurveillants.length);
+  // Filter out items with empty or invalid IDs
+  const validExamens = examens.filter(examen => 
+    examen && examen.id && typeof examen.id === 'string' && examen.id.trim() !== ''
+  );
+  
+  const validSurveillants = filteredSurveillants.filter(surveillant => 
+    surveillant && surveillant.id && typeof surveillant.id === 'string' && surveillant.id.trim() !== ''
+  );
 
   if (!activeSession) {
     return (
@@ -247,7 +231,7 @@ export const PreAssignmentManager = () => {
         <CardContent className="pt-6">
           <div className="text-center space-y-4">
             <p className="text-gray-500">
-              {validSurveillants.length === 0 && "Aucun surveillant trouvé dans cette session."}
+              {surveillants.length === 0 && "Aucun surveillant trouvé dans cette session."}
               {validExamens.length === 0 && "Aucun examen trouvé dans cette session."}
             </p>
             <p className="text-sm text-blue-600">
@@ -282,45 +266,40 @@ export const PreAssignmentManager = () => {
                   <SelectValue placeholder="Sélectionner un examen" />
                 </SelectTrigger>
                 <SelectContent>
-                  {validExamens.map((examen) => {
-                    // Final safety check before rendering
-                    if (!examen?.id || typeof examen.id !== 'string' || examen.id.trim() === '') {
-                      console.error('Attempting to render SelectItem with invalid examen:', examen);
-                      return null;
-                    }
-                    console.log('Rendering examen SelectItem with value:', examen.id);
-                    return (
-                      <SelectItem key={examen.id} value={examen.id}>
-                        {formatExamenLabel(examen)}
-                      </SelectItem>
-                    );
-                  })}
+                  {validExamens.map((examen) => (
+                    <SelectItem key={examen.id} value={examen.id}>
+                      {formatExamenLabel(examen)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div>
               <label className="block text-sm font-medium mb-2">Surveillant</label>
-              <Select value={selectedSurveillant} onValueChange={setSelectedSurveillant}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un surveillant" />
-                </SelectTrigger>
-                <SelectContent>
-                  {validSurveillants.map((surveillant) => {
-                    // Final safety check before rendering
-                    if (!surveillant?.id || typeof surveillant.id !== 'string' || surveillant.id.trim() === '') {
-                      console.error('Attempting to render SelectItem with invalid surveillant:', surveillant);
-                      return null;
-                    }
-                    console.log('Rendering surveillant SelectItem with value:', surveillant.id);
-                    return (
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Rechercher un surveillant..."
+                    value={surveillantSearch}
+                    onChange={(e) => setSurveillantSearch(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+                <Select value={selectedSurveillant} onValueChange={setSelectedSurveillant}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un surveillant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {validSurveillants.map((surveillant) => (
                       <SelectItem key={surveillant.id} value={surveillant.id}>
                         {formatSurveillantLabel(surveillant)}
                       </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="flex items-end">

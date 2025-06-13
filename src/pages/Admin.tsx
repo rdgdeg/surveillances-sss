@@ -10,6 +10,7 @@ import { ExcelFileUploader } from "@/components/ExcelFileUploader";
 import { ImportVerification } from "@/components/ImportVerification";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
 import { SurveillantListEditor } from "@/components/SurveillantListEditor";
+import { SurveillantManager } from "@/components/SurveillantManager";
 import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
 import { NewPlanningView } from "@/components/NewPlanningView";
 import { SoldesSurveillants } from "@/components/SoldesSurveillants";
@@ -140,6 +141,9 @@ const Admin = () => {
       
       case "surveillants":
         return <SurveillantListEditor />;
+      
+      case "surveillants-manager":
+        return <SurveillantManager />;
       
       case "disponibilites":
         return <AvailabilityMatrix />;
