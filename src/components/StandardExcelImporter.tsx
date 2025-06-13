@@ -17,17 +17,16 @@ interface StandardExamenData {
   activite: string;
   code: string;
   auditoires: string;
-  etudiants: number;
+  groupes_etudiants: string;
   enseignants: string;
+  code_cours_extrait: string;
+  code_complet_original: string;
 }
 
 interface ProcessingResult {
   total_lignes: number;
-  examens_generes: number;
-  validations_automatiques: number;
-  validations_manuelles: number;
-  rejetes: number;
-  auditoires_separes: number;
+  examens_affiches: number;
+  doublons_evites: number;
 }
 
 export const StandardExcelImporter = () => {
@@ -35,205 +34,96 @@ export const StandardExcelImporter = () => {
   const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStats, setProcessingStats] = useState<ProcessingResult | null>(null);
+  const [parsedData, setParsedData] = useState<StandardExamenData[]>([]);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
-  const importStandardExcelMutation = useMutation({
-    mutationFn: async (examensData: StandardExamenData[]) => {
-      if (!activeSession?.id) throw new Error("Aucune session active");
-
-      const results: ProcessingResult = {
-        total_lignes: 0,
-        examens_generes: 0,
-        validations_automatiques: 0,
-        validations_manuelles: 0,
-        rejetes: 0,
-        auditoires_separes: 0
-      };
-
-      for (const ligne of examensData) {
-        try {
-          results.total_lignes++;
-
-          // Extraire le code d'examen depuis la colonne "Activité"
-          const codeExamen = extraireCodeExamen(ligne.activite);
-          
-          // Classifier le code d'examen
-          const { data: classification } = await supabase
-            .rpc('classifier_code_examen', { 
-              code_original: codeExamen 
-            });
-
-          if (!classification || classification.length === 0) {
-            console.warn(`Impossible de classifier le code: ${codeExamen}`);
-            continue;
-          }
-
-          const classif = classification[0];
-
-          // Si c'est rejeté (oral), on skip
-          if (classif.statut_validation === 'REJETE') {
-            results.rejetes++;
-            continue;
-          }
-
-          // Séparer les auditoires multiples
-          const auditoires = separerAuditoires(ligne.auditoires);
-          results.auditoires_separes += auditoires.length;
-
-          // Créer un examen par auditoire
-          for (const auditoire of auditoires) {
-            const examenData = {
-              session_id: activeSession.id,
-              code_examen: codeExamen,
-              matiere: ligne.activite.split('=')[0], // Partie avant le =
-              date_examen: formatDateFromJour(ligne.jour),
-              heure_debut: ligne.heure_debut,
-              heure_fin: ligne.heure_fin,
-              salle: auditoire.trim(),
-              nombre_surveillants: calculerNombreSurveillants(ligne.etudiants),
-              type_requis: 'Assistant',
-              statut_validation: 'EN_COURS'
-            };
-
-            // Insérer l'examen
-            const { data: examen, error: examenError } = await supabase
-              .from('examens')
-              .insert(examenData)
-              .select()
-              .single();
-
-            if (examenError) throw examenError;
-
-            // Insérer la validation
-            const { error: validationError } = await supabase
-              .from('examens_validation')
-              .insert({
-                examen_id: examen.id,
-                code_original: codeExamen,
-                type_detecte: classif.type_detecte,
-                statut_validation: classif.statut_validation,
-                commentaire: classif.commentaire
-              });
-
-            if (validationError) throw validationError;
-
-            results.examens_generes++;
-
-            // Compter les statuts de validation
-            switch (classif.statut_validation) {
-              case 'VALIDE':
-                results.validations_automatiques++;
-                break;
-              case 'NECESSITE_VALIDATION':
-                results.validations_manuelles++;
-                break;
-            }
-          }
-
-        } catch (error: any) {
-          console.error(`Erreur pour la ligne ${ligne.activite}:`, error);
-        }
-      }
-
-      return results;
-    },
-    onSuccess: (results) => {
-      setProcessingStats(results);
-      queryClient.invalidateQueries({ queryKey: ['examens-validation'] });
-      queryClient.invalidateQueries({ queryKey: ['examens-review'] });
-
-      toast({
-        title: "Import terminé avec succès",
-        description: `${results.examens_generes} examens créés à partir de ${results.total_lignes} lignes Excel. ${results.auditoires_separes} auditoires séparés.`,
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur d'import",
-        description: error.message || "Une erreur s'est produite lors de l'import.",
-        variant: "destructive"
-      });
-    },
-    onSettled: () => {
-      setIsProcessing(false);
-    }
-  });
-
-  const extraireCodeExamen = (activite: string): string => {
-    // Extraire le code depuis "WDENT2152=E" → "WDENT2152=E"
-    if (activite.includes('=')) {
-      return activite;
-    }
-    // Si pas de =, retourner tel quel pour validation manuelle
-    return activite;
+  const extraireCodeCours = (activite: string): string => {
+    // Extraire le premier code cours avant le +
+    // Ex: "WDENT1337+WDENT1338 = E à confirmer" → "WDENT1337"
+    const match = activite.match(/([A-Z]+\d+)/);
+    return match ? match[1] : activite.split('=')[0].split('+')[0].trim();
   };
 
-  const separerAuditoires = (auditoires: string): string[] => {
-    // Séparer "51 A - Lacroix, 51 C, 51 B" → ["51 A - Lacroix", "51 C", "51 B"]
-    return auditoires.split(',').map(a => a.trim()).filter(a => a.length > 0);
-  };
+  const verifierDoublon = async (codeCours: string, auditoire: string): Promise<boolean> => {
+    if (!activeSession?.id) return false;
 
-  const calculerNombreSurveillants = (nombreEtudiants: number): number => {
-    // Logique basique : 1 surveillant pour 30 étudiants, minimum 1
-    return Math.max(1, Math.ceil(nombreEtudiants / 30));
-  };
+    const { data, error } = await supabase
+      .from('examens')
+      .select('id')
+      .eq('session_id', activeSession.id)
+      .eq('code_examen', codeCours)
+      .eq('salle', auditoire.trim())
+      .limit(1);
 
-  const formatDateFromJour = (jour: string): string => {
-    // Gérer différents formats de date possibles
-    try {
-      // Si c'est déjà au format YYYY-MM-DD
-      if (/^\d{4}-\d{2}-\d{2}$/.test(jour)) {
-        return jour;
-      }
-      
-      // Si c'est au format DD/MM/YYYY
-      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(jour)) {
-        const [day, month, year] = jour.split('/');
-        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      }
-      
-      // Autres formats - essayer de parser avec Date
-      const date = new Date(jour);
-      return date.toISOString().split('T')[0];
-    } catch {
-      // Fallback - date du jour
-      return new Date().toISOString().split('T')[0];
+    if (error) {
+      console.error('Erreur vérification doublon:', error);
+      return false;
     }
+
+    return data && data.length > 0;
   };
 
   const parseStandardExcel = async (file: File): Promise<StandardExamenData[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = new Uint8Array(e.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
           
-          // Prendre la première feuille
           const sheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
           
-          // Vérifier qu'on a au moins un en-tête et des données
           if (jsonData.length < 2) {
             reject(new Error("Le fichier doit contenir au moins un en-tête et une ligne de données"));
             return;
           }
 
-          const headers = jsonData[0].map((h: any) => String(h).toLowerCase().trim());
           const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== "" && cell !== null));
+          const examensData: StandardExamenData[] = [];
+          let doublonsEvites = 0;
 
-          // Mapper selon votre format standard
-          const examensData: StandardExamenData[] = rows.map(row => ({
-            jour: String(row[0] || '').trim(),
-            duree: parseFloat(String(row[1] || '0')),
-            heure_debut: formatTime(row[2]),
-            heure_fin: formatTime(row[3]),
-            activite: String(row[4] || '').trim(),
-            code: String(row[5] || '').trim(),
-            auditoires: String(row[6] || '').trim(),
-            etudiants: parseInt(String(row[7] || '0')),
-            enseignants: String(row[8] || '').trim()
-          })).filter(exam => exam.activite && exam.auditoires);
+          for (const row of rows) {
+            const activite = String(row[4] || '').trim();
+            const auditoires = String(row[6] || '').trim();
+            
+            if (!activite || !auditoires) continue;
+
+            const codeCours = extraireCodeCours(activite);
+            const auditoiresList = separerAuditoires(auditoires);
+
+            // Vérifier les doublons pour chaque auditoire
+            for (const auditoire of auditoiresList) {
+              const estDoublon = await verifierDoublon(codeCours, auditoire);
+              
+              if (estDoublon) {
+                doublonsEvites++;
+                console.log(`Doublon évité: ${codeCours} - ${auditoire}`);
+                continue;
+              }
+
+              examensData.push({
+                jour: String(row[0] || '').trim(),
+                duree: parseFloat(String(row[1] || '0')),
+                heure_debut: formatTime(row[2]),
+                heure_fin: formatTime(row[3]),
+                activite: activite,
+                code: String(row[5] || '').trim(),
+                auditoires: auditoire,
+                groupes_etudiants: String(row[7] || '').trim(),
+                enseignants: String(row[8] || '').trim(),
+                code_cours_extrait: codeCours,
+                code_complet_original: activite
+              });
+            }
+          }
+
+          setProcessingStats({
+            total_lignes: rows.length,
+            examens_affiches: examensData.length,
+            doublons_evites: doublonsEvites
+          });
 
           console.log('Données Excel parsées:', examensData);
           resolve(examensData);
@@ -246,17 +136,19 @@ export const StandardExcelImporter = () => {
     });
   };
 
+  const separerAuditoires = (auditoires: string): string[] => {
+    return auditoires.split(',').map(a => a.trim()).filter(a => a.length > 0);
+  };
+
   const formatTime = (value: any): string => {
     if (!value) return '08:00';
     
-    // Si c'est un nombre (fraction de jour Excel)
     if (typeof value === 'number') {
       const hours = Math.floor(value * 24);
       const minutes = Math.floor((value * 24 * 60) % 60);
       return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     }
     
-    // Si c'est déjà une chaîne d'heure
     if (typeof value === 'string') {
       const cleaned = value.trim().replace(/[^\d:]/g, '');
       if (/^\d{1,2}:\d{2}$/.test(cleaned)) {
@@ -265,6 +157,24 @@ export const StandardExcelImporter = () => {
     }
     
     return '08:00';
+  };
+
+  const formatDateFromJour = (jour: string): string => {
+    try {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(jour)) {
+        return jour;
+      }
+      
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(jour)) {
+        const [day, month, year] = jour.split('/');
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      }
+      
+      const date = new Date(jour);
+      return date.toISOString().split('T')[0];
+    } catch {
+      return new Date().toISOString().split('T')[0];
+    }
   };
 
   const handleFileUpload = async (file: File) => {
@@ -288,24 +198,113 @@ export const StandardExcelImporter = () => {
 
     setIsProcessing(true);
     setProcessingStats(null);
+    setParsedData([]);
 
     try {
       const examensData = await parseStandardExcel(file);
+      setParsedData(examensData);
+      setSelectedItems([]);
       
       if (examensData.length === 0) {
-        throw new Error("Aucun examen valide trouvé dans le fichier");
+        toast({
+          title: "Aucune donnée",
+          description: "Aucun examen à traiter (possiblement tous des doublons).",
+          variant: "destructive"
+        });
       }
 
-      importStandardExcelMutation.mutate(examensData);
-
     } catch (error: any) {
-      setIsProcessing(false);
       toast({
         title: "Erreur de lecture",
         description: error.message || "Impossible de lire le fichier.",
         variant: "destructive"
       });
+    } finally {
+      setIsProcessing(false);
     }
+  };
+
+  const validateSelected = async () => {
+    if (!activeSession?.id || selectedItems.length === 0) return;
+
+    const selectedExamens = parsedData.filter((_, index) => 
+      selectedItems.includes(index.toString())
+    );
+
+    let examensGeneres = 0;
+
+    for (const examen of selectedExamens) {
+      try {
+        const examenData = {
+          session_id: activeSession.id,
+          code_examen: examen.code_cours_extrait,
+          matiere: examen.activite.split('=')[0].trim(),
+          date_examen: formatDateFromJour(examen.jour),
+          heure_debut: examen.heure_debut,
+          heure_fin: examen.heure_fin,
+          salle: examen.auditoires,
+          nombre_surveillants: 1, // Valeur par défaut
+          type_requis: 'Assistant',
+          statut_validation: 'VALIDE'
+        };
+
+        const { data: nouvelExamen, error: examenError } = await supabase
+          .from('examens')
+          .insert(examenData)
+          .select()
+          .single();
+
+        if (examenError) throw examenError;
+
+        // Créer l'entrée de validation avec remarques
+        const { error: validationError } = await supabase
+          .from('examens_validation')
+          .insert({
+            examen_id: nouvelExamen.id,
+            code_original: examen.code_complet_original,
+            type_detecte: 'MANUEL',
+            statut_validation: 'VALIDE',
+            commentaire: `Import manuel - Groupes: ${examen.groupes_etudiants} - Enseignants: ${examen.enseignants}`
+          });
+
+        if (validationError) throw validationError;
+
+        examensGeneres++;
+      } catch (error: any) {
+        console.error(`Erreur pour ${examen.code_cours_extrait}:`, error);
+      }
+    }
+
+    if (examensGeneres > 0) {
+      toast({
+        title: "Validation réussie",
+        description: `${examensGeneres} examens ont été créés avec succès.`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['examens-validation'] });
+      queryClient.invalidateQueries({ queryKey: ['examens-review'] });
+      
+      // Nettoyer après validation
+      setParsedData([]);
+      setSelectedItems([]);
+      setProcessingStats(null);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItems.length === parsedData.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(parsedData.map((_, index) => index.toString()));
+    }
+  };
+
+  const handleSelectItem = (index: string) => {
+    setSelectedItems(prev => 
+      prev.includes(index)
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -332,11 +331,11 @@ export const StandardExcelImporter = () => {
           <span>Import Excel Standard des Examens</span>
         </CardTitle>
         <CardDescription>
-          Importez le fichier Excel standardisé du secrétariat avec séparation automatique des auditoires
+          Importez le fichier Excel standardisé avec vérification des doublons et sélection manuelle
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!isProcessing && !processingStats && (
+        {!isProcessing && parsedData.length === 0 && (
           <div
             className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
             onDragOver={(e) => e.preventDefault()}
@@ -345,7 +344,7 @@ export const StandardExcelImporter = () => {
             <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <div className="space-y-2">
               <p className="text-lg font-medium">Glissez votre fichier Excel ici</p>
-              <p className="text-sm text-gray-500">Format : Jour | Durée | Début | Fin | Activité | Code | Auditoires | Étudiants | Enseignants</p>
+              <p className="text-sm text-gray-500">Format : Jour | Durée | Début | Fin | Activité | Code | Auditoires | Groupes | Enseignants</p>
               <label className="cursor-pointer">
                 <Button variant="outline" asChild>
                   <span>Parcourir les fichiers</span>
@@ -365,48 +364,105 @@ export const StandardExcelImporter = () => {
           <div className="text-center py-8">
             <div className="animate-spin mx-auto w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mb-4"></div>
             <p className="text-sm text-gray-600">
-              Traitement et séparation des auditoires en cours...
+              Analyse du fichier et vérification des doublons...
             </p>
           </div>
         )}
 
-        {processingStats && (
+        {parsedData.length > 0 && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="bg-blue-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-blue-600">{processingStats.total_lignes}</div>
-                <div className="text-sm text-blue-800">Lignes Excel</div>
+            {processingStats && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-blue-600">{processingStats.total_lignes}</div>
+                  <div className="text-sm text-blue-800">Lignes Excel</div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-green-600">{processingStats.examens_affiches}</div>
+                  <div className="text-sm text-green-800">Examens à traiter</div>
+                </div>
+                <div className="bg-orange-50 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-orange-600">{processingStats.doublons_evites}</div>
+                  <div className="text-sm text-orange-800">Doublons évités</div>
+                </div>
               </div>
-              <div className="bg-green-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-green-600">{processingStats.examens_generes}</div>
-                <div className="text-sm text-green-800">Examens générés</div>
-              </div>
-              <div className="bg-purple-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-purple-600">{processingStats.auditoires_separes}</div>
-                <div className="text-sm text-purple-800">Auditoires séparés</div>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-green-600">{processingStats.validations_automatiques}</div>
-                <div className="text-sm text-green-800">Validés auto</div>
-              </div>
-              <div className="bg-orange-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-orange-600">{processingStats.validations_manuelles}</div>
-                <div className="text-sm text-orange-800">À valider</div>
-              </div>
-              <div className="bg-red-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-red-600">{processingStats.rejetes}</div>
-                <div className="text-sm text-red-800">Rejetés (oraux)</div>
-              </div>
-            </div>
-            
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setProcessingStats(null)}
-                variant="outline"
+            )}
+
+            <div className="flex gap-2 items-center">
+              <Button onClick={handleSelectAll} variant="outline">
+                {selectedItems.length === parsedData.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+              </Button>
+              <Button 
+                onClick={validateSelected} 
+                disabled={selectedItems.length === 0}
+                className="bg-green-600 hover:bg-green-700"
               >
-                Importer d'autres examens
+                Valider la sélection ({selectedItems.length})
               </Button>
             </div>
+
+            <div className="overflow-x-auto max-h-96 border rounded-lg">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="p-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.length === parsedData.length}
+                        onChange={handleSelectAll}
+                      />
+                    </th>
+                    <th className="p-3 text-left">Code Cours</th>
+                    <th className="p-3 text-left">Date/Heure</th>
+                    <th className="p-3 text-left">Auditoire</th>
+                    <th className="p-3 text-left">Groupes</th>
+                    <th className="p-3 text-left">Enseignants</th>
+                    <th className="p-3 text-left">Remarques</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedData.map((examen, index) => (
+                    <tr key={index} className={selectedItems.includes(index.toString()) ? "bg-blue-50" : ""}>
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(index.toString())}
+                          onChange={() => handleSelectItem(index.toString())}
+                        />
+                      </td>
+                      <td className="p-3 font-mono">{examen.code_cours_extrait}</td>
+                      <td className="p-3">
+                        <div>{examen.jour}</div>
+                        <div className="text-gray-500 text-xs">
+                          {examen.heure_debut} - {examen.heure_fin}
+                        </div>
+                      </td>
+                      <td className="p-3">{examen.auditoires}</td>
+                      <td className="p-3 text-xs">{examen.groupes_etudiants}</td>
+                      <td className="p-3 text-xs">{examen.enseignants}</td>
+                      <td className="p-3 text-xs text-gray-600">
+                        {examen.code_complet_original !== examen.code_cours_extrait && (
+                          <div className="bg-yellow-100 p-1 rounded text-xs">
+                            Original: {examen.code_complet_original}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Button
+              onClick={() => {
+                setParsedData([]);
+                setSelectedItems([]);
+                setProcessingStats(null);
+              }}
+              variant="outline"
+            >
+              Importer un autre fichier
+            </Button>
           </div>
         )}
 
@@ -417,10 +473,10 @@ export const StandardExcelImporter = () => {
             <div><strong>Colonne B :</strong> Durée (h) (durée en heures)</div>
             <div><strong>Colonne C :</strong> Début (heure de début)</div>
             <div><strong>Colonne D :</strong> Fin (heure de fin)</div>
-            <div><strong>Colonne E :</strong> Activité (contient le code d'examen, ex: WDENT2152=E)</div>
+            <div><strong>Colonne E :</strong> Activité (contient le code d'examen)</div>
             <div><strong>Colonne F :</strong> Code (code supplémentaire)</div>
-            <div><strong>Colonne G :</strong> Auditoires (salles séparées par virgules, ex: 51 A - Lacroix, 51 C, 51 B)</div>
-            <div><strong>Colonne H :</strong> Étudiants (nombre d'étudiants)</div>
+            <div><strong>Colonne G :</strong> Auditoires (salles séparées par virgules)</div>
+            <div><strong>Colonne H :</strong> Groupes d'étudiants (noms des groupes)</div>
             <div><strong>Colonne I :</strong> Enseignants (noms des enseignants)</div>
           </div>
         </div>
