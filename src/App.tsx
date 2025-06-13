@@ -24,12 +24,17 @@ const AppContent = () => {
   
   return (
     <Routes>
+      {/* Pages publiques - accessibles à tous */}
       <Route path="/" element={<Index />} />
-      <Route path="/auth" element={<Auth />} />
       <Route path="/candidature" element={<PublicForm />} />
       <Route path="/surveillant" element={<Surveillant />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/credits" element={<Credits />} />
+      
+      {/* Page d'authentification */}
+      <Route path="/auth" element={<Auth />} />
+      
+      {/* Pages protégées - nécessitent une authentification */}
       <Route 
         path="/admin" 
         element={
@@ -38,6 +43,8 @@ const AppContent = () => {
           </ProtectedRoute>
         } 
       />
+      
+      {/* Page 404 */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
