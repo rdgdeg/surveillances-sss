@@ -19,10 +19,13 @@ export const useExamenReview = () => {
 
       const { data, error } = await supabase
         .from('examens')
-        .select('*')
+        .select(`
+          *,
+          personnes_aidantes (*)
+        `)
         .eq('session_id', activeSession.id)
         .eq('statut_validation', 'NON_TRAITE')
-        .eq('is_active', true) // Seulement les examens actifs
+        .eq('is_active', true)
         .order('date_examen', { ascending: true })
         .order('heure_debut', { ascending: true })
         .order('code_examen', { ascending: true });
@@ -78,6 +81,7 @@ export const useExamenReview = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['examens-review'] });
+      queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
       setEditingExamens({});
       toast({
         title: "Examens mis à jour",
@@ -109,6 +113,7 @@ export const useExamenReview = () => {
     onSuccess: (_, groupes) => {
       queryClient.invalidateQueries({ queryKey: ['examens-review'] });
       queryClient.invalidateQueries({ queryKey: ['examens-valides'] });
+      queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
       setSelectedGroupes(new Set());
       toast({
         title: "Examens validés",
@@ -180,6 +185,7 @@ export const useExamenReview = () => {
     onSuccess: (_, { isActive }) => {
       queryClient.invalidateQueries({ queryKey: ['examens-review'] });
       queryClient.invalidateQueries({ queryKey: ['examens-valides'] });
+      queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
       toast({
         title: isActive ? "Examen activé" : "Examen désactivé",
         description: isActive 

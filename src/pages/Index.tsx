@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Users, Calendar, FileText, Settings, ClipboardList, GraduationCap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Footer } from "@/components/Footer";
+import { EnseignantExamenForm } from "@/components/EnseignantExamenForm";
 
 const Index = () => {
   return (
@@ -42,6 +43,11 @@ const Index = () => {
             Gérez efficacement l'attribution des surveillants pour vos examens, 
             collectez les disponibilités et optimisez l'organisation de vos sessions d'examens.
           </p>
+        </div>
+
+        {/* Section spéciale pour les enseignants */}
+        <div className="mb-12">
+          <EnseignantExamenForm />
         </div>
 
         {/* Cards Grid */}

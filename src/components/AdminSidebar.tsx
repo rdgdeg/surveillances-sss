@@ -15,8 +15,10 @@ import {
   History,
   Eye,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  ArrowLeft
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface AdminSidebarProps {
   activeView: string;
@@ -150,6 +152,12 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
     <div className="w-64 bg-white border-r">
       <div className="p-4">
         <h2 className="text-lg font-semibold">Administration</h2>
+        <Link to="/">
+          <Button variant="outline" size="sm" className="mt-2 w-full">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Retour à l'accueil
+          </Button>
+        </Link>
       </div>
       <Separator />
       <ScrollArea className="flex-1 p-4">
