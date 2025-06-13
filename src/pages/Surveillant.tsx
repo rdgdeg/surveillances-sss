@@ -1,258 +1,252 @@
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, User, Mail, AlertTriangle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useActiveSession } from "@/hooks/useSessions";
-import { toast } from "@/hooks/use-toast";
+import { Search, Calendar, Clock, MapPin, Users, Calculator } from "lucide-react";
+import { useState } from "react";
+import { Footer } from "@/components/Footer";
+
+interface SurveillanceData {
+  id: string;
+  date_examen: string;
+  heure_debut: string;
+  heure_fin: string;
+  matiere: string;
+  salle: string;
+  surveillant_nom: string;
+  surveillant_prenom: string;
+  surveillant_email: string;
+  surveillant_type: string;
+  is_pre_assigne: boolean;
+  is_obligatoire: boolean;
+  session_name: string;
+}
 
 const Surveillant = () => {
-  const [email, setEmail] = useState("");
-  const [surveillantData, setSurveillantData] = useState<any>(null);
-  const { data: activeSession } = useActiveSession();
+  const [searchEmail, setSearchEmail] = useState("");
+  const [searchResult, setSearchResult] = useState<SurveillanceData[] | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
-  const { data: attributions = [], refetch } = useQuery({
-    queryKey: ['surveillant-attributions', surveillantData?.id, activeSession?.id],
-    queryFn: async () => {
-      if (!surveillantData || !activeSession) return [];
-      
-      const { data, error } = await supabase
-        .from('attributions')
-        .select(`
-          *,
-          examens (
-            date_examen,
-            heure_debut, 
-            heure_fin,
-            matiere,
-            salle,
-            nombre_surveillants
-          )
-        `)
-        .eq('surveillant_id', surveillantData.id)
-        .eq('session_id', activeSession.id)
-        .order('examens(date_examen)')
-        .order('examens(heure_debut)');
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!(surveillantData && activeSession)
-  });
-
-  const handleLogin = async () => {
-    if (!email.trim() || !activeSession) return;
-
+  const handleSearch = async () => {
+    if (!searchEmail.trim()) return;
+    
+    setIsSearching(true);
     try {
       const { data, error } = await supabase
-        .from('surveillants')
+        .from('surveillance_assignments_view')
         .select(`
           *,
-          surveillant_sessions!inner (
-            quota,
-            sessions_imposees
-          )
+          sessions!inner(name)
         `)
-        .eq('email', email.toLowerCase().trim())
-        .eq('surveillant_sessions.session_id', activeSession.id)
-        .eq('surveillant_sessions.is_active', true)
-        .single();
+        .eq('email', searchEmail.trim())
+        .not('examen_id', 'is', null);
 
-      if (error) {
-        toast({
-          title: "Surveillant non trouvé",
-          description: "Aucun surveillant trouvé avec cet email pour la session active.",
-          variant: "destructive"
-        });
-        return;
-      }
+      if (error) throw error;
 
-      setSurveillantData(data);
-      toast({
-        title: "Connexion réussie",
-        description: `Bienvenue ${data.prenom} ${data.nom} !`
-      });
-    } catch (error: any) {
-      toast({
-        title: "Erreur de connexion",
-        description: error.message,
-        variant: "destructive"
-      });
+      const formattedData: SurveillanceData[] = (data || []).map(item => ({
+        id: item.examen_id || '',
+        date_examen: item.date_examen || '',
+        heure_debut: item.heure_debut || '',
+        heure_fin: item.heure_fin || '',
+        matiere: item.matiere || '',
+        salle: item.salle || '',
+        surveillant_nom: item.nom || '',
+        surveillant_prenom: item.prenom || '',
+        surveillant_email: item.email || '',
+        surveillant_type: item.surveillant_type || '',
+        is_pre_assigne: false, // Ces données ne sont pas disponibles dans la vue
+        is_obligatoire: false, // Ces données ne sont pas disponibles dans la vue
+        session_name: item.sessions?.name || ''
+      }));
+
+      setSearchResult(formattedData);
+    } catch (error) {
+      console.error('Erreur lors de la recherche:', error);
+      setSearchResult([]);
+    } finally {
+      setIsSearching(false);
     }
   };
 
-  const handleLogout = () => {
-    setSurveillantData(null);
-    setEmail("");
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
   };
 
-  const getAttributionStatus = (attribution: any) => {
-    if (attribution.is_locked) return { text: "Verrouillé", color: "bg-red-100 text-red-800" };
-    if (attribution.is_pre_assigne) return { text: "Pré-assigné", color: "bg-blue-100 text-blue-800" };
-    if (attribution.is_obligatoire) return { text: "Obligatoire", color: "bg-orange-100 text-orange-800" };
-    return { text: "Assigné", color: "bg-green-100 text-green-800" };
-  };
-
-  if (!activeSession) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">Aucune session active. Contactez l'administrateur.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (!surveillantData) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <User className="h-5 w-5" />
-              <span>Connexion Surveillant</span>
-            </CardTitle>
-            <CardDescription>
-              Connectez-vous avec votre email pour voir vos surveillances - Session {activeSession.name}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="votre.email@exemple.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-              />
-            </div>
-            <Button onClick={handleLogin} className="w-full" disabled={!email.trim()}>
-              Se connecter
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  const quotaData = surveillantData.surveillant_sessions[0];
-  const attributionsCount = attributions.length;
-  const progressPercentage = quotaData ? (attributionsCount / quotaData.quota) * 100 : 0;
+  const groupedBySession = searchResult?.reduce((acc, surveillance) => {
+    const sessionName = surveillance.session_name || 'Session inconnue';
+    if (!acc[sessionName]) {
+      acc[sessionName] = [];
+    }
+    acc[sessionName].push(surveillance);
+    return acc;
+  }, {} as Record<string, SurveillanceData[]>) || {};
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* En-tête avec infos surveillant */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center space-x-2">
-                  <User className="h-5 w-5" />
-                  <span>{surveillantData.prenom} {surveillantData.nom}</span>
-                </CardTitle>
-                <CardDescription className="flex items-center space-x-4 mt-2">
-                  <span className="flex items-center space-x-1">
-                    <Mail className="h-4 w-4" />
-                    <span>{surveillantData.email}</span>
-                  </span>
-                  <Badge variant="outline">{surveillantData.type}</Badge>
-                  <Badge variant="outline">{surveillantData.statut}</Badge>
-                </CardDescription>
-              </div>
-              <Button variant="outline" onClick={handleLogout}>
-                Déconnexion
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{attributionsCount}</div>
-                <div className="text-sm text-gray-600">Surveillances assignées</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{quotaData?.quota || 0}</div>
-                <div className="text-sm text-gray-600">Quota total</div>
-              </div>
-              <div className="text-center">
-                <div className={`text-2xl font-bold ${progressPercentage > 100 ? 'text-red-600' : 'text-orange-600'}`}>
-                  {Math.round(progressPercentage)}%
-                </div>
-                <div className="text-sm text-gray-600">Progression</div>
-              </div>
-            </div>
-            
-            {progressPercentage > 100 && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-                <span className="text-sm text-red-800">
-                  Attention : Vous dépassez votre quota de {quotaData?.quota} surveillances.
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-1">
+        <div className="max-w-6xl mx-auto p-6 space-y-6">
+          <div className="text-center space-y-4">
+            <h1 className="text-3xl font-bold">Espace Surveillant</h1>
+            <p className="text-muted-foreground">
+              Consultez vos surveillances attribuées en saisissant votre adresse e-mail
+            </p>
+          </div>
 
-        {/* Liste des surveillances */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Calendar className="h-5 w-5" />
-              <span>Mes Surveillances - Session {activeSession.name}</span>
-            </CardTitle>
-            <CardDescription>
-              Voici la liste de vos surveillances assignées pour cette session.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {attributions.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Aucune surveillance assignée pour le moment.</p>
+          {/* Recherche par email */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Search className="h-5 w-5" />
+                <span>Recherche de Surveillances</span>
+              </CardTitle>
+              <CardDescription>
+                Saisissez votre adresse e-mail pour consulter vos surveillances attribuées
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex space-x-4">
+                <div className="flex-1">
+                  <Label htmlFor="email">Adresse e-mail</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="votre.email@uclouvain.be"
+                    value={searchEmail}
+                    onChange={(e) => setSearchEmail(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button 
+                    onClick={handleSearch}
+                    disabled={isSearching || !searchEmail.trim()}
+                  >
+                    <Search className="h-4 w-4 mr-2" />
+                    {isSearching ? "Recherche..." : "Rechercher"}
+                  </Button>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {attributions.map((attribution) => (
-                  <div key={attribution.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2 flex-1">
-                        <div className="flex items-center space-x-4">
-                          <Badge variant="outline">{attribution.examens.date_examen}</Badge>
-                          <Badge variant="outline">
-                            {attribution.examens.heure_debut} - {attribution.examens.heure_fin}
-                          </Badge>
-                          <Badge className={getAttributionStatus(attribution).color}>
-                            {getAttributionStatus(attribution).text}
-                          </Badge>
-                        </div>
-                        
-                        <div>
-                          <h3 className="font-medium text-gray-900">{attribution.examens.matiere}</h3>
-                          <p className="text-gray-600">Salle : {attribution.examens.salle}</p>
-                          <p className="text-sm text-gray-500">
-                            {attribution.examens.nombre_surveillants} surveillant(s) requis pour cet examen
-                          </p>
-                        </div>
+            </CardContent>
+          </Card>
+
+          {/* Résultats de recherche */}
+          {searchResult !== null && (
+            <div className="space-y-6">
+              {searchResult.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <p className="text-center text-muted-foreground">
+                      Aucune surveillance trouvée pour cette adresse e-mail.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                Object.entries(groupedBySession).map(([sessionName, surveillances]) => (
+                  <Card key={sessionName}>
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="flex items-center space-x-2">
+                          <Calendar className="h-5 w-5" />
+                          <span>{sessionName}</span>
+                        </span>
+                        <Badge variant="secondary">
+                          {surveillances.length} surveillance(s)
+                        </Badge>
+                      </CardTitle>
+                      {surveillances.length > 0 && (
+                        <CardDescription>
+                          Surveillant : {surveillances[0].surveillant_prenom} {surveillances[0].surveillant_nom}
+                          {surveillances[0].surveillant_type && (
+                            <Badge variant="outline" className="ml-2">
+                              {surveillances[0].surveillant_type}
+                            </Badge>
+                          )}
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Horaire</TableHead>
+                              <TableHead>Matière</TableHead>
+                              <TableHead>Salle</TableHead>
+                              <TableHead>Type</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {surveillances
+                              .sort((a, b) => {
+                                const dateA = new Date(`${a.date_examen} ${a.heure_debut}`);
+                                const dateB = new Date(`${b.date_examen} ${b.heure_debut}`);
+                                return dateA.getTime() - dateB.getTime();
+                              })
+                              .map((surveillance, index) => (
+                                <TableRow key={`${surveillance.id}-${index}`}>
+                                  <TableCell>
+                                    <div className="flex items-center space-x-2">
+                                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium">
+                                        {new Date(surveillance.date_examen).toLocaleDateString('fr-FR', {
+                                          weekday: 'long',
+                                          year: 'numeric',
+                                          month: 'long',
+                                          day: 'numeric'
+                                        })}
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center space-x-2">
+                                      <Clock className="h-4 w-4 text-muted-foreground" />
+                                      <span>{surveillance.heure_debut} - {surveillance.heure_fin}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <span className="font-medium">{surveillance.matiere}</span>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center space-x-2">
+                                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                                      <span>{surveillance.salle}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex space-x-1">
+                                      {surveillance.is_pre_assigne && (
+                                        <Badge variant="secondary">Pré-assigné</Badge>
+                                      )}
+                                      {surveillance.is_obligatoire && (
+                                        <Badge variant="destructive">Obligatoire</Badge>
+                                      )}
+                                      {!surveillance.is_pre_assigne && !surveillance.is_obligatoire && (
+                                        <Badge variant="outline">Standard</Badge>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
+      <Footer />
     </div>
   );
 };

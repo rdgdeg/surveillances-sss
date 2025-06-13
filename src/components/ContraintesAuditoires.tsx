@@ -6,16 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Building2, Plus, Save, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { Textarea } from "@/components/ui/textarea";
 
 interface ContrainteAuditoire {
   id: string;
   auditoire: string;
   nombre_surveillants_requis: number;
-  description: string | null;
+  description?: string;
 }
 
 export const ContraintesAuditoires = () => {
@@ -25,8 +25,6 @@ export const ContraintesAuditoires = () => {
     nombre_surveillants_requis: 1,
     description: ''
   });
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingData, setEditingData] = useState<Partial<ContrainteAuditoire>>({});
 
   const { data: contraintes, isLoading } = useQuery({
     queryKey: ['contraintes-auditoires'],
@@ -42,7 +40,7 @@ export const ContraintesAuditoires = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (contrainte: typeof newContrainte) => {
+    mutationFn: async (contrainte: Omit<ContrainteAuditoire, 'id'>) => {
       const { error } = await supabase
         .from('contraintes_auditoires')
         .insert(contrainte);
@@ -53,41 +51,14 @@ export const ContraintesAuditoires = () => {
       queryClient.invalidateQueries({ queryKey: ['contraintes-auditoires'] });
       setNewContrainte({ auditoire: '', nombre_surveillants_requis: 1, description: '' });
       toast({
-        title: "Contrainte ajoutée",
-        description: "La contrainte d'auditoire a été ajoutée avec succès.",
+        title: "Succès",
+        description: "Contrainte d'auditoire créée avec succès.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Erreur",
-        description: error.message || "Impossible d'ajouter la contrainte.",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<ContrainteAuditoire> }) => {
-      const { error } = await supabase
-        .from('contraintes_auditoires')
-        .update(updates)
-        .eq('id', id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contraintes-auditoires'] });
-      setEditingId(null);
-      setEditingData({});
-      toast({
-        title: "Contrainte mise à jour",
-        description: "La contrainte d'auditoire a été mise à jour avec succès.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible de mettre à jour la contrainte.",
+        description: error.message || "Impossible de créer la contrainte.",
         variant: "destructive"
       });
     }
@@ -105,8 +76,8 @@ export const ContraintesAuditoires = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['contraintes-auditoires'] });
       toast({
-        title: "Contrainte supprimée",
-        description: "La contrainte d'auditoire a été supprimée avec succès.",
+        title: "Succès",
+        description: "Contrainte d'auditoire supprimée.",
       });
     },
     onError: (error: any) => {
@@ -119,10 +90,10 @@ export const ContraintesAuditoires = () => {
   });
 
   const handleCreate = () => {
-    if (!newContrainte.auditoire) {
+    if (!newContrainte.auditoire.trim()) {
       toast({
-        title: "Champ requis",
-        description: "Veuillez spécifier le nom de l'auditoire.",
+        title: "Erreur",
+        description: "Le nom de l'auditoire est requis.",
         variant: "destructive"
       });
       return;
@@ -130,27 +101,11 @@ export const ContraintesAuditoires = () => {
     createMutation.mutate(newContrainte);
   };
 
-  const handleEdit = (contrainte: ContrainteAuditoire) => {
-    setEditingId(contrainte.id);
-    setEditingData(contrainte);
-  };
-
-  const handleSave = () => {
-    if (editingId && editingData) {
-      updateMutation.mutate({ id: editingId, updates: editingData });
-    }
-  };
-
-  const handleCancel = () => {
-    setEditingId(null);
-    setEditingData({});
-  };
-
   if (isLoading) {
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-center">Chargement des contraintes...</p>
+          <p className="text-center">Chargement des contraintes d'auditoires...</p>
         </CardContent>
       </Card>
     );
@@ -162,155 +117,104 @@ export const ContraintesAuditoires = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Building2 className="h-5 w-5" />
-            <span>Contraintes d'Auditoires</span>
+            <span>Contraintes par Auditoire</span>
           </CardTitle>
           <CardDescription>
-            Gérez le nombre de surveillants requis par auditoire selon les spécificités de chaque local
+            Définissez le nombre de surveillants requis pour chaque auditoire spécifique
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           {/* Formulaire d'ajout */}
-          <div className="bg-gray-50 p-4 rounded-lg mb-6">
-            <h3 className="font-semibold mb-4">Ajouter une nouvelle contrainte</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="auditoire">Auditoire</Label>
-                <Input
-                  id="auditoire"
-                  value={newContrainte.auditoire}
-                  onChange={(e) => setNewContrainte(prev => ({ ...prev, auditoire: e.target.value }))}
-                  placeholder="Ex: 51A Lacroix"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nombre">Nombre de surveillants</Label>
-                <Input
-                  id="nombre"
-                  type="number"
-                  min="1"
-                  value={newContrainte.nombre_surveillants_requis}
-                  onChange={(e) => setNewContrainte(prev => ({ ...prev, nombre_surveillants_requis: parseInt(e.target.value) || 1 }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Input
-                  id="description"
-                  value={newContrainte.description}
-                  onChange={(e) => setNewContrainte(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Description optionnelle"
-                />
-              </div>
-              <div className="flex items-end">
-                <Button 
-                  onClick={handleCreate} 
-                  disabled={createMutation.isPending}
-                  className="w-full"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Ajouter
-                </Button>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-lg">
+            <div className="space-y-2">
+              <Label htmlFor="auditoire">Auditoire</Label>
+              <Input
+                id="auditoire"
+                value={newContrainte.auditoire}
+                onChange={(e) => setNewContrainte(prev => ({ ...prev, auditoire: e.target.value }))}
+                placeholder="ex: 51B"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nombre">Nb Surveillants</Label>
+              <Input
+                id="nombre"
+                type="number"
+                min="1"
+                value={newContrainte.nombre_surveillants_requis}
+                onChange={(e) => setNewContrainte(prev => ({ 
+                  ...prev, 
+                  nombre_surveillants_requis: parseInt(e.target.value) || 1 
+                }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                value={newContrainte.description}
+                onChange={(e) => setNewContrainte(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Description optionnelle"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button 
+                onClick={handleCreate}
+                disabled={createMutation.isPending}
+                className="w-full"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Ajouter
+              </Button>
             </div>
           </div>
 
-          {/* Tableau des contraintes */}
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Auditoire</TableHead>
-                <TableHead className="text-center">Surveillants requis</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead className="text-center">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {contraintes?.map((contrainte) => (
-                <TableRow key={contrainte.id}>
-                  <TableCell>
-                    {editingId === contrainte.id ? (
-                      <Input
-                        value={editingData.auditoire || ''}
-                        onChange={(e) => setEditingData(prev => ({ ...prev, auditoire: e.target.value }))}
-                      />
-                    ) : (
-                      <Badge variant="outline" className="font-mono">
-                        {contrainte.auditoire}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {editingId === contrainte.id ? (
-                      <Input
-                        type="number"
-                        min="1"
-                        value={editingData.nombre_surveillants_requis || 1}
-                        onChange={(e) => setEditingData(prev => ({ ...prev, nombre_surveillants_requis: parseInt(e.target.value) || 1 }))}
-                        className="w-20 text-center"
-                      />
-                    ) : (
-                      <Badge variant={contrainte.nombre_surveillants_requis > 2 ? "destructive" : contrainte.nombre_surveillants_requis === 2 ? "default" : "secondary"}>
-                        {contrainte.nombre_surveillants_requis}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {editingId === contrainte.id ? (
-                      <Input
-                        value={editingData.description || ''}
-                        onChange={(e) => setEditingData(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Description optionnelle"
-                      />
-                    ) : (
-                      <span className="text-muted-foreground">
-                        {contrainte.description || 'Aucune description'}
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center space-x-2">
-                      {editingId === contrainte.id ? (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={handleSave}
-                            disabled={updateMutation.isPending}
-                          >
-                            <Save className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleCancel}
-                          >
-                            Annuler
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(contrainte)}
-                          >
-                            Modifier
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => deleteMutation.mutate(contrainte.id)}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </TableCell>
+          {/* Liste des contraintes */}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Auditoire</TableHead>
+                  <TableHead className="text-center">Surveillants requis</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {contraintes?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground">
+                      Aucune contrainte d'auditoire définie
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  contraintes?.map((contrainte) => (
+                    <TableRow key={contrainte.id}>
+                      <TableCell className="font-medium">{contrainte.auditoire}</TableCell>
+                      <TableCell className="text-center">{contrainte.nombre_surveillants_requis}</TableCell>
+                      <TableCell>{contrainte.description || '-'}</TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteMutation.mutate(contrainte.id)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {contraintes && contraintes.length > 0 && (
+            <div className="text-sm text-muted-foreground">
+              {contraintes.length} contrainte(s) d'auditoire configurée(s)
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -6,25 +6,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Users, UserCheck, Copy, ExternalLink } from "lucide-react";
+import { Users, CheckCircle, XCircle, Eye, Mail, Phone } from "lucide-react";
+import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface CandidatSurveillance {
   id: string;
   nom: string;
   prenom: string;
   email: string;
-  telephone: string | null;
+  telephone?: string;
   statut: string;
-  statut_autre: string | null;
+  statut_autre?: string;
   traite: boolean;
   created_at: string;
+  disponibilites_count?: number;
 }
 
 export const CandidatsSurveillance = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
+  const [selectedCandidat, setSelectedCandidat] = useState<CandidatSurveillance | null>(null);
 
   const { data: candidats, isLoading } = useQuery({
     queryKey: ['candidats-surveillance', activeSession?.id],
@@ -33,14 +36,41 @@ export const CandidatsSurveillance = () => {
 
       const { data, error } = await supabase
         .from('candidats_surveillance')
-        .select('*')
+        .select(`
+          *,
+          candidats_disponibilites(count)
+        `)
         .eq('session_id', activeSession.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      
+      return (data || []).map(candidat => ({
+        ...candidat,
+        disponibilites_count: candidat.candidats_disponibilites?.[0]?.count || 0
+      }));
     },
     enabled: !!activeSession?.id
+  });
+
+  const { data: disponibilites } = useQuery({
+    queryKey: ['candidat-disponibilites', selectedCandidat?.id],
+    queryFn: async () => {
+      if (!selectedCandidat?.id) return [];
+
+      const { data, error } = await supabase
+        .from('candidats_disponibilites')
+        .select(`
+          *,
+          examens(date_examen, heure_debut, heure_fin, matiere, salle)
+        `)
+        .eq('candidat_id', selectedCandidat.id)
+        .eq('est_disponible', true);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedCandidat?.id
   });
 
   const updateTraiteMutation = useMutation({
@@ -55,8 +85,8 @@ export const CandidatsSurveillance = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidats-surveillance'] });
       toast({
-        title: "Statut mis à jour",
-        description: "Le statut de traitement a été mis à jour.",
+        title: "Succès",
+        description: "Statut mis à jour.",
       });
     },
     onError: (error: any) => {
@@ -67,77 +97,6 @@ export const CandidatsSurveillance = () => {
       });
     }
   });
-
-  const createSurveillantMutation = useMutation({
-    mutationFn: async (candidat: CandidatSurveillance) => {
-      // Créer le surveillant
-      const { data: surveillant, error: surveillantError } = await supabase
-        .from('surveillants')
-        .insert({
-          nom: candidat.nom,
-          prenom: candidat.prenom,
-          email: candidat.email,
-          telephone: candidat.telephone,
-          type: candidat.statut === 'Autre' && candidat.statut_autre ? candidat.statut_autre : candidat.statut,
-          statut: 'actif'
-        })
-        .select()
-        .single();
-
-      if (surveillantError) throw surveillantError;
-
-      // Créer la relation avec la session active
-      if (activeSession?.id) {
-        const { error: sessionError } = await supabase
-          .from('surveillant_sessions')
-          .insert({
-            surveillant_id: surveillant.id,
-            session_id: activeSession.id,
-            quota: 6, // quota par défaut
-            is_active: true
-          });
-
-        if (sessionError) throw sessionError;
-      }
-
-      // Marquer le candidat comme traité
-      const { error: updateError } = await supabase
-        .from('candidats_surveillance')
-        .update({ traite: true })
-        .eq('id', candidat.id);
-
-      if (updateError) throw updateError;
-
-      return surveillant;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['candidats-surveillance'] });
-      toast({
-        title: "Surveillant créé",
-        description: "Le candidat a été converti en surveillant avec succès.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible de créer le surveillant.",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const copyCollectionUrl = () => {
-    const url = `${window.location.origin}/collecte-surveillants`;
-    navigator.clipboard.writeText(url);
-    toast({
-      title: "URL copiée",
-      description: "L'URL de collecte a été copiée dans le presse-papiers.",
-    });
-  };
-
-  const openCollectionUrl = () => {
-    window.open('/collecte-surveillants', '_blank');
-  };
 
   if (!activeSession) {
     return (
@@ -155,225 +114,163 @@ export const CandidatsSurveillance = () => {
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-center">Chargement des candidats...</p>
+          <p className="text-center">Chargement des candidatures...</p>
         </CardContent>
       </Card>
     );
   }
 
-  const candidatsNonTraites = candidats?.filter(c => !c.traite) || [];
-  const candidatsTraites = candidats?.filter(c => c.traite) || [];
-
   return (
     <div className="space-y-6">
-      {/* Interface de collecte */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Users className="h-5 w-5" />
-            <span>Interface de Collecte</span>
+            <span>Candidats Surveillance</span>
           </CardTitle>
           <CardDescription>
-            Partagez cette URL avec les surveillants potentiels pour qu'ils puissent s'inscrire
+            Gestion des candidatures pour la surveillance d'examens - Session {activeSession.name}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex space-x-4">
-            <Button onClick={copyCollectionUrl} variant="outline">
-              <Copy className="h-4 w-4 mr-2" />
-              Copier l'URL de collecte
-            </Button>
-            <Button onClick={openCollectionUrl} variant="outline">
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Ouvrir l'interface
-            </Button>
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">{candidats?.length || 0}</div>
+              <div className="text-sm text-blue-600">Total candidatures</div>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-green-600">
+                {candidats?.filter(c => c.traite).length || 0}
+              </div>
+              <div className="text-sm text-green-600">Traitées</div>
+            </div>
+            <div className="bg-orange-50 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-orange-600">
+                {candidats?.filter(c => !c.traite).length || 0}
+              </div>
+              <div className="text-sm text-orange-600">En attente</div>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground mt-2">
-            URL: {window.location.origin}/collecte-surveillants
-          </p>
+
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Candidat</TableHead>
+                  <TableHead>Contact</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead className="text-center">Disponibilités</TableHead>
+                  <TableHead className="text-center">Traité</TableHead>
+                  <TableHead>Date candidature</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {candidats?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                      Aucune candidature pour cette session
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  candidats?.map((candidat) => (
+                    <TableRow key={candidat.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{candidat.prenom} {candidat.nom}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center space-x-2">
+                            <Mail className="h-3 w-3" />
+                            <span className="text-xs">{candidat.email}</span>
+                          </div>
+                          {candidat.telephone && (
+                            <div className="flex items-center space-x-2">
+                              <Phone className="h-3 w-3" />
+                              <span className="text-xs">{candidat.telephone}</span>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {candidat.statut === 'Autre' ? candidat.statut_autre : candidat.statut}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="secondary">
+                          {candidat.disponibilites_count || 0} créneaux
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => updateTraiteMutation.mutate({
+                            candidatId: candidat.id,
+                            traite: !candidat.traite
+                          })}
+                          disabled={updateTraiteMutation.isPending}
+                        >
+                          {candidat.traite ? (
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-gray-400" />
+                          )}
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        {new Date(candidat.created_at).toLocaleDateString('fr-FR')}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedCandidat(candidat)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                              <DialogTitle>
+                                Détails - {candidat.prenom} {candidat.nom}
+                              </DialogTitle>
+                              <DialogDescription>
+                                Disponibilités déclarées par le candidat
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              {disponibilites?.map((dispo) => (
+                                <div key={dispo.id} className="flex items-center justify-between p-3 border rounded">
+                                  <div>
+                                    <div className="font-medium">{dispo.examens?.date_examen}</div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {dispo.examens?.heure_debut} - {dispo.examens?.heure_fin}
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-sm">{dispo.examens?.matiere}</div>
+                                    <div className="text-xs text-muted-foreground">{dispo.examens?.salle}</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
-
-      {/* Statistiques */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Candidatures reçues</CardTitle>
-            <Users className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{candidats?.length || 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">À traiter</CardTitle>
-            <Users className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{candidatsNonTraites.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Traitées</CardTitle>
-            <UserCheck className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{candidatsTraites.length}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Candidatures non traitées */}
-      {candidatsNonTraites.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-orange-600">Candidatures à traiter</CardTitle>
-            <CardDescription>
-              Nouvelles candidatures en attente de traitement
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Candidat</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-center">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {candidatsNonTraites.map((candidat) => (
-                  <TableRow key={candidat.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{candidat.nom} {candidat.prenom}</div>
-                        <div className="text-sm text-muted-foreground">{candidat.email}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {candidat.statut === 'Autre' && candidat.statut_autre 
-                          ? candidat.statut_autre 
-                          : candidat.statut}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div>{candidat.email}</div>
-                        {candidat.telephone && (
-                          <div className="text-muted-foreground">{candidat.telephone}</div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(candidat.created_at).toLocaleDateString('fr-FR')}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center space-x-2">
-                        <Button
-                          size="sm"
-                          onClick={() => createSurveillantMutation.mutate(candidat)}
-                          disabled={createSurveillantMutation.isPending}
-                        >
-                          <UserCheck className="h-4 w-4 mr-1" />
-                          Créer Surveillant
-                        </Button>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={candidat.traite}
-                            onCheckedChange={(checked) => 
-                              updateTraiteMutation.mutate({ 
-                                candidatId: candidat.id, 
-                                traite: !!checked 
-                              })
-                            }
-                          />
-                          <span className="text-sm">Traité</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Candidatures traitées */}
-      {candidatsTraites.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-green-600">Candidatures traitées</CardTitle>
-            <CardDescription>
-              Candidatures qui ont été traitées
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Candidat</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-center">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {candidatsTraites.map((candidat) => (
-                  <TableRow key={candidat.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{candidat.nom} {candidat.prenom}</div>
-                        <div className="text-sm text-muted-foreground">{candidat.email}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {candidat.statut === 'Autre' && candidat.statut_autre 
-                          ? candidat.statut_autre 
-                          : candidat.statut}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div>{candidat.email}</div>
-                        {candidat.telephone && (
-                          <div className="text-muted-foreground">{candidat.telephone}</div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {new Date(candidat.created_at).toLocaleDateString('fr-FR')}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="flex items-center justify-center space-x-2">
-                        <Checkbox
-                          checked={candidat.traite}
-                          onCheckedChange={(checked) => 
-                            updateTraiteMutation.mutate({ 
-                              candidatId: candidat.id, 
-                              traite: !!checked 
-                            })
-                          }
-                        />
-                        <span className="text-sm">Traité</span>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

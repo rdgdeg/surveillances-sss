@@ -47,6 +47,9 @@ const Admin = () => {
       case "cally-import": return "Import Cally";
       case "pre-assignments": return "Pré-assignations";
       case "constraints": return "Contraintes par Salle";
+      case "contraintes-auditoires": return "Contraintes Auditoires";
+      case "candidats-surveillance": return "Candidats Surveillance";
+      case "examen-review": return "Révision Examens";
       case "history": return "Historique des Surveillances";
       case "planning": return "Planning des Surveillances";
       case "surveillant-creator": return "Créer des Surveillants";
@@ -69,6 +72,15 @@ const Admin = () => {
         
       case "assignment":
         return <IntelligentAssignmentEngine />;
+
+      case "contraintes-auditoires":
+        return <ContraintesAuditoires />;
+
+      case "candidats-surveillance":
+        return <CandidatsSurveillance />;
+
+      case "examen-review":
+        return <ExamenReviewManager />;
       
       case "import":
         return (
@@ -283,6 +295,9 @@ const Admin = () => {
                 {activeView === "cally-import" && "Importez les disponibilités depuis un fichier Cally"}
                 {activeView === "pre-assignments" && "Gérez les assignations obligatoires de surveillants"}
                 {activeView === "constraints" && "Définissez les contraintes par salle d'examen"}
+                {activeView === "contraintes-auditoires" && "Configurez les contraintes spécifiques par auditoire"}
+                {activeView === "candidats-surveillance" && "Gérez les candidatures pour la surveillance"}
+                {activeView === "examen-review" && "Révisez et ajustez les besoins en surveillants par examen"}
                 {activeView === "history" && "Consultez l'historique des surveillances par surveillant"}
                 {activeView === "planning" && "Visualisez et gérez le planning des surveillances"}
                 {activeView === "surveillant-creator" && "Créez des surveillants avec quotas personnalisés"}

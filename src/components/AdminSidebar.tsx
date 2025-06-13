@@ -39,6 +39,7 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
   return (
     <Sidebar>
       <SidebarContent>
+        {/* Configuration de base */}
         <SidebarGroup>
           <SidebarGroupLabel>Configuration</SidebarGroupLabel>
           <SidebarGroupContent>
@@ -63,16 +64,6 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => onViewChange("import")}
-                  isActive={activeView === "import"}
-                >
-                  <Upload className="h-4 w-4" />
-                  <span>Import</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              
-              <SidebarMenuItem>
-                <SidebarMenuButton 
                   onClick={() => onViewChange("surveillant-creator")}
                   isActive={activeView === "surveillant-creator"}
                 >
@@ -80,32 +71,22 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
                   <span>Créer Surveillants</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
+        {/* Import et traitement */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Import & Traitement</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => onViewChange("consistency")}
-                  isActive={activeView === "consistency"}
+                  onClick={() => onViewChange("import")}
+                  isActive={activeView === "import"}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                  <span>Cohérence</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("assignment")}
-                  isActive={activeView === "assignment"}
-                >
-                  <Settings className="h-4 w-4" />
-                  <span>Attribution</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  onClick={() => onViewChange("availability")}
-                  isActive={activeView === "availability"}
-                >
-                  <Calendar className="h-4 w-4" />
-                  <span>Disponibilités</span>
+                  <Upload className="h-4 w-4" />
+                  <span>Import</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -119,20 +100,38 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => onViewChange("pre-assignments")}
-                  isActive={activeView === "pre-assignments"}
+                  onClick={() => onViewChange("candidats-surveillance")}
+                  isActive={activeView === "candidats-surveillance"}
                 >
-                  <Lock className="h-4 w-4" />
-                  <span>Pré-assignations</span>
+                  <Users className="h-4 w-4" />
+                  <span>Candidats Surveillance</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onViewChange("consistency")}
+                  isActive={activeView === "consistency"}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Cohérence</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Gestion des contraintes */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Contraintes</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => onViewChange("constraints")}
                   isActive={activeView === "constraints"}
                 >
                   <ListChecks className="h-4 w-4" />
-                  <span>Contraintes</span>
+                  <span>Contraintes par Salle</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -146,6 +145,24 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
+                  onClick={() => onViewChange("availability")}
+                  isActive={activeView === "availability"}
+                >
+                  <Calendar className="h-4 w-4" />
+                  <span>Disponibilités</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Attribution et planification */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Attribution</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
                   onClick={() => onViewChange("examen-review")}
                   isActive={activeView === "examen-review"}
                 >
@@ -155,20 +172,20 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => onViewChange("candidats-surveillance")}
-                  isActive={activeView === "candidats-surveillance"}
+                  onClick={() => onViewChange("pre-assignments")}
+                  isActive={activeView === "pre-assignments"}
                 >
-                  <Users className="h-4 w-4" />
-                  <span>Candidats Surveillance</span>
+                  <Lock className="h-4 w-4" />
+                  <span>Pré-assignations</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  onClick={() => onViewChange("history")}
-                  isActive={activeView === "history"}
+                  onClick={() => onViewChange("assignment")}
+                  isActive={activeView === "assignment"}
                 >
-                  <BarChart4 className="h-4 w-4" />
-                  <span>Historique</span>
+                  <Settings className="h-4 w-4" />
+                  <span>Attribution</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
@@ -180,6 +197,15 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
                   <span>Planning</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Suivi et gestion */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Suivi</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => onViewChange("soldes")}
@@ -196,6 +222,15 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
                 >
                   <MessageSquare className="h-4 w-4" />
                   <span>Demandes</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onViewChange("history")}
+                  isActive={activeView === "history"}
+                >
+                  <BarChart4 className="h-4 w-4" />
+                  <span>Historique</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
