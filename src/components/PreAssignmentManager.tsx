@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Trash2, Plus, Lock, Search } from "lucide-react";
+import { Trash2, Plus, Lock, Search, UserPlus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
+import { SurveillantCreationForm } from "./SurveillantCreationForm";
 
 interface Surveillant {
   id: string;
@@ -47,6 +49,7 @@ export const PreAssignmentManager = () => {
   const [selectedSurveillant, setSelectedSurveillant] = useState<string>("");
   const [surveillantSearch, setSurveillantSearch] = useState<string>("");
   const [examenSearch, setExamenSearch] = useState<string>("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   // Récupérer les surveillants actifs de la session
   const { data: surveillants = [] } = useQuery({
@@ -90,7 +93,25 @@ export const PreAssignmentManager = () => {
         .order('heure_debut', { ascending: true });
       
       if (error) throw error;
-      return data as Examen[];
+      
+      // Corriger les dates si nécessaire
+      const correctedExamens = data.map(examen => {
+        let correctedDate = examen.date_examen;
+        
+        // Vérifier si la date semble incorrecte (année 2008 par exemple)
+        if (correctedDate && correctedDate.includes('2008')) {
+          // Remplacer 2008 par 2025
+          correctedDate = correctedDate.replace('2008', '2025');
+          console.log(`Date corrigée pour l'examen ${examen.id}: ${examen.date_examen} -> ${correctedDate}`);
+        }
+        
+        return {
+          ...examen,
+          date_examen: correctedDate
+        };
+      });
+      
+      return correctedExamens as Examen[];
     },
     enabled: !!activeSession?.id
   });
@@ -329,18 +350,29 @@ export const PreAssignmentManager = () => {
                     className="pl-8"
                   />
                 </div>
-                <Select value={selectedSurveillant} onValueChange={setSelectedSurveillant}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un surveillant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {validSurveillants.map((surveillant) => (
-                      <SelectItem key={surveillant.id} value={surveillant.id}>
-                        {formatSurveillantLabel(surveillant)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={selectedSurveillant} onValueChange={setSelectedSurveillant}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Sélectionner un surveillant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {validSurveillants.map((surveillant) => (
+                        <SelectItem key={surveillant.id} value={surveillant.id}>
+                          {formatSurveillantLabel(surveillant)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowCreateForm(true)}
+                    title="Ajouter un nouveau surveillant"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -396,6 +428,11 @@ export const PreAssignmentManager = () => {
           </div>
         </CardContent>
       </Card>
+
+      <SurveillantCreationForm 
+        open={showCreateForm} 
+        onOpenChange={setShowCreateForm} 
+      />
     </div>
   );
 };
