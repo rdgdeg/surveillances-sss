@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +15,7 @@ interface StandardExamenData {
   duree: number;
   heure_debut: string;
   heure_fin: string;
+  heure_arrivee_surveillance: string;
   activite: string;
   code: string;
   auditoires: string;
@@ -146,6 +146,10 @@ export const StandardExcelImporter = () => {
             const codeCours = extraireCodeCours(activite);
             const auditoiresList = separerAuditoires(auditoires);
             const { type_detecte, statut_validation } = classifierCode(activite);
+            const duree = convertirDuree(row[1]);
+            const heureDebut = formatTime(row[2]);
+            const heureFin = formatTime(row[3]);
+            const heureArrivee = calculerHeureArrivee(heureDebut);
 
             // Compter par type
             if (type_detecte === 'E') statsParType.E++;
@@ -164,9 +168,10 @@ export const StandardExcelImporter = () => {
 
               examensData.push({
                 jour: String(row[0] || '').trim(),
-                duree: convertirDuree(row[1]),
-                heure_debut: formatTime(row[2]),
-                heure_fin: formatTime(row[3]),
+                duree: duree,
+                heure_debut: heureDebut,
+                heure_fin: heureFin,
+                heure_arrivee_surveillance: heureArrivee,
                 activite: activite,
                 code: String(row[5] || '').trim(),
                 auditoires: auditoire,
@@ -206,6 +211,7 @@ export const StandardExcelImporter = () => {
     if (!value) return '08:00';
     
     if (typeof value === 'number') {
+      // Gestion des nombres Excel (fraction de jour)
       const hours = Math.floor(value * 24);
       const minutes = Math.floor((value * 24 * 60) % 60);
       return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
@@ -216,9 +222,28 @@ export const StandardExcelImporter = () => {
       if (/^\d{1,2}:\d{2}$/.test(cleaned)) {
         return cleaned;
       }
+      
+      // Format "0830" -> "08:30"
+      if (/^\d{4}$/.test(cleaned)) {
+        return `${cleaned.slice(0, 2)}:${cleaned.slice(2, 4)}`;
+      }
     }
     
     return '08:00';
+  };
+
+  const calculerHeureArrivee = (heureDebut: string): string => {
+    try {
+      const [heures, minutes] = heureDebut.split(':').map(Number);
+      const totalMinutes = heures * 60 + minutes - 45; // 45 minutes avant
+      
+      const nouvellesHeures = Math.floor(totalMinutes / 60);
+      const nouvellesMinutes = totalMinutes % 60;
+      
+      return `${nouvellesHeures.toString().padStart(2, '0')}:${nouvellesMinutes.toString().padStart(2, '0')}`;
+    } catch {
+      return '07:15'; // Défaut si erreur
+    }
   };
 
   const formatDateFromJour = (jour: string): string => {
@@ -539,7 +564,9 @@ export const StandardExcelImporter = () => {
                     <th className="p-3 text-left">Code Cours</th>
                     <th className="p-3 text-left">Type</th>
                     <th className="p-3 text-left">Date</th>
-                    <th className="p-3 text-left">Durée/Horaires</th>
+                    <th className="p-3 text-left">Durée</th>
+                    <th className="p-3 text-left">Examen</th>
+                    <th className="p-3 text-left">Surveillance</th>
                     <th className="p-3 text-left">Auditoire</th>
                     <th className="p-3 text-left">Groupes</th>
                     <th className="p-3 text-left">Enseignants</th>
@@ -565,12 +592,18 @@ export const StandardExcelImporter = () => {
                           </Badge>
                         </td>
                         <td className="p-3">{examen.jour}</td>
+                        <td className="p-3 font-medium">{formatDureeDisplay(examen.duree)}</td>
                         <td className="p-3">
                           <div className="text-xs space-y-1">
-                            <div className="font-medium">{formatDureeDisplay(examen.duree)}</div>
-                            <div className="text-gray-500">
+                            <div className="font-medium">
                               {examen.heure_debut} - {examen.heure_fin}
                             </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="text-xs text-blue-600">
+                            <div>Arrivée: {examen.heure_arrivee_surveillance}</div>
+                            <div>Fin: {examen.heure_fin}</div>
                           </div>
                         </td>
                         <td className="p-3">{examen.auditoires}</td>
@@ -609,13 +642,22 @@ export const StandardExcelImporter = () => {
           <div className="text-xs text-gray-600 space-y-1">
             <div><strong>Colonne A :</strong> Jour (date de l'examen)</div>
             <div><strong>Colonne B :</strong> Durée (h) (format: 04h30 ou 4.5)</div>
-            <div><strong>Colonne C :</strong> Début (heure de début)</div>
-            <div><strong>Colonne D :</strong> Fin (heure de fin)</div>
+            <div><strong>Colonne C :</strong> Début (heure de début examen)</div>
+            <div><strong>Colonne D :</strong> Fin (heure de fin examen)</div>
             <div><strong>Colonne E :</strong> Activité (contient le code d'examen)</div>
             <div><strong>Colonne F :</strong> Code (code supplémentaire)</div>
             <div><strong>Colonne G :</strong> Auditoires (salles séparées par virgules)</div>
             <div><strong>Colonne H :</strong> Groupes d'étudiants (noms des groupes)</div>
             <div><strong>Colonne I :</strong> Enseignants (noms des enseignants)</div>
+          </div>
+          
+          <div className="mt-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Horaires de surveillance :</h4>
+            <div className="text-xs text-gray-600 space-y-1">
+              <div>• <strong>Heure d'arrivée :</strong> 45 minutes avant le début de l'examen</div>
+              <div>• <strong>Heure de fin :</strong> Identique à la fin de l'examen</div>
+              <div>• Ces horaires s'adaptent automatiquement si vous modifiez les heures d'examen</div>
+            </div>
           </div>
           
           <div className="mt-4">
