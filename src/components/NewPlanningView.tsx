@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,49 @@ export const NewPlanningView = () => {
     enabled: !!activeSession
   });
 
+  // Fonction pour formater la date en français
+  const formatDateToFrench = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      
+      // Vérifier si la date est valide
+      if (isNaN(date.getTime())) {
+        return dateString; // Retourner la chaîne originale si invalide
+      }
+
+      const options: Intl.DateTimeFormatOptions = {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      };
+      
+      return date.toLocaleDateString('fr-FR', options);
+    } catch (error) {
+      console.error('Erreur formatage date:', error);
+      return dateString;
+    }
+  };
+
+  // Fonction pour trier les examens par date puis par heure
+  const sortExamens = (examens: any[]) => {
+    return [...examens].sort((a, b) => {
+      // Trier d'abord par date
+      const dateA = new Date(a.date_examen);
+      const dateB = new Date(b.date_examen);
+      
+      if (dateA.getTime() !== dateB.getTime()) {
+        return dateA.getTime() - dateB.getTime();
+      }
+      
+      // Si même date, trier par heure de début
+      const timeA = a.heure_debut || '00:00';
+      const timeB = b.heure_debut || '00:00';
+      
+      return timeA.localeCompare(timeB);
+    });
+  };
+
   const getStatutColor = (examen: any) => {
     const assignedCount = examen.attributions?.length || 0;
     const requiredCount = examen.nombre_surveillants;
@@ -67,6 +111,9 @@ export const NewPlanningView = () => {
     
     return matchesSearch && matchesType && matchesDate;
   });
+
+  // Appliquer le tri après filtrage
+  const sortedExamens = sortExamens(filteredExamens);
 
   const stats = {
     total: examens.length,
@@ -194,14 +241,16 @@ export const NewPlanningView = () => {
             />
           </div>
 
-          {/* Liste des examens */}
+          {/* Liste des examens triés */}
           <div className="space-y-4">
-            {filteredExamens.map((examen) => (
+            {sortedExamens.map((examen) => (
               <div key={examen.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
                 <div className="flex items-start justify-between">
                   <div className="space-y-3 flex-1">
                     <div className="flex items-center space-x-4">
-                      <Badge variant="outline">{examen.date_examen}</Badge>
+                      <Badge variant="outline" className="font-semibold">
+                        {formatDateToFrench(examen.date_examen)}
+                      </Badge>
                       <Badge variant="outline">{examen.heure_debut} - {examen.heure_fin}</Badge>
                       <Badge className={getStatutColor(examen)}>
                         {getStatutText(examen)}
@@ -246,7 +295,7 @@ export const NewPlanningView = () => {
             ))}
           </div>
 
-          {filteredExamens.length === 0 && (
+          {sortedExamens.length === 0 && (
             <div className="text-center py-8">
               <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <p className="text-gray-500">Aucun examen trouvé avec les critères sélectionnés</p>

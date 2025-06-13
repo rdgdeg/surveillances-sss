@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X, Trash2, Loader2, Building2 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X, Trash2, Loader2, Building2, BarChart3 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,13 @@ interface ContrainteAuditoire {
   nombre_surveillants_requis: number;
 }
 
+interface SystemStats {
+  total_examens_systeme: number;
+  examens_valides: number;
+  examens_rejetes: number;
+  examens_en_attente: number;
+}
+
 export const StandardExcelImporter = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
@@ -60,6 +67,41 @@ export const StandardExcelImporter = () => {
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editedData, setEditedData] = useState<Partial<StandardExamenData>>({});
   const [contraintesAuditoires, setContraintesAuditoires] = useState<ContrainteAuditoire[]>([]);
+
+  // Récupérer les statistiques du système
+  const { data: systemStats } = useQuery({
+    queryKey: ['system-stats', activeSession?.id],
+    queryFn: async (): Promise<SystemStats> => {
+      if (!activeSession?.id) {
+        return {
+          total_examens_systeme: 0,
+          examens_valides: 0,
+          examens_rejetes: 0,
+          examens_en_attente: 0
+        };
+      }
+
+      const { data: examens, error } = await supabase
+        .from('examens')
+        .select('statut_validation')
+        .eq('session_id', activeSession.id);
+
+      if (error) throw error;
+
+      const total = examens?.length || 0;
+      const valides = examens?.filter(e => e.statut_validation === 'VALIDE').length || 0;
+      const rejetes = examens?.filter(e => e.statut_validation === 'REJETE').length || 0;
+      const en_attente = total - valides - rejetes;
+
+      return {
+        total_examens_systeme: total,
+        examens_valides: valides,
+        examens_rejetes: rejetes,
+        examens_en_attente: en_attente
+      };
+    },
+    enabled: !!activeSession?.id
+  });
 
   // Charger les contraintes d'auditoires
   const loadContraintesAuditoires = async () => {
@@ -626,6 +668,7 @@ export const StandardExcelImporter = () => {
 
         queryClient.invalidateQueries({ queryKey: ['examens-validation'] });
         queryClient.invalidateQueries({ queryKey: ['examens-review'] });
+        queryClient.invalidateQueries({ queryKey: ['system-stats'] });
         
         // Nettoyer après validation réussie
         setParsedData([]);
@@ -844,6 +887,41 @@ export const StandardExcelImporter = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Statistiques du système comparées au fichier */}
+        {systemStats && (
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <BarChart3 className="h-5 w-5 text-blue-600" />
+              <h3 className="font-semibold text-blue-800">Contrôle du Système</h3>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div className="text-center">
+                <div className="text-lg font-bold text-blue-600">{systemStats.total_examens_systeme}</div>
+                <div className="text-blue-800">Total système</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-green-600">{systemStats.examens_valides}</div>
+                <div className="text-green-800">Validés</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-red-600">{systemStats.examens_rejetes}</div>
+                <div className="text-red-800">Rejetés</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-orange-600">{systemStats.examens_en_attente}</div>
+                <div className="text-orange-800">En attente</div>
+              </div>
+            </div>
+            {processingStats && (
+              <div className="mt-3 pt-3 border-t border-blue-200">
+                <div className="text-sm text-blue-700">
+                  <strong>Fichier actuel :</strong> {processingStats.total_lignes} lignes → {processingStats.examens_affiches} examens à traiter ({processingStats.doublons_evites} doublons évités)
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Alerteur de conformité intégré */}
         {parsedData.length > 0 && (
           <div className="mb-4">
@@ -1063,6 +1141,13 @@ export const StandardExcelImporter = () => {
                 </tbody>
               </table>
             </div>
+
+            {filteredData.length === 0 && (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">Aucun examen trouvé avec les critères sélectionnés</p>
+              </div>
+            )}
 
             <Button
               onClick={() => {
