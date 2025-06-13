@@ -24,8 +24,9 @@ const templates: Template[] = [
       "1. Remplissez une ligne par surveillant",
       "2. Type doit être: PAT, Assistant, ou Jobiste",
       "3. Statut doit être: actif ou inactif",
-      "4. L'email doit être unique et valide",
-      "5. Tous les champs sont obligatoires sauf le statut (par défaut: actif)"
+      "4. L'email doit être unique et valide (clé de recoupement)",
+      "5. Tous les champs sont obligatoires sauf le statut (par défaut: actif)",
+      "6. Cette liste servira de référence pour tous les autres fichiers"
     ],
     examples: [
       ["Dupont", "Marie", "marie.dupont@uclouvain.be", "PAT", "actif"],
@@ -43,12 +44,33 @@ const templates: Template[] = [
       "2. Heures au format HH:MM (ex: 08:00)",
       "3. Type requis: PAT, Assistant, ou Jobiste",
       "4. Nombre surveillants: nombre entier positif",
-      "5. Vérifiez qu'il n'y a pas de conflits d'horaires dans la même salle"
+      "5. Vérifiez qu'il n'y a pas de conflits d'horaires dans la même salle",
+      "6. Ces créneaux serviront de base pour la matrice des disponibilités"
     ],
     examples: [
       ["2025-01-15", "08:00", "10:00", "Mathématiques L1", "Amphi A", 2, "PAT"],
       ["2025-01-15", "10:30", "12:30", "Physique L2", "Salle 203", 1, "Assistant"],
       ["2025-01-16", "14:00", "16:00", "Chimie L3", "Labo 101", 3, "Jobiste"]
+    ]
+  },
+  {
+    name: "Disponibilités",
+    description: "Matrice des disponibilités par surveillant et créneau",
+    filename: "template_disponibilites.xlsx",
+    columns: ["Email", "Date", "Heure début", "Heure fin", "Disponible"],
+    instructions: [
+      "1. Email doit correspondre EXACTEMENT à un surveillant de la liste",
+      "2. Date au format YYYY-MM-DD",
+      "3. Heures au format HH:MM",
+      "4. Disponible: OUI ou NON (ou 1/0)",
+      "5. Chaque ligne = une disponibilité pour un créneau spécifique",
+      "6. IMPORTANT: Tous les surveillants actifs doivent avoir leurs disponibilités",
+      "7. Alternative: utilisez l'import Cally pour une matrice complète"
+    ],
+    examples: [
+      ["marie.dupont@uclouvain.be", "2025-01-15", "08:00", "10:00", "OUI"],
+      ["marie.dupont@uclouvain.be", "2025-01-15", "10:30", "12:30", "NON"],
+      ["jean.martin@uclouvain.be", "2025-01-15", "08:00", "10:00", "OUI"]
     ]
   },
   {
@@ -61,7 +83,8 @@ const templates: Template[] = [
       "2. Dates au format YYYY-MM-DD",
       "3. Date début doit être <= Date fin",
       "4. Motif est optionnel mais recommandé",
-      "5. Une ligne par période d'indisponibilité"
+      "5. Une ligne par période d'indisponibilité",
+      "6. ATTENTION: Les indisponibilités priment sur les disponibilités"
     ],
     examples: [
       ["marie.dupont@uclouvain.be", "2025-01-10", "2025-01-12", "Congé maladie"],
@@ -75,16 +98,36 @@ const templates: Template[] = [
     filename: "template_quotas.xlsx",
     columns: ["Email", "Quota", "Sessions imposées"],
     instructions: [
-      "1. Email doit correspondre à un surveillant existant",
+      "1. Email doit correspondre EXACTEMENT à un surveillant existant",
       "2. Quota: nombre maximum de surveillances par session",
       "3. Sessions imposées: nombre de surveillances obligatoires",
       "4. Sessions imposées doit être <= Quota",
-      "5. Quotas par défaut: PAT=12, Assistant=6, Jobiste=4"
+      "5. Quotas par défaut: PAT=12, Assistant=6, Jobiste=4",
+      "6. Ne listez que les surveillants avec des quotas différents du défaut"
     ],
     examples: [
-      ["marie.dupont@uclouvain.be", 12, 2],
-      ["jean.martin@uclouvain.be", 6, 0],
-      ["sophie.durand@uclouvain.be", 4, 1]
+      ["marie.dupont@uclouvain.be", 15, 3],
+      ["jean.martin@uclouvain.be", 8, 1],
+      ["sophie.durand@uclouvain.be", 2, 0]
+    ]
+  },
+  {
+    name: "Pré-assignations",
+    description: "Surveillances obligatoires spécifiques par surveillant",
+    filename: "template_preassignations.xlsx",
+    columns: ["Email", "Date", "Heure début", "Heure fin", "Matière", "Salle", "Motif"],
+    instructions: [
+      "1. Email doit correspondre à un surveillant existant",
+      "2. Date au format YYYY-MM-DD",
+      "3. Heures au format HH:MM",
+      "4. Matière et Salle doivent correspondre à un examen existant",
+      "5. Motif: raison de l'assignation obligatoire",
+      "6. Ces assignations sont prioritaires sur l'attribution automatique",
+      "7. Vérifiez que le surveillant est disponible sur ce créneau"
+    ],
+    examples: [
+      ["marie.dupont@uclouvain.be", "2025-01-15", "08:00", "10:00", "Mathématiques L1", "Amphi A", "Responsable matière"],
+      ["jean.martin@uclouvain.be", "2025-01-16", "14:00", "16:00", "Physique L2", "Labo 201", "Spécialiste équipement"]
     ]
   }
 ];
@@ -210,7 +253,7 @@ export const TemplateDownloader = () => {
       generateExcelTemplate(template);
       toast({
         title: "Template Excel téléchargé",
-        description: `Le template ${template.name} a été téléchargé avec succès. Consultez l'onglet 'Instructions' pour plus d'informations.`,
+        description: `Le template ${template.name} a été téléchargé avec succès. L'email est la clé de recoupement entre tous les fichiers.`,
       });
     } catch (error: any) {
       toast({
@@ -226,13 +269,23 @@ export const TemplateDownloader = () => {
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <FileSpreadsheet className="h-5 w-5" />
-          <span>Templates Excel Professionnels</span>
+          <span>Templates Excel Compatibles</span>
         </CardTitle>
         <CardDescription>
-          Téléchargez les templates Excel avec instructions, exemples et validation intégrés
+          Templates avec recoupement par email et contrôles de cohérence intégrés
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <h4 className="font-medium text-blue-900 mb-2">🔗 Système de recoupement par email</h4>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• L'email est la clé unique pour recouper toutes les informations</li>
+            <li>• Ordre recommandé: 1. Surveillants → 2. Examens → 3. Disponibilités → 4. Quotas → 5. Pré-assignations</li>
+            <li>• Contrôles automatiques de cohérence lors de l'import</li>
+            <li>• Détection des surveillants manquants dans les disponibilités</li>
+          </ul>
+        </div>
+
         <div className="grid md:grid-cols-2 gap-4">
           {templates.map((template) => (
             <div key={template.name} className="border rounded-lg p-4 space-y-3 hover:bg-gray-50 transition-colors">
@@ -274,14 +327,14 @@ export const TemplateDownloader = () => {
           ))}
         </div>
 
-        <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h4 className="font-medium text-blue-900 mb-2">💡 Conseils d'utilisation</h4>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• Commencez par lire l'onglet "Instructions" de chaque fichier</li>
-            <li>• Utilisez l'onglet "Exemples" comme référence</li>
-            <li>• Respectez exactement les formats indiqués dans l'onglet "Validation"</li>
-            <li>• Sauvegardez vos fichiers au format Excel (.xlsx) avant l'import</li>
-            <li>• En cas de problème, contactez le support technique</li>
+        <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+          <h4 className="font-medium text-green-900 mb-2">✅ Contrôles de cohérence automatiques</h4>
+          <ul className="text-sm text-green-800 space-y-1">
+            <li>• Vérification que tous les emails existent dans la liste des surveillants</li>
+            <li>• Détection des surveillants actifs sans disponibilités</li>
+            <li>• Validation des quotas par rapport au type de surveillant</li>
+            <li>• Contrôle des conflits de planning et des doubles assignations</li>
+            <li>• Alerte sur les pré-assignations sans disponibilité correspondante</li>
           </ul>
         </div>
       </CardContent>

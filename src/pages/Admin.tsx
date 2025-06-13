@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { SessionSelector } from "@/components/SessionSelector";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
@@ -13,6 +14,8 @@ import { Separator } from "@/components/ui/separator";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
 import { CallyImporter } from "@/components/CallyImporter";
+import { DataConsistencyChecker } from "@/components/DataConsistencyChecker";
+import { IntelligentAssignmentEngine } from "@/components/IntelligentAssignmentEngine";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("sessions");
@@ -35,8 +38,10 @@ const Admin = () => {
   const getViewTitle = () => {
     switch (activeView) {
       case "sessions": return "Gestion des Sessions";
-      case "templates": return "Téléchargement des Templates";
+      case "templates": return "Templates de Données";
       case "import": return "Import des Données";
+      case "consistency": return "Contrôle de Cohérence";
+      case "assignment": return "Attribution Intelligente";
       case "availability": return "Matrice des Disponibilités";
       case "cally-import": return "Import Cally";
       case "pre-assignments": return "Pré-assignations";
@@ -55,6 +60,12 @@ const Admin = () => {
       case "templates":
         return <TemplateDownloader />;
       
+      case "consistency":
+        return <DataConsistencyChecker />;
+        
+      case "assignment":
+        return <IntelligentAssignmentEngine />;
+      
       case "import":
         return (
           <Card>
@@ -62,10 +73,21 @@ const Admin = () => {
               <CardTitle>Import des Données Excel</CardTitle>
               <CardDescription>
                 Importez vos données à partir des fichiers Excel téléchargés dans l'onglet Templates.
-                Suivez l'ordre recommandé pour éviter les erreurs de référence.
+                Respectez l'ordre pour éviter les erreurs de recoupement par email.
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <h4 className="font-medium text-blue-900 mb-2">📋 Ordre d'import recommandé</h4>
+                <div className="text-sm text-blue-800 space-y-1">
+                  <div>1. <strong>Surveillants</strong> (obligatoire en premier - crée la base de données des emails)</div>
+                  <div>2. <strong>Examens</strong> (définit les créneaux disponibles)</div>
+                  <div>3. <strong>Disponibilités</strong> (matrice surveillant × créneaux)</div>
+                  <div>4. <strong>Quotas</strong> (ajustements optionnels des quotas par défaut)</div>
+                  <div>5. <strong>Indisponibilités</strong> (exceptions optionnelles)</div>
+                </div>
+              </div>
+
               <div className="grid gap-6">
                 {/* Step 1: Surveillants */}
                 <div className="space-y-2">
@@ -75,7 +97,7 @@ const Admin = () => {
                   </div>
                   <ExcelFileUploader
                     title="Import des Surveillants"
-                    description="Importez la liste des surveillants avec leurs informations personnelles"
+                    description="Importez la liste des surveillants - Base pour tous les recoupements par email"
                     fileType="surveillants"
                     expectedFormat={["Nom", "Prénom", "Email", "Type", "Statut"]}
                     onUpload={(success) => handleUpload('surveillants', success)}
@@ -91,7 +113,7 @@ const Admin = () => {
                   </div>
                   <ExcelFileUploader
                     title="Import des Examens"
-                    description="Importez le planning des examens avec salles et contraintes"
+                    description="Importez le planning des examens - Définit les créneaux disponibles"
                     fileType="examens"
                     expectedFormat={["Date", "Heure début", "Heure fin", "Matière", "Salle", "Nombre surveillants", "Type requis"]}
                     onUpload={(success) => handleUpload('examens', success)}
@@ -99,17 +121,17 @@ const Admin = () => {
                   />
                 </div>
 
-                {/* Step 3: Indisponibilités */}
+                {/* Step 3: Disponibilités (nouveau) */}
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
-                    <span className="bg-gray-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">3</span>
-                    <h3 className="font-medium">Indisponibilités (Optionnel)</h3>
+                    <span className="bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">3</span>
+                    <h3 className="font-medium">Disponibilités (Recommandé)</h3>
                   </div>
                   <ExcelFileUploader
-                    title="Import des Indisponibilités"
-                    description="Importez les périodes d'indisponibilité des surveillants"
-                    fileType="indisponibilites"
-                    expectedFormat={["Email", "Date début", "Date fin", "Motif"]}
+                    title="Import des Disponibilités"
+                    description="Matrice des disponibilités par surveillant et créneau (recoupement par email)"
+                    fileType="disponibilites"
+                    expectedFormat={["Email", "Date", "Heure début", "Heure fin", "Disponible"]}
                     onUpload={(success) => handleUpload('indisponibilites', success)}
                     uploaded={uploadStates.indisponibilites}
                   />
@@ -123,35 +145,50 @@ const Admin = () => {
                   </div>
                   <ExcelFileUploader
                     title="Import des Quotas"
-                    description="Modifiez les quotas par défaut pour certains surveillants"
+                    description="Modifiez les quotas par défaut pour certains surveillants (recoupement par email)"
                     fileType="quotas"
                     expectedFormat={["Email", "Quota", "Sessions imposées"]}
                     onUpload={(success) => handleUpload('quotas', success)}
                     uploaded={uploadStates.quotas}
                   />
                 </div>
+
+                {/* Step 5: Indisponibilités */}
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <span className="bg-gray-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">5</span>
+                    <h3 className="font-medium">Indisponibilités (Optionnel)</h3>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-2">
+                    ⚠️ Les indisponibilités remplacent les disponibilités définies précédemment
+                  </p>
+                  {/* Placeholder pour les indisponibilités - pas encore implementé */}
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                    <p className="text-gray-600">Utilisez plutôt l'import des Disponibilités ou la Matrice interactive</p>
+                  </div>
+                </div>
               </div>
 
               {/* Progress indicator */}
               <div className="mt-6 p-4 bg-blue-50 rounded-lg border">
-                <h4 className="font-medium text-blue-900 mb-2">État de l'import</h4>
+                <h4 className="font-medium text-blue-900 mb-2">État de l'import et recoupement</h4>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Surveillants</span>
-                    <span className={`text-sm px-2 py-1 rounded ${uploadStates.surveillants ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                      {uploadStates.surveillants ? 'Importé ✓' : 'En attente'}
+                    <span className="text-sm">Surveillants (Base emails)</span>
+                    <span className={`text-sm px-2 py-1 rounded ${uploadStates.surveillants ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {uploadStates.surveillants ? 'Importé ✓' : 'REQUIS'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Examens</span>
+                    <span className="text-sm">Examens (Créneaux)</span>
                     <span className={`text-sm px-2 py-1 rounded ${uploadStates.examens ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                       {uploadStates.examens ? 'Importé ✓' : 'En attente'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm">Indisponibilités</span>
-                    <span className={`text-sm px-2 py-1 rounded ${uploadStates.indisponibilites ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                      {uploadStates.indisponibilites ? 'Importé ✓' : 'Optionnel'}
+                    <span className="text-sm">Disponibilités</span>
+                    <span className={`text-sm px-2 py-1 rounded ${uploadStates.indisponibilites ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                      {uploadStates.indisponibilites ? 'Importé ✓' : 'Recommandé'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -162,10 +199,10 @@ const Admin = () => {
                   </div>
                 </div>
                 
-                {allUploadsComplete && (
+                {uploadStates.surveillants && uploadStates.examens && (
                   <div className="mt-3 p-3 bg-green-100 border border-green-200 rounded">
                     <p className="text-green-800 text-sm font-medium">
-                      🎉 Tous les imports sont terminés ! Vous pouvez maintenant consulter le planning.
+                      ✅ Données principales importées ! Vous pouvez maintenant utiliser l'attribution automatique.
                     </p>
                   </div>
                 )}
@@ -225,8 +262,10 @@ const Admin = () => {
               <h1 className="text-2xl font-bold tracking-tight">{getViewTitle()}</h1>
               <p className="text-muted-foreground">
                 {activeView === "sessions" && "Créez et gérez les sessions d'examens"}
-                {activeView === "templates" && "Téléchargez les modèles Excel pour l'import des données"}
-                {activeView === "import" && "Importez vos données à partir des fichiers Excel"}
+                {activeView === "templates" && "Téléchargez les modèles Excel avec recoupement par email"}
+                {activeView === "import" && "Importez vos données avec contrôles de cohérence"}
+                {activeView === "consistency" && "Vérifiez la cohérence entre surveillants, examens et disponibilités"}
+                {activeView === "assignment" && "Attribution automatique intelligente avec contraintes"}
                 {activeView === "availability" && "Gérez les disponibilités avec une matrice visuelle"}
                 {activeView === "cally-import" && "Importez les disponibilités depuis un fichier Cally"}
                 {activeView === "pre-assignments" && "Gérez les assignations obligatoires de surveillants"}
