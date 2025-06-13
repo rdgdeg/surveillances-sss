@@ -24,7 +24,7 @@ import SurveillanceHistory from "@/components/SurveillanceHistory";
 import { DemandeChangement } from "@/components/DemandeChangement";
 
 const Admin = () => {
-  const [activeSection, setActiveSection] = useState("dashboard");
+  const [activeView, setActiveView] = useState("dashboard");
   const [showSensitiveData, setShowSensitiveData] = useState(false);
   const [uploadStates, setUploadStates] = useState({
     surveillants: false,
@@ -42,7 +42,7 @@ const Admin = () => {
   };
 
   const renderContent = () => {
-    switch (activeSection) {
+    switch (activeView) {
       case "dashboard":
         return <DashboardOverview />;
       
@@ -179,7 +179,7 @@ const Admin = () => {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <AdminSidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+      <AdminSidebar activeView={activeView} onViewChange={setActiveView} />
       <div className="flex-1 p-6">
         <div className="mb-6">
           <SessionSelector />
