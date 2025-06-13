@@ -20,7 +20,7 @@ interface StandardExamenData {
   activite: string;
   code: string;
   auditoires: string;
-  auditoires_originaux: string; // Nouvelle colonne pour les données originales
+  auditoires_originaux: string;
   groupes_etudiants: string;
   enseignants: string;
   code_cours_extrait: string;
@@ -53,15 +53,11 @@ export const StandardExcelImporter = () => {
   const [editedData, setEditedData] = useState<Partial<StandardExamenData>>({});
 
   const extraireCodeCours = (activite: string): string => {
-    // Extraire le premier code cours avant le +
-    // Ex: "WDENT1337+WDENT1338 = E à confirmer" → "WDENT1337"
     const match = activite.match(/([A-Z]+\d+)/);
     return match ? match[1] : activite.split('=')[0].split('+')[0].trim();
   };
 
   const classifierCode = (activite: string): { type_detecte: string; statut_validation: string } => {
-    const activiteLower = activite.toLowerCase();
-    
     if (activite.match(/.*=\s*E$/i)) {
       return { type_detecte: 'E', statut_validation: 'VALIDE' };
     }
@@ -81,10 +77,10 @@ export const StandardExcelImporter = () => {
     if (typeof dureeValue === 'number') {
       return dureeValue;
     }
-    
+
     if (typeof dureeValue === 'string') {
       const cleaned = dureeValue.trim();
-      
+
       // Format comme "04h30" -> convertir en heures décimales
       const matchH = cleaned.match(/(\d+)h(\d+)/i);
       if (matchH) {
@@ -92,13 +88,13 @@ export const StandardExcelImporter = () => {
         const minutes = parseInt(matchH[2]);
         return heures + (minutes / 60);
       }
-      
+
       // Format comme "4h" -> convertir en heures
       const matchH2 = cleaned.match(/(\d+)h$/i);
       if (matchH2) {
         return parseInt(matchH2[1]);
       }
-      
+
       // Format comme "4:30" -> convertir en heures décimales
       const match = cleaned.match(/(\d+):(\d+)/);
       if (match) {
@@ -106,21 +102,21 @@ export const StandardExcelImporter = () => {
         const minutes = parseInt(match[2]);
         return heures + (minutes / 60);
       }
-      
+
       // Format "HHMM" -> convertir en heures décimales
       if (/^\d{4}$/.test(cleaned)) {
         const heures = parseInt(cleaned.slice(0, 2));
         const minutes = parseInt(cleaned.slice(2, 4));
         return heures + (minutes / 60);
       }
-      
+
       // Format décimal comme "4.5"
       const decimal = parseFloat(cleaned);
       if (!isNaN(decimal)) {
         return decimal;
       }
     }
-    
+
     return 0;
   };
 
@@ -141,99 +137,6 @@ export const StandardExcelImporter = () => {
     }
 
     return data && data.length > 0;
-  };
-
-  const parseStandardExcel = async (file: File): Promise<StandardExamenData[]> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const data = new Uint8Array(e.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-          
-          if (jsonData.length < 2) {
-            reject(new Error("Le fichier doit contenir au moins un en-tête et une ligne de données"));
-            return;
-          }
-
-          const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== "" && cell !== null));
-          const examensData: StandardExamenData[] = [];
-          let doublonsEvites = 0;
-          const statsParType = { E: 0, O: 0, AUTRES: 0 };
-
-          for (const row of rows) {
-            const activite = String(row[4] || '').trim();
-            const auditoires = String(row[6] || '').trim();
-            
-            if (!activite || !auditoires) continue;
-
-            const codeCours = extraireCodeCours(activite);
-            const auditoiresList = separerAuditoires(auditoires);
-            const { type_detecte, statut_validation } = classifierCode(activite);
-            const duree = convertirDuree(row[1]);
-            const heureDebut = formatTime(row[2]);
-            const heureFin = formatTime(row[3]);
-            const heureArrivee = calculerHeureArrivee(heureDebut);
-
-            // Compter par type
-            if (type_detecte === 'E') statsParType.E++;
-            else if (type_detecte === 'O') statsParType.O++;
-            else statsParType.AUTRES++;
-
-            // Vérifier les doublons pour chaque auditoire
-            for (const auditoire of auditoiresList) {
-              const estDoublon = await verifierDoublon(codeCours, auditoire);
-              
-              if (estDoublon) {
-                doublonsEvites++;
-                console.log(`Doublon évité: ${codeCours} - ${auditoire}`);
-                continue;
-              }
-
-              examensData.push({
-                jour: String(row[0] || '').trim(),
-                duree: duree,
-                heure_debut: heureDebut,
-                heure_fin: heureFin,
-                heure_arrivee_surveillance: heureArrivee,
-                activite: activite,
-                code: String(row[5] || '').trim(),
-                auditoires: auditoire,
-                auditoires_originaux: auditoires, // Garder les données originales
-                groupes_etudiants: String(row[7] || '').trim(),
-                enseignants: String(row[8] || '').trim(),
-                code_cours_extrait: codeCours,
-                code_complet_original: activite,
-                type_detecte,
-                statut_validation
-              });
-            }
-          }
-
-          setProcessingStats({
-            total_lignes: rows.length,
-            examens_affiches: examensData.length,
-            doublons_evites: doublonsEvites,
-            par_type: statsParType
-          });
-
-          console.log('Données Excel parsées:', examensData);
-          resolve(examensData);
-        } catch (error) {
-          reject(new Error("Impossible de lire le fichier Excel. Vérifiez le format."));
-        }
-      };
-      reader.onerror = () => reject(new Error("Erreur lors de la lecture du fichier"));
-      reader.readAsArrayBuffer(file);
-    });
-  };
-
-  const separerAuditoires = (auditoires: string): string[] => {
-    return auditoires.split(',').map(a => a.trim()).filter(a => a.length > 0);
   };
 
   const formatTime = (value: any): string => {
@@ -297,6 +200,99 @@ export const StandardExcelImporter = () => {
     } catch {
       return '07:15'; // Défaut si erreur
     }
+  };
+
+  const separerAuditoires = (auditoires: string): string[] => {
+    return auditoires.split(',').map(a => a.trim()).filter(a => a.length > 0);
+  };
+
+  const parseStandardExcel = async (file: File): Promise<StandardExamenData[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          
+          const sheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+          
+          if (jsonData.length < 2) {
+            reject(new Error("Le fichier doit contenir au moins un en-tête et une ligne de données"));
+            return;
+          }
+
+          const rows = jsonData.slice(1).filter(row => row.some(cell => cell !== "" && cell !== null));
+          const examensData: StandardExamenData[] = [];
+          let doublonsEvites = 0;
+          const statsParType = { E: 0, O: 0, AUTRES: 0 };
+
+          for (const row of rows) {
+            const activite = String(row[4] || '').trim();
+            const auditoires = String(row[6] || '').trim();
+            
+            if (!activite || !auditoires) continue;
+
+            const codeCours = extraireCodeCours(activite);
+            const auditoiresList = separerAuditoires(auditoires);
+            const { type_detecte, statut_validation } = classifierCode(activite);
+            const duree = convertirDuree(row[1]);
+            const heureDebut = formatTime(row[2]);
+            const heureFin = formatTime(row[3]);
+            const heureArrivee = calculerHeureArrivee(heureDebut);
+
+            // Compter par type
+            if (type_detecte === 'E') statsParType.E++;
+            else if (type_detecte === 'O') statsParType.O++;
+            else statsParType.AUTRES++;
+
+            // Vérifier les doublons pour chaque auditoire
+            for (const auditoire of auditoiresList) {
+              const estDoublon = await verifierDoublon(codeCours, auditoire);
+              
+              if (estDoublon) {
+                doublonsEvites++;
+                console.log(`Doublon évité: ${codeCours} - ${auditoire}`);
+                continue;
+              }
+
+              examensData.push({
+                jour: String(row[0] || '').trim(),
+                duree: duree,
+                heure_debut: heureDebut,
+                heure_fin: heureFin,
+                heure_arrivee_surveillance: heureArrivee,
+                activite: activite,
+                code: String(row[5] || '').trim(),
+                auditoires: auditoire,
+                auditoires_originaux: auditoires,
+                groupes_etudiants: String(row[7] || '').trim(),
+                enseignants: String(row[8] || '').trim(),
+                code_cours_extrait: codeCours,
+                code_complet_original: activite,
+                type_detecte,
+                statut_validation
+              });
+            }
+          }
+
+          setProcessingStats({
+            total_lignes: rows.length,
+            examens_affiches: examensData.length,
+            doublons_evites: doublonsEvites,
+            par_type: statsParType
+          });
+
+          console.log('Données Excel parsées:', examensData);
+          resolve(examensData);
+        } catch (error) {
+          reject(new Error("Impossible de lire le fichier Excel. Vérifiez le format."));
+        }
+      };
+      reader.onerror = () => reject(new Error("Erreur lors de la lecture du fichier"));
+      reader.readAsArrayBuffer(file);
+    });
   };
 
   const formatDateFromJour = (jour: string): string => {
@@ -378,6 +374,11 @@ export const StandardExcelImporter = () => {
           title: "Aucune donnée",
           description: "Aucun examen à traiter (possiblement tous des doublons).",
           variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Import réussi",
+          description: `${examensData.length} examens chargés et prêts pour validation.`,
         });
       }
 
