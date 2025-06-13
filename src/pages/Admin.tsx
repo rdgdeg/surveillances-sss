@@ -28,6 +28,10 @@ const Admin = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
   const [showSensitiveData, setShowSensitiveData] = useState(false);
 
+  const handleViewChange = (view: string) => {
+    setActiveTab(view as ActiveTab);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case "dashboard":
@@ -60,7 +64,7 @@ const Admin = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <AdminSidebar activeView={activeTab} onViewChange={setActiveTab} />
+      <AdminSidebar activeView={activeTab} onViewChange={handleViewChange} />
       <main className="flex-1 overflow-auto p-6">
         {renderContent()}
       </main>
