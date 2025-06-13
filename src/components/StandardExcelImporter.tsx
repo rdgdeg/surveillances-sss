@@ -1,13 +1,15 @@
+
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import * as XLSX from 'xlsx';
 
 interface StandardExamenData {
@@ -46,6 +48,9 @@ export const StandardExcelImporter = () => {
   const [parsedData, setParsedData] = useState<StandardExamenData[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [filterType, setFilterType] = useState<string>("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [editingRow, setEditingRow] = useState<string | null>(null);
+  const [editedData, setEditedData] = useState<Partial<StandardExamenData>>({});
 
   const extraireCodeCours = (activite: string): string => {
     // Extraire le premier code cours avant le +
@@ -212,20 +217,29 @@ export const StandardExcelImporter = () => {
     
     if (typeof value === 'number') {
       // Gestion des nombres Excel (fraction de jour)
-      const hours = Math.floor(value * 24);
-      const minutes = Math.floor((value * 24 * 60) % 60);
+      const totalMinutes = Math.round(value * 24 * 60);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
       return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     }
     
     if (typeof value === 'string') {
-      const cleaned = value.trim().replace(/[^\d:]/g, '');
+      const cleaned = value.trim();
+      
+      // Format déjà correct "HH:MM"
       if (/^\d{1,2}:\d{2}$/.test(cleaned)) {
-        return cleaned;
+        const [h, m] = cleaned.split(':');
+        return `${h.padStart(2, '0')}:${m}`;
       }
       
-      // Format "0830" -> "08:30"
+      // Format "HHMM" -> "HH:MM"
       if (/^\d{4}$/.test(cleaned)) {
         return `${cleaned.slice(0, 2)}:${cleaned.slice(2, 4)}`;
+      }
+      
+      // Format "H:MM" -> "HH:MM"
+      if (/^\d{1}:\d{2}$/.test(cleaned)) {
+        return `0${cleaned}`;
       }
     }
     
@@ -429,8 +443,97 @@ export const StandardExcelImporter = () => {
   };
 
   const getFilteredData = () => {
-    if (filterType === "ALL") return parsedData;
-    return parsedData.filter(item => item.type_detecte === filterType);
+    let filtered = parsedData;
+    
+    // Filtre par type
+    if (filterType !== "ALL") {
+      filtered = filtered.filter(item => item.type_detecte === filterType);
+    }
+    
+    // Filtre par recherche
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.code_cours_extrait.toLowerCase().includes(term) ||
+        item.activite.toLowerCase().includes(term) ||
+        item.auditoires.toLowerCase().includes(term) ||
+        item.groupes_etudiants.toLowerCase().includes(term) ||
+        item.enseignants.toLowerCase().includes(term)
+      );
+    }
+    
+    return filtered;
+  };
+
+  const startEditing = (index: number) => {
+    setEditingRow(index.toString());
+    setEditedData(parsedData[index]);
+  };
+
+  const cancelEditing = () => {
+    setEditingRow(null);
+    setEditedData({});
+  };
+
+  const saveEditing = () => {
+    if (editingRow && editedData) {
+      const index = parseInt(editingRow);
+      const updatedData = [...parsedData];
+      updatedData[index] = { ...updatedData[index], ...editedData };
+      
+      // Recalculer les champs dérivés
+      const updated = updatedData[index];
+      updated.code_cours_extrait = extraireCodeCours(updated.activite);
+      const classification = classifierCode(updated.activite);
+      updated.type_detecte = classification.type_detecte;
+      updated.statut_validation = classification.statut_validation;
+      updated.heure_arrivee_surveillance = calculerHeureArrivee(updated.heure_debut);
+      
+      setParsedData(updatedData);
+      setEditingRow(null);
+      setEditedData({});
+      
+      toast({
+        title: "Modification sauvegardée",
+        description: "Les données ont été mises à jour localement.",
+      });
+    }
+  };
+
+  const handleFieldChange = (field: keyof StandardExamenData, value: string | number) => {
+    setEditedData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const renderEditableCell = (examen: StandardExamenData, field: keyof StandardExamenData, index: number) => {
+    const isEditing = editingRow === index.toString();
+    const value = isEditing ? (editedData[field] ?? examen[field]) : examen[field];
+
+    if (!isEditing) {
+      return <span>{value}</span>;
+    }
+
+    if (field === 'duree') {
+      return (
+        <Input
+          type="number"
+          step="0.5"
+          value={value as number}
+          onChange={(e) => handleFieldChange(field, parseFloat(e.target.value) || 0)}
+          className="w-20"
+        />
+      );
+    }
+
+    return (
+      <Input
+        value={value as string}
+        onChange={(e) => handleFieldChange(field, e.target.value)}
+        className="w-full"
+      />
+    );
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -459,7 +562,7 @@ export const StandardExcelImporter = () => {
           <span>Import Excel Standard des Examens</span>
         </CardTitle>
         <CardDescription>
-          Importez le fichier Excel standardisé avec classification automatique et sélection par type
+          Importez le fichier Excel standardisé avec classification automatique et édition en ligne
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -525,6 +628,16 @@ export const StandardExcelImporter = () => {
             )}
 
             <div className="flex gap-2 items-center flex-wrap">
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Rechercher..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 w-64"
+                />
+              </div>
+              
               <Select value={filterType} onValueChange={setFilterType}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Filtrer par type" />
@@ -550,6 +663,10 @@ export const StandardExcelImporter = () => {
               </Button>
             </div>
 
+            <div className="text-sm text-gray-600">
+              Affichage de {filteredData.length} examens sur {parsedData.length}
+            </div>
+
             <div className="overflow-x-auto max-h-96 border rounded-lg">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 sticky top-0">
@@ -561,21 +678,24 @@ export const StandardExcelImporter = () => {
                         onChange={handleSelectAll}
                       />
                     </th>
+                    <th className="p-3 text-left">Actions</th>
                     <th className="p-3 text-left">Code Cours</th>
                     <th className="p-3 text-left">Type</th>
                     <th className="p-3 text-left">Date</th>
                     <th className="p-3 text-left">Durée</th>
-                    <th className="p-3 text-left">Examen</th>
-                    <th className="p-3 text-left">Surveillance</th>
+                    <th className="p-3 text-left">Début</th>
+                    <th className="p-3 text-left">Fin</th>
+                    <th className="p-3 text-left">Arrivée</th>
+                    <th className="p-3 text-left">Activité</th>
                     <th className="p-3 text-left">Auditoire</th>
                     <th className="p-3 text-left">Groupes</th>
                     <th className="p-3 text-left">Enseignants</th>
-                    <th className="p-3 text-left">Remarques</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.map((examen, originalIndex) => {
+                  {filteredData.map((examen, filteredIndex) => {
                     const actualIndex = parsedData.indexOf(examen);
+                    const isEditing = editingRow === actualIndex.toString();
                     return (
                       <tr key={actualIndex} className={selectedItems.includes(actualIndex.toString()) ? "bg-blue-50" : ""}>
                         <td className="p-3">
@@ -585,37 +705,39 @@ export const StandardExcelImporter = () => {
                             onChange={() => handleSelectItem(actualIndex.toString())}
                           />
                         </td>
+                        <td className="p-3">
+                          {isEditing ? (
+                            <div className="flex gap-1">
+                              <Button size="sm" onClick={saveEditing}>
+                                <Save className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={cancelEditing}>
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button size="sm" variant="outline" onClick={() => startEditing(actualIndex)}>
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </td>
                         <td className="p-3 font-mono">{examen.code_cours_extrait}</td>
                         <td className="p-3">
                           <Badge className={getTypeColor(examen.type_detecte)}>
                             {getTypeLabel(examen.type_detecte)}
                           </Badge>
                         </td>
-                        <td className="p-3">{examen.jour}</td>
-                        <td className="p-3 font-medium">{formatDureeDisplay(examen.duree)}</td>
+                        <td className="p-3">{renderEditableCell(examen, 'jour', actualIndex)}</td>
                         <td className="p-3">
-                          <div className="text-xs space-y-1">
-                            <div className="font-medium">
-                              {examen.heure_debut} - {examen.heure_fin}
-                            </div>
-                          </div>
+                          {isEditing ? renderEditableCell(examen, 'duree', actualIndex) : formatDureeDisplay(examen.duree)}
                         </td>
-                        <td className="p-3">
-                          <div className="text-xs text-blue-600">
-                            <div>Arrivée: {examen.heure_arrivee_surveillance}</div>
-                            <div>Fin: {examen.heure_fin}</div>
-                          </div>
-                        </td>
-                        <td className="p-3">{examen.auditoires}</td>
-                        <td className="p-3 text-xs">{examen.groupes_etudiants}</td>
-                        <td className="p-3 text-xs">{examen.enseignants}</td>
-                        <td className="p-3 text-xs text-gray-600">
-                          {examen.code_complet_original !== examen.code_cours_extrait && (
-                            <div className="bg-yellow-100 p-1 rounded text-xs">
-                              Original: {examen.code_complet_original}
-                            </div>
-                          )}
-                        </td>
+                        <td className="p-3">{renderEditableCell(examen, 'heure_debut', actualIndex)}</td>
+                        <td className="p-3">{renderEditableCell(examen, 'heure_fin', actualIndex)}</td>
+                        <td className="p-3 text-blue-600">{examen.heure_arrivee_surveillance}</td>
+                        <td className="p-3 max-w-48 truncate">{renderEditableCell(examen, 'activite', actualIndex)}</td>
+                        <td className="p-3">{renderEditableCell(examen, 'auditoires', actualIndex)}</td>
+                        <td className="p-3 text-xs">{renderEditableCell(examen, 'groupes_etudiants', actualIndex)}</td>
+                        <td className="p-3 text-xs">{renderEditableCell(examen, 'enseignants', actualIndex)}</td>
                       </tr>
                     );
                   })}
@@ -629,6 +751,9 @@ export const StandardExcelImporter = () => {
                 setSelectedItems([]);
                 setProcessingStats(null);
                 setFilterType("ALL");
+                setSearchTerm("");
+                setEditingRow(null);
+                setEditedData({});
               }}
               variant="outline"
             >
