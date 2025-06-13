@@ -81,6 +81,129 @@ export type Database = {
           },
         ]
       }
+      candidats_disponibilites: {
+        Row: {
+          candidat_id: string | null
+          created_at: string
+          est_disponible: boolean | null
+          examen_id: string | null
+          id: string
+        }
+        Insert: {
+          candidat_id?: string | null
+          created_at?: string
+          est_disponible?: boolean | null
+          examen_id?: string | null
+          id?: string
+        }
+        Update: {
+          candidat_id?: string | null
+          created_at?: string
+          est_disponible?: boolean | null
+          examen_id?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidats_disponibilites_candidat_id_fkey"
+            columns: ["candidat_id"]
+            isOneToOne: false
+            referencedRelation: "candidats_surveillance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidats_disponibilites_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "examens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidats_disponibilites_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["examen_id"]
+          },
+        ]
+      }
+      candidats_surveillance: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          nom: string
+          prenom: string
+          session_id: string | null
+          statut: string
+          statut_autre: string | null
+          telephone: string | null
+          traite: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          nom: string
+          prenom: string
+          session_id?: string | null
+          statut: string
+          statut_autre?: string | null
+          telephone?: string | null
+          traite?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          nom?: string
+          prenom?: string
+          session_id?: string | null
+          statut?: string
+          statut_autre?: string | null
+          telephone?: string | null
+          traite?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidats_surveillance_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contraintes_auditoires: {
+        Row: {
+          auditoire: string
+          created_at: string
+          description: string | null
+          id: string
+          nombre_surveillants_requis: number
+          updated_at: string
+        }
+        Insert: {
+          auditoire: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          nombre_surveillants_requis?: number
+          updated_at?: string
+        }
+        Update: {
+          auditoire?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          nombre_surveillants_requis?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contraintes_salles: {
         Row: {
           created_at: string
@@ -185,6 +308,10 @@ export type Database = {
           nombre_surveillants: number
           salle: string
           session_id: string
+          surveillants_a_attribuer: number | null
+          surveillants_amenes: number | null
+          surveillants_enseignant: number | null
+          surveillants_pre_assignes: number | null
           type_requis: string
           updated_at: string
         }
@@ -198,6 +325,10 @@ export type Database = {
           nombre_surveillants?: number
           salle: string
           session_id: string
+          surveillants_a_attribuer?: number | null
+          surveillants_amenes?: number | null
+          surveillants_enseignant?: number | null
+          surveillants_pre_assignes?: number | null
           type_requis: string
           updated_at?: string
         }
@@ -211,6 +342,10 @@ export type Database = {
           nombre_surveillants?: number
           salle?: string
           session_id?: string
+          surveillants_a_attribuer?: number | null
+          surveillants_amenes?: number | null
+          surveillants_enseignant?: number | null
+          surveillants_pre_assignes?: number | null
           type_requis?: string
           updated_at?: string
         }
@@ -416,6 +551,7 @@ export type Database = {
           nom: string
           prenom: string
           statut: string
+          telephone: string | null
           type: string
           updated_at: string
         }
@@ -426,6 +562,7 @@ export type Database = {
           nom: string
           prenom: string
           statut?: string
+          telephone?: string | null
           type: string
           updated_at?: string
         }
@@ -436,6 +573,7 @@ export type Database = {
           nom?: string
           prenom?: string
           statut?: string
+          telephone?: string | null
           type?: string
           updated_at?: string
         }

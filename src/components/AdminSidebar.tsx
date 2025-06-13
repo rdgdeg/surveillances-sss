@@ -1,5 +1,4 @@
 
-
 import {
   LayoutDashboard,
   Calendar,
@@ -13,7 +12,10 @@ import {
   BarChart4,
   ListChecks,
   Calculator,
-  MessageSquare
+  MessageSquare,
+  Building2,
+  ClipboardList,
+  Users
 } from "lucide-react";
 
 import {
@@ -131,6 +133,33 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
                 >
                   <ListChecks className="h-4 w-4" />
                   <span>Contraintes</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onViewChange("contraintes-auditoires")}
+                  isActive={activeView === "contraintes-auditoires"}
+                >
+                  <Building2 className="h-4 w-4" />
+                  <span>Contraintes Auditoires</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onViewChange("examen-review")}
+                  isActive={activeView === "examen-review"}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  <span>Révision Examens</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onViewChange("candidats-surveillance")}
+                  isActive={activeView === "candidats-surveillance"}
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Candidats Surveillance</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>

@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
@@ -29,44 +30,63 @@ export const SoldesSurveillants = () => {
         return [];
       }
 
-      const { data, error } = await supabase
-        .from('surveillance_assignments_view')
-        .select('surveillant_id, nom, prenom, email, surveillant_type, quota, attributions_actuelles, sessions_imposees')
-        .eq('session_id', activeSession.id);
+      // Récupérer les surveillants avec leurs quotas pour la session active
+      const { data: surveillantsData, error: surveillantsError } = await supabase
+        .from('surveillant_sessions')
+        .select(`
+          surveillant_id,
+          quota,
+          sessions_imposees,
+          surveillants!inner(nom, prenom, email, type)
+        `)
+        .eq('session_id', activeSession.id)
+        .eq('is_active', true);
 
-      if (error) {
-        console.error('Error fetching soldes:', error);
-        throw error;
+      if (surveillantsError) {
+        console.error('Error fetching surveillants:', surveillantsError);
+        throw surveillantsError;
       }
 
-      if (!data) {
+      if (!surveillantsData) {
         return [];
       }
 
-      // Grouper par surveillant et calculer les soldes
-      const surveillantsMap = new Map<string, SoldeSurveillant>();
-      
-      data.forEach((row: any) => {
-        if (row.surveillant_id && !surveillantsMap.has(row.surveillant_id)) {
-          const attributions = row.attributions_actuelles || 0;
-          const quota = row.quota || 0;
-          const solde = quota - attributions;
-          
-          surveillantsMap.set(row.surveillant_id, {
-            id: row.surveillant_id,
-            nom: row.nom || '',
-            prenom: row.prenom || '',
-            email: row.email || '',
-            type: row.surveillant_type || '',
-            quota: quota,
-            attributions_actuelles: attributions,
-            solde: solde,
-            sessions_imposees: row.sessions_imposees || 0
-          });
-        }
-      });
+      // Récupérer le nombre d'attributions actuelles pour chaque surveillant
+      const { data: attributionsData, error: attributionsError } = await supabase
+        .from('attributions')
+        .select('surveillant_id')
+        .eq('session_id', activeSession.id);
 
-      return Array.from(surveillantsMap.values());
+      if (attributionsError) {
+        console.error('Error fetching attributions:', attributionsError);
+        throw attributionsError;
+      }
+
+      // Compter les attributions par surveillant
+      const attributionsCount = attributionsData?.reduce((acc, attr) => {
+        acc[attr.surveillant_id] = (acc[attr.surveillant_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      // Construire la liste des soldes
+      return surveillantsData.map((item): SoldeSurveillant => {
+        const surveillant = Array.isArray(item.surveillants) ? item.surveillants[0] : item.surveillants;
+        const attributions = attributionsCount[item.surveillant_id] || 0;
+        const quota = item.quota || 0;
+        const solde = quota - attributions;
+
+        return {
+          id: item.surveillant_id,
+          nom: surveillant?.nom || '',
+          prenom: surveillant?.prenom || '',
+          email: surveillant?.email || '',
+          type: surveillant?.type || '',
+          quota: quota,
+          attributions_actuelles: attributions,
+          solde: solde,
+          sessions_imposees: item.sessions_imposees || 0
+        };
+      });
     },
     enabled: !!activeSession?.id
   });
