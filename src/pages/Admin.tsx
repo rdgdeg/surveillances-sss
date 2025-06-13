@@ -7,6 +7,7 @@ import { SessionSelector } from "@/components/SessionSelector";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { NewFileUploader } from "@/components/NewFileUploader";
 import { ExcelFileUploader } from "@/components/ExcelFileUploader";
+import { ImportVerification } from "@/components/ImportVerification";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
 import { SurveillantListEditor } from "@/components/SurveillantListEditor";
 import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
@@ -53,6 +54,9 @@ const Admin = () => {
               <h2 className="text-2xl font-bold mb-2">Import de données</h2>
               <p className="text-gray-600">Importez vos données au format CSV ou Excel</p>
             </div>
+            
+            {/* Composant de vérification des imports */}
+            <ImportVerification />
             
             <div className="grid gap-6">
               <NewFileUploader
