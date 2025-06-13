@@ -3,8 +3,8 @@ import { Link } from "react-router-dom";
 
 export const Footer = () => {
   return (
-    <footer className="bg-uclouvain-blue text-white border-t border-uclouvain-cyan/30 mt-auto">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <footer className="bg-uclouvain-blue text-white border-t border-uclouvain-cyan/30">
+      <div className="max-w-7xl mx-auto px-6 py-8">
         <div className="flex flex-col md:flex-row justify-between items-start space-y-6 md:space-y-0">
           <div className="flex items-center space-x-4">
             <img 
@@ -30,10 +30,16 @@ export const Footer = () => {
             <Link to="/credits" className="text-uclouvain-cyan hover:text-white transition-colors">
               Crédits
             </Link>
-            <Link to="/rgpd" className="text-uclouvain-cyan hover:text-white transition-colors">
+            <Link to="/privacy" className="text-uclouvain-cyan hover:text-white transition-colors">
               RGPD
             </Link>
           </div>
+        </div>
+        
+        <div className="mt-6 pt-6 border-t border-uclouvain-cyan/20 text-center">
+          <p className="text-uclouvain-cyan text-xs">
+            © {new Date().getFullYear()} UCLouvain - Tous droits réservés
+          </p>
         </div>
       </div>
     </footer>
