@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
 import { useSurveillantSensitiveData } from "@/hooks/useSurveillantSensitiveData";
 import { SensitiveDataManager } from "./SensitiveDataManager";
+import { EditableCell } from "./EditableCell";
 import { supabase } from "@/integrations/supabase/client";
 import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin, Search, Filter, SortAsc, SortDesc, CheckSquare, Square, ArrowUpDown } from "lucide-react";
 
