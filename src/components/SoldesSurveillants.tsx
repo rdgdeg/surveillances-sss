@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
@@ -23,9 +22,9 @@ interface SoldeSurveillant {
 export const SoldesSurveillants = () => {
   const { data: activeSession } = useActiveSession();
 
-  const { data: soldes, isLoading } = useQuery<SoldeSurveillant[]>({
+  const { data: soldes, isLoading } = useQuery({
     queryKey: ['soldes-surveillants', activeSession?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<SoldeSurveillant[]> => {
       if (!activeSession?.id) {
         return [];
       }
@@ -47,7 +46,7 @@ export const SoldesSurveillants = () => {
       // Grouper par surveillant et calculer les soldes
       const surveillantsMap = new Map<string, SoldeSurveillant>();
       
-      data.forEach((row) => {
+      data.forEach((row: any) => {
         if (row.surveillant_id && !surveillantsMap.has(row.surveillant_id)) {
           const attributions = row.attributions_actuelles || 0;
           const quota = row.quota || 0;
