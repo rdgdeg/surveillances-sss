@@ -10,6 +10,7 @@ import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import Surveillant from "./pages/Surveillant";
 import PublicForm from "./pages/PublicForm";
+import DisponibilitesForm from "./pages/DisponibilitesForm";
 import Credits from "./pages/Credits";
 import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
@@ -34,6 +35,7 @@ const App: React.FC = () => {
               <Route path="/admin" element={<Admin />} />
               <Route path="/surveillant" element={<Surveillant />} />
               <Route path="/collecte" element={<PublicForm />} />
+              <Route path="/disponibilites" element={<DisponibilitesForm />} />
               <Route path="/credits" element={<Credits />} />
               <Route path="/rgpd" element={<Privacy />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
