@@ -185,25 +185,49 @@ export const PreAssignmentManager = () => {
     return `${surveillant.nom} ${surveillant.prenom} (${surveillant.type})`;
   };
 
-  // Filter out items with empty or invalid IDs - more robust filtering
+  // Filter out items with empty or invalid IDs - most robust filtering possible
   const validExamens = examens.filter(examen => {
-    const isValid = examen && examen.id && typeof examen.id === 'string' && examen.id.trim() !== '';
-    if (!isValid) {
-      console.log('Invalid examen found:', examen);
+    if (!examen) {
+      console.log('Null/undefined examen found');
+      return false;
     }
-    return isValid;
+    if (!examen.id) {
+      console.log('Examen without id found:', examen);
+      return false;
+    }
+    if (typeof examen.id !== 'string') {
+      console.log('Examen with non-string id found:', examen);
+      return false;
+    }
+    if (examen.id.trim() === '') {
+      console.log('Examen with empty string id found:', examen);
+      return false;
+    }
+    return true;
   });
   
   const validSurveillants = surveillants.filter(surveillant => {
-    const isValid = surveillant && surveillant.id && typeof surveillant.id === 'string' && surveillant.id.trim() !== '';
-    if (!isValid) {
-      console.log('Invalid surveillant found:', surveillant);
+    if (!surveillant) {
+      console.log('Null/undefined surveillant found');
+      return false;
     }
-    return isValid;
+    if (!surveillant.id) {
+      console.log('Surveillant without id found:', surveillant);
+      return false;
+    }
+    if (typeof surveillant.id !== 'string') {
+      console.log('Surveillant with non-string id found:', surveillant);
+      return false;
+    }
+    if (surveillant.id.trim() === '') {
+      console.log('Surveillant with empty string id found:', surveillant);
+      return false;
+    }
+    return true;
   });
 
-  console.log('Valid examens:', validExamens);
-  console.log('Valid surveillants:', validSurveillants);
+  console.log('Valid examens count:', validExamens.length);
+  console.log('Valid surveillants count:', validSurveillants.length);
 
   if (!activeSession) {
     return (
@@ -259,6 +283,11 @@ export const PreAssignmentManager = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {validExamens.map((examen) => {
+                    // Final safety check before rendering
+                    if (!examen?.id || typeof examen.id !== 'string' || examen.id.trim() === '') {
+                      console.error('Attempting to render SelectItem with invalid examen:', examen);
+                      return null;
+                    }
                     console.log('Rendering examen SelectItem with value:', examen.id);
                     return (
                       <SelectItem key={examen.id} value={examen.id}>
@@ -278,6 +307,11 @@ export const PreAssignmentManager = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {validSurveillants.map((surveillant) => {
+                    // Final safety check before rendering
+                    if (!surveillant?.id || typeof surveillant.id !== 'string' || surveillant.id.trim() === '') {
+                      console.error('Attempting to render SelectItem with invalid surveillant:', surveillant);
+                      return null;
+                    }
                     console.log('Rendering surveillant SelectItem with value:', surveillant.id);
                     return (
                       <SelectItem key={surveillant.id} value={surveillant.id}>
