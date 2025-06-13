@@ -294,6 +294,28 @@ export const ContraintesAuditoires = () => {
   // Prévisualiser les auditoires du texte en vrac
   const previewAuditoires = bulkAuditoires.trim() ? parseAuditoires(bulkAuditoires) : [];
 
+  // Handler functions for editing
+  const handleEdit = (contrainte: ContrainteAuditoire) => {
+    setEditingId(contrainte.id);
+    setEditValues({
+      nombre: contrainte.nombre_surveillants_requis,
+      description: contrainte.description || ""
+    });
+  };
+
+  const handleSaveEdit = (id: string) => {
+    updateContrainte.mutate({
+      id,
+      nombre_surveillants_requis: editValues.nombre,
+      description: editValues.description
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditValues({ nombre: 1, description: "" });
+  };
+
   return (
     <div className="space-y-6">
       <Card>
