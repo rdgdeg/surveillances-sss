@@ -1,33 +1,29 @@
 
 import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  LayoutDashboard,
-  Upload,
-  Download,
-  Users,
-  Calendar,
-  CalendarDays,
-  Coins,
-  Zap,
-  ClipboardList,
-  UserCheck,
-  Vote,
-  UserPlus,
-  Building,
-  CheckSquare,
-  Eye,
+import { 
+  Users, 
+  FileSpreadsheet, 
+  Calendar, 
+  Settings, 
+  BarChart3, 
+  Shield, 
+  UserCheck, 
+  ClipboardList, 
+  AlertTriangle, 
+  Database, 
+  Eye, 
   History,
-  ChevronDown,
-  ChevronRight,
-  Settings,
-  AlertTriangle,
-  FileText
+  FileText,
+  Home,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface AdminSidebarProps {
   activeView: string;
@@ -35,210 +31,318 @@ interface AdminSidebarProps {
 }
 
 export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) => {
-  const [isExamensSectionOpen, setIsExamensSectionOpen] = useState(true);
-  const [isSurveillantsSectionOpen, setIsSurveillantsSectionOpen] = useState(true);
-  const [isDataSectionOpen, setIsDataSectionOpen] = useState(true);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const menuItems = [
     {
       id: "dashboard",
-      label: "Tableau de bord",
-      icon: LayoutDashboard,
-      section: "main"
+      label: "Dashboard",
+      icon: BarChart3,
+      description: "Vue d'ensemble"
     },
     {
-      id: "import",
-      label: "Import de données",
-      icon: Upload,
-      section: "data"
+      category: "Import & Validation",
+      items: [
+        {
+          id: "import",
+          label: "Import de données",
+          icon: FileSpreadsheet,
+          description: "Importer fichiers CSV/Excel"
+        },
+        {
+          id: "validation",
+          label: "Validation",
+          icon: Shield,
+          description: "Validation des données"
+        },
+        {
+          id: "examens-workflow",
+          label: "Workflow Examens",
+          icon: FileText,
+          description: "Gestion workflow examens"
+        },
+        {
+          id: "templates",
+          label: "Modèles",
+          icon: FileSpreadsheet,
+          description: "Télécharger modèles"
+        }
+      ]
     },
     {
-      id: "templates",
-      label: "Télécharger modèles",
-      icon: Download,
-      section: "data"
+      category: "Gestion Surveillants",
+      items: [
+        {
+          id: "surveillants",
+          label: "Liste Surveillants",
+          icon: Users,
+          description: "Édition des surveillants"
+        },
+        {
+          id: "surveillants-manager",
+          label: "Gestion Surveillants",
+          icon: UserCheck,
+          description: "Gestion avancée"
+        },
+        {
+          id: "disponibilites",
+          label: "Disponibilités",
+          icon: Calendar,
+          description: "Matrice des disponibilités"
+        }
+      ]
     },
     {
-      id: "consistency",
-      label: "Vérification cohérence",
-      icon: CheckSquare,
-      section: "data"
+      category: "Planning & Attribution",
+      items: [
+        {
+          id: "planning",
+          label: "Planning",
+          icon: Calendar,
+          description: "Vue planning"
+        },
+        {
+          id: "soldes",
+          label: "Soldes",
+          icon: BarChart3,
+          description: "Soldes des surveillants"
+        },
+        {
+          id: "assignment",
+          label: "Attribution intelligente",
+          icon: Shield,
+          description: "Moteur d'attribution"
+        }
+      ]
     },
     {
-      id: "surveillants",
-      label: "Gestion surveillants",
-      icon: Users,
-      section: "surveillants"
+      category: "Examens",
+      items: [
+        {
+          id: "examens",
+          label: "Révision Examens",
+          icon: ClipboardList,
+          description: "Gestion des examens"
+        },
+        {
+          id: "examens-advanced",
+          label: "Examens Avancé",
+          icon: Settings,
+          description: "Gestion avancée examens"
+        }
+      ]
     },
     {
-      id: "disponibilites",
-      label: "Matrice disponibilités",
-      icon: Calendar,
-      section: "surveillants"
+      category: "Candidatures",
+      items: [
+        {
+          id: "candidats",
+          label: "Candidats",
+          icon: Users,
+          description: "Surveillance candidats"
+        },
+        {
+          id: "candidatures",
+          label: "Candidatures",
+          icon: UserCheck,
+          description: "Gestion candidatures"
+        },
+        {
+          id: "pre-assignment",
+          label: "Pré-assignation",
+          icon: Shield,
+          description: "Gestion pré-assignations"
+        }
+      ]
     },
     {
-      id: "candidats",
-      label: "Candidats surveillance",
-      icon: UserCheck,
-      section: "surveillants"
+      category: "Contraintes & Salles",
+      items: [
+        {
+          id: "contraintes",
+          label: "Contraintes Auditoires",
+          icon: AlertTriangle,
+          description: "Gestion contraintes"
+        },
+        {
+          id: "contraintes-salles",
+          label: "Contraintes Salles",
+          icon: Settings,
+          description: "Contraintes par salle"
+        }
+      ]
     },
     {
-      id: "candidatures",
-      label: "Gestion candidatures",
-      icon: Vote,
-      section: "surveillants"
-    },
-    {
-      id: "soldes",
-      label: "Soldes surveillants",
-      icon: Coins,
-      section: "surveillants"
-    },
-    {
-      id: "examens-advanced",
-      label: "Gestion avancée examens",
-      icon: Settings,
-      section: "examens",
-      badge: "Nouveau"
-    },
-    {
-      id: "examens",
-      label: "Révision besoins",
-      icon: ClipboardList,
-      section: "examens"
-    },
-    {
-      id: "planning",
-      label: "Planning examens",
-      icon: CalendarDays,
-      section: "examens"
-    },
-    {
-      id: "pre-assignment",
-      label: "Pré-attributions",
-      icon: UserPlus,
-      section: "examens"
-    },
-    {
-      id: "contraintes",
-      label: "Contraintes auditoires",
-      icon: Building,
-      section: "examens"
-    },
-    {
-      id: "assignment",
-      label: "Attribution intelligente",
-      icon: Zap,
-      section: "examens"
-    },
-    {
-      id: "sensitive",
-      label: "Données sensibles",
-      icon: Eye,
-      section: "main"
-    },
-    {
-      id: "history",
-      label: "Historique surveillance",
-      icon: History,
-      section: "main"
-    },
-    {
-      id: "changements",
-      label: "Demandes changement",
-      icon: AlertTriangle,
-      section: "main"
+      category: "Données & Historique",
+      items: [
+        {
+          id: "consistency",
+          label: "Cohérence Données",
+          icon: Database,
+          description: "Vérification cohérence"
+        },
+        {
+          id: "sensitive",
+          label: "Données Sensibles",
+          icon: Eye,
+          description: "Gestion données sensibles"
+        },
+        {
+          id: "history",
+          label: "Historique",
+          icon: History,
+          description: "Historique surveillance"
+        },
+        {
+          id: "historique-complet",
+          label: "Historique Complet",
+          icon: History,
+          description: "Historique complet"
+        },
+        {
+          id: "changements",
+          label: "Demandes Changement",
+          icon: AlertTriangle,
+          description: "Gestion changements"
+        }
+      ]
     }
   ];
 
-  const renderMenuItem = (item: any) => (
-    <Button
-      key={item.id}
-      variant={activeView === item.id ? "default" : "ghost"}
-      className={`w-full justify-start text-left ${
-        activeView === item.id ? "bg-blue-600 text-white" : "text-gray-700"
-      }`}
-      onClick={() => onViewChange(item.id)}
-    >
-      <item.icon className="mr-2 h-4 w-4" />
-      <span className="flex-1">{item.label}</span>
-      {item.badge && (
-        <Badge variant="secondary" className="ml-2 text-xs">
-          {item.badge}
-        </Badge>
-      )}
-    </Button>
-  );
-
-  const mainItems = menuItems.filter(item => item.section === "main");
-  const dataItems = menuItems.filter(item => item.section === "data");
-  const surveillantsItems = menuItems.filter(item => item.section === "surveillants");
-  const examensItems = menuItems.filter(item => item.section === "examens");
+  const handleHomeClick = () => {
+    window.location.href = '/';
+  };
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 p-4 space-y-4 overflow-y-auto">
-      <div className="space-y-2">
-        <h2 className="text-lg font-semibold text-gray-900">Administration</h2>
-        <div className="space-y-1">
-          {mainItems.map(renderMenuItem)}
+    <div className={cn(
+      "bg-white border-r border-gray-200 transition-all duration-300",
+      isCollapsed ? "w-16" : "w-80"
+    )}>
+      <div className="p-4 border-b">
+        <div className="flex items-center justify-between">
+          {!isCollapsed && (
+            <div className="space-y-2 flex-1 mr-3">
+              <h2 className="text-lg font-semibold text-gray-900">Administration</h2>
+              <Button
+                onClick={handleHomeClick}
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+              >
+                <Home className="h-4 w-4 mr-2" />
+                Retour à l'accueil
+              </Button>
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="shrink-0"
+          >
+            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
         </div>
+        {isCollapsed && (
+          <Button
+            onClick={handleHomeClick}
+            variant="ghost"
+            size="sm"
+            className="w-full mt-2 p-2"
+            title="Retour à l'accueil"
+          >
+            <Home className="h-4 w-4" />
+          </Button>
+        )}
       </div>
-
-      <Separator />
-
-      <Collapsible open={isDataSectionOpen} onOpenChange={setIsDataSectionOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-start text-left p-2">
-            {isDataSectionOpen ? (
-              <ChevronDown className="mr-2 h-4 w-4" />
-            ) : (
-              <ChevronRight className="mr-2 h-4 w-4" />
-            )}
-            <FileText className="mr-2 h-4 w-4" />
-            <span className="font-medium">Gestion des données</span>
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-1 ml-4">
-          {dataItems.map(renderMenuItem)}
-        </CollapsibleContent>
-      </Collapsible>
-
-      <Collapsible open={isSurveillantsSectionOpen} onOpenChange={setIsSurveillantsSectionOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-start text-left p-2">
-            {isSurveillantsSectionOpen ? (
-              <ChevronDown className="mr-2 h-4 w-4" />
-            ) : (
-              <ChevronRight className="mr-2 h-4 w-4" />
-            )}
-            <Users className="mr-2 h-4 w-4" />
-            <span className="font-medium">Surveillants</span>
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-1 ml-4">
-          {surveillantsItems.map(renderMenuItem)}
-        </CollapsibleContent>
-      </Collapsible>
-
-      <Collapsible open={isExamensSectionOpen} onOpenChange={setIsExamensSectionOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-start text-left p-2">
-            {isExamensSectionOpen ? (
-              <ChevronDown className="mr-2 h-4 w-4" />
-            ) : (
-              <ChevronRight className="mr-2 h-4 w-4" />
-            )}
-            <ClipboardList className="mr-2 h-4 w-4" />
-            <span className="font-medium">Examens</span>
-            <Badge variant="secondary" className="ml-auto text-xs">
-              {examensItems.length}
-            </Badge>
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-1 ml-4">
-          {examensItems.map(renderMenuItem)}
-        </CollapsibleContent>
-      </Collapsible>
+      
+      <ScrollArea className="h-[calc(100vh-120px)]">
+        <div className="p-4 space-y-4">
+          {menuItems.map((section, index) => (
+            <div key={index}>
+              {section.category ? (
+                <div>
+                  {!isCollapsed && (
+                    <h3 className="text-sm font-medium text-gray-500 mb-2 px-2">
+                      {section.category}
+                    </h3>
+                  )}
+                  <div className="space-y-1">
+                    {section.items?.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeView === item.id;
+                      
+                      return (
+                        <Button
+                          key={item.id}
+                          variant={isActive ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => onViewChange(item.id)}
+                          className={cn(
+                            "w-full justify-start text-left",
+                            isCollapsed ? "px-2" : "px-3",
+                            isActive && "bg-primary text-primary-foreground"
+                          )}
+                          title={isCollapsed ? item.label : undefined}
+                        >
+                          <Icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
+                          {!isCollapsed && (
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium">{item.label}</div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {item.description}
+                              </div>
+                            </div>
+                          )}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  {/* Single item section (like dashboard) */}
+                  <div className="space-y-1">
+                    {(() => {
+                      const Icon = section.icon;
+                      const isActive = activeView === section.id;
+                      
+                      return (
+                        <Button
+                          key={section.id}
+                          variant={isActive ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => onViewChange(section.id)}
+                          className={cn(
+                            "w-full justify-start text-left",
+                            isCollapsed ? "px-2" : "px-3",
+                            isActive && "bg-primary text-primary-foreground"
+                          )}
+                          title={isCollapsed ? section.label : undefined}
+                        >
+                          <Icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
+                          {!isCollapsed && (
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium">{section.label}</div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {section.description}
+                              </div>
+                            </div>
+                          )}
+                        </Button>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+              
+              {index < menuItems.length - 1 && !isCollapsed && (
+                <Separator className="my-4" />
+              )}
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
     </div>
   );
 };

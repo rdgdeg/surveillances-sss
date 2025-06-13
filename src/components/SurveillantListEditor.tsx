@@ -13,7 +13,7 @@ import { useActiveSession } from "@/hooks/useSessions";
 import { useSurveillantSensitiveData } from "@/hooks/useSurveillantSensitiveData";
 import { SensitiveDataManager } from "./SensitiveDataManager";
 import { supabase } from "@/integrations/supabase/client";
-import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin, Search, Filter, SortAsc, SortDesc, CheckSquare, Square } from "lucide-react";
+import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin, Search, Filter, SortAsc, SortDesc, CheckSquare, Square, ArrowUpDown } from "lucide-react";
 
 interface SurveillantData {
   id: string;
@@ -33,7 +33,7 @@ interface SurveillantData {
   campus: string | null;
 }
 
-type SortField = 'nom' | 'prenom' | 'email' | 'type' | 'quota' | 'date_fin_contrat';
+type SortField = 'nom' | 'prenom' | 'email' | 'type' | 'quota' | 'date_fin_contrat' | 'affectation_fac';
 type SortDirection = 'asc' | 'desc';
 
 export const SurveillantListEditor = () => {
@@ -117,6 +117,21 @@ export const SurveillantListEditor = () => {
     }
   };
 
+  // Générer les options de filtre dynamiquement à partir des données
+  const dynamicFilterOptions = useMemo(() => {
+    const types = [...new Set(surveillants.map(s => s.type))].filter(Boolean).sort();
+    const facultes = [...new Set(surveillants.map(s => s.faculte_interdite))].filter(Boolean).sort();
+    const affectations = [...new Set(surveillants.map(s => s.affectation_fac))].filter(Boolean).sort();
+    const campus = [...new Set(surveillants.map(s => s.campus))].filter(Boolean).sort();
+
+    return {
+      types: types.map(type => ({ value: type, label: type })),
+      facultes: facultes.map(faculte => ({ value: faculte, label: faculte })),
+      affectations: affectations.map(affectation => ({ value: affectation, label: affectation })),
+      campus: campus.map(c => ({ value: c, label: c }))
+    };
+  }, [surveillants]);
+
   // Fonction pour déterminer si un contrat est expiré
   const isContractExpired = (dateFinContrat: string | null): boolean => {
     if (!dateFinContrat) return false;
@@ -174,6 +189,11 @@ export const SurveillantListEditor = () => {
         aValue = aValue.toLowerCase();
         bValue = bValue.toLowerCase();
       }
+
+      // Gérer les valeurs nulles
+      if (aValue === null && bValue === null) return 0;
+      if (aValue === null) return sortDirection === 'asc' ? 1 : -1;
+      if (bValue === null) return sortDirection === 'asc' ? -1 : 1;
 
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
@@ -342,71 +362,6 @@ export const SurveillantListEditor = () => {
     }
   };
 
-  const EditableCell = ({ 
-    value, 
-    onSave, 
-    type = "text",
-    options = undefined 
-  }: { 
-    value: any, 
-    onSave: (value: any) => void, 
-    type?: "text" | "number" | "date" | "select" | "switch",
-    options?: { value: string, label: string }[]
-  }) => {
-    const [editValue, setEditValue] = useState(value);
-
-    const handleSaveClick = () => {
-      onSave(editValue);
-    };
-
-    if (type === "switch") {
-      return (
-        <Switch
-          checked={editValue}
-          onCheckedChange={(checked) => {
-            setEditValue(checked);
-            onSave(checked);
-          }}
-        />
-      );
-    }
-
-    if (type === "select" && options) {
-      return (
-        <Select value={editValue || "none"} onValueChange={(val) => {
-          const finalValue = val === "none" ? null : val;
-          setEditValue(finalValue);
-          onSave(finalValue);
-        }}>
-          <SelectTrigger className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
-    }
-
-    return (
-      <div className="flex items-center space-x-2">
-        <Input
-          type={type}
-          value={editValue}
-          onChange={(e) => setEditValue(type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)}
-          className="min-w-[120px]"
-        />
-        <Button size="sm" onClick={handleSaveClick}>
-          <Save className="h-3 w-3" />
-        </Button>
-      </div>
-    );
-  };
-
   // Fixed option arrays - no empty strings, use "none" as placeholder
   const faculteOptions = [
     { value: "none", label: "Aucune restriction" },
@@ -428,18 +383,9 @@ export const SurveillantListEditor = () => {
     { value: "Autre", label: "Autre" }
   ];
 
-  const affectationOptions = [
+  const affectationEditOptions = [
     { value: "none", label: "Non renseigné" },
-    { value: "FASB", label: "FASB" },
-    { value: "EPL", label: "EPL" },
-    { value: "FIAL", label: "FIAL" },
-    { value: "PSSP", label: "PSSP" },
-    { value: "ESPO", label: "ESPO" },
-    { value: "FLTR", label: "FLTR" },
-    { value: "TECO", label: "TECO" },
-    { value: "FSM", label: "FSM (exclu)" },
-    { value: "MEDE", label: "MEDE" },
-    { value: "ASS", label: "ASS" }
+    ...dynamicFilterOptions.affectations
   ];
 
   const campusOptions = [
@@ -475,14 +421,18 @@ export const SurveillantListEditor = () => {
 
   const SortableHeader = ({ field, children }: { field: SortField, children: React.ReactNode }) => (
     <TableHead 
-      className="cursor-pointer hover:bg-gray-50" 
+      className="cursor-pointer hover:bg-gray-50 select-none" 
       onClick={() => handleSort(field)}
     >
       <div className="flex items-center space-x-1">
         <span>{children}</span>
-        {sortField === field && (
-          sortDirection === 'asc' ? <SortAsc className="h-3 w-3" /> : <SortDesc className="h-3 w-3" />
-        )}
+        <div className="flex flex-col">
+          {sortField === field ? (
+            sortDirection === 'asc' ? <SortAsc className="h-3 w-3" /> : <SortDesc className="h-3 w-3" />
+          ) : (
+            <ArrowUpDown className="h-3 w-3 text-gray-400" />
+          )}
+        </div>
       </div>
     </TableHead>
   );
@@ -527,7 +477,7 @@ export const SurveillantListEditor = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous les types</SelectItem>
-                  {typeOptions.map((type) => (
+                  {dynamicFilterOptions.types.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
                     </SelectItem>
@@ -543,7 +493,7 @@ export const SurveillantListEditor = () => {
                 <SelectContent>
                   <SelectItem value="all">Toutes facultés</SelectItem>
                   <SelectItem value="none">Aucune restriction</SelectItem>
-                  {faculteOptions.slice(1).map((faculte) => (
+                  {dynamicFilterOptions.facultes.map((faculte) => (
                     <SelectItem key={faculte.value} value={faculte.value}>
                       {faculte.label}
                     </SelectItem>
@@ -559,7 +509,7 @@ export const SurveillantListEditor = () => {
                 <SelectContent>
                   <SelectItem value="all">Toutes affectations</SelectItem>
                   <SelectItem value="none">Non renseigné</SelectItem>
-                  {affectationOptions.slice(1).map((affectation) => (
+                  {dynamicFilterOptions.affectations.map((affectation) => (
                     <SelectItem key={affectation.value} value={affectation.value}>
                       {affectation.label}
                     </SelectItem>
@@ -682,7 +632,7 @@ export const SurveillantListEditor = () => {
                     {showSensitiveData && (
                       <>
                         <TableHead>EFT</TableHead>
-                        <TableHead>Affectation</TableHead>
+                        <SortableHeader field="affectation_fac">Affectation</SortableHeader>
                         <SortableHeader field="date_fin_contrat">Fin contrat</SortableHeader>
                         <TableHead>GSM</TableHead>
                         <TableHead>Campus</TableHead>
@@ -825,7 +775,7 @@ export const SurveillantListEditor = () => {
                                 <EditableCell
                                   value={surveillant.affectation_fac || "none"}
                                   type="select"
-                                  options={affectationOptions}
+                                  options={affectationEditOptions}
                                   onSave={(value) => setSurvaillants(prev => 
                                     prev.map(s => s.id === surveillant.id ? { ...s, affectation_fac: value === "none" ? null : value } : s)
                                   )}
