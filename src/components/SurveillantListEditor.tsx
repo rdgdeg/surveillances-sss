@@ -146,9 +146,12 @@ export const SurveillantListEditor = () => {
       if (typeFilter !== "all" && s.type !== typeFilter) return false;
 
       // Filtre par faculté interdite
-      if (faculteFilter !== "all" && s.faculte_interdite !== faculteFilter) return false;
+      if (faculteFilter !== "all") {
+        if (faculteFilter === "none" && s.faculte_interdite !== null) return false;
+        if (faculteFilter !== "none" && s.faculte_interdite !== faculteFilter) return false;
+      }
 
-      // Filtre par affectation (corrigé)
+      // Filtre par affectation
       if (affectationFilter !== "all") {
         if (affectationFilter === "none" && s.affectation_fac !== null) return false;
         if (affectationFilter !== "none" && s.affectation_fac !== affectationFilter) return false;
