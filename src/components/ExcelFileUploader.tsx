@@ -7,6 +7,7 @@ import { Upload, CheckCircle, FileSpreadsheet, X, AlertCircle } from "lucide-rea
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
+import { parseFlexibleDate } from "@/lib/dateUtils";
 import * as XLSX from 'xlsx';
 
 interface ExcelFileUploaderProps {
@@ -182,7 +183,9 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
             break;
           case 'date fin contrat':
           case 'date_fin_contrat':
-            surveillant.date_fin_contrat = value;
+            // Utiliser la fonction de parsing flexible pour les dates
+            const parsedDate = parseFlexibleDate(value);
+            surveillant.date_fin_contrat = parsedDate;
             break;
           case 'telephone gsm':
           case 'telephone_gsm':
@@ -298,7 +301,9 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
 
         switch (normalizedHeader) {
           case 'date':
-            examen.date_examen = value;
+            // Utiliser la fonction de parsing flexible pour les dates
+            const parsedDate = parseFlexibleDate(value);
+            examen.date_examen = parsedDate;
             break;
           case 'heure début':
           case 'heure début':
@@ -354,7 +359,9 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
             email = value;
             break;
           case 'date':
-            dispo.date_examen = value;
+            // Utiliser la fonction de parsing flexible pour les dates
+            const parsedDate = parseFlexibleDate(value);
+            dispo.date_examen = parsedDate;
             break;
           case 'heure début':
           case 'heure début':
@@ -413,10 +420,14 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
             break;
           case 'date début':
           case 'date début':
-            indispo.date_debut = value;
+            // Utiliser la fonction de parsing flexible pour les dates
+            const parsedStartDate = parseFlexibleDate(value);
+            indispo.date_debut = parsedStartDate;
             break;
           case 'date fin':
-            indispo.date_fin = value;
+            // Utiliser la fonction de parsing flexible pour les dates
+            const parsedEndDate = parseFlexibleDate(value);
+            indispo.date_fin = parsedEndDate;
             break;
           case 'motif':
             indispo.motif = value || null;
