@@ -85,35 +85,39 @@ export const StandardExcelImporter = () => {
     if (typeof dureeValue === 'string') {
       const cleaned = dureeValue.trim();
       
-      // Format avec "h" comme "08h30" -> "08:30"
-      const matchH = cleaned.match(/(\d{1,2})h(\d{2})/i);
+      // Format comme "04h30" -> convertir en heures décimales
+      const matchH = cleaned.match(/(\d+)h(\d+)/i);
       if (matchH) {
-        const heures = matchH[1].padStart(2, '0');
-        const minutes = matchH[2];
-        return `${heures}:${minutes}`;
+        const heures = parseInt(matchH[1]);
+        const minutes = parseInt(matchH[2]);
+        return heures + (minutes / 60);
       }
       
-      // Format avec "h" seul comme "08h" -> "08:00"
-      const matchH2 = cleaned.match(/(\d{1,2})h$/i);
+      // Format comme "4h" -> convertir en heures
+      const matchH2 = cleaned.match(/(\d+)h$/i);
       if (matchH2) {
-        const heures = matchH2[1].padStart(2, '0');
-        return `${heures}:00`;
+        return parseInt(matchH2[1]);
       }
       
-      // Format déjà correct "HH:MM"
-      if (/^\d{1,2}:\d{2}$/.test(cleaned)) {
-        const [h, m] = cleaned.split(':');
-        return `${h.padStart(2, '0')}:${m}`;
+      // Format comme "4:30" -> convertir en heures décimales
+      const match = cleaned.match(/(\d+):(\d+)/);
+      if (match) {
+        const heures = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        return heures + (minutes / 60);
       }
       
-      // Format "HHMM" -> "HH:MM"
+      // Format "HHMM" -> convertir en heures décimales
       if (/^\d{4}$/.test(cleaned)) {
-        return `${cleaned.slice(0, 2)}:${cleaned.slice(2, 4)}`;
+        const heures = parseInt(cleaned.slice(0, 2));
+        const minutes = parseInt(cleaned.slice(2, 4));
+        return heures + (minutes / 60);
       }
       
-      // Format "H:MM" -> "HH:MM"
-      if (/^\d{1}:\d{2}$/.test(cleaned)) {
-        return `0${cleaned}`;
+      // Format décimal comme "4.5"
+      const decimal = parseFloat(cleaned);
+      if (!isNaN(decimal)) {
+        return decimal;
       }
     }
     
