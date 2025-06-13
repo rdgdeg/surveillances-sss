@@ -29,6 +29,7 @@ import { DemandeChangement } from "@/components/DemandeChangement";
 import { ExamenAdvancedManager } from "@/components/ExamenAdvancedManager";
 import { AuditoireComplianceChecker } from "@/components/AuditoireComplianceChecker";
 import { DataValidationChecker } from "@/components/DataValidationChecker";
+import { ExamenWorkflowManager } from "@/components/ExamenWorkflowManager";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("dashboard");
@@ -152,6 +153,9 @@ const Admin = () => {
             <ExamenValidationProcessor />
           </div>
         );
+      
+      case "examens-workflow":
+        return <ExamenWorkflowManager />;
       
       case "templates":
         return <TemplateDownloader />;

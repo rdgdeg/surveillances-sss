@@ -1,15 +1,16 @@
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, FileSpreadsheet, AlertCircle } from "lucide-react";
+import { Upload, FileSpreadsheet, AlertCircle, CheckCircle, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { toast } from "@/hooks/use-toast";
+import { parseFlexibleDate } from "@/lib/dateUtils";
 import * as XLSX from 'xlsx';
 
 interface CallyData {
@@ -19,12 +20,33 @@ interface CallyData {
   disponibilites: Record<string, boolean>;
 }
 
+interface AuditoireValidationResult {
+  validationPassed: boolean;
+  auditoiresNonReconnus: string[];
+  totalCreneaux: number;
+  creneauxValides: number;
+}
+
 export const CallyImporter = () => {
   const [file, setFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<CallyData[]>([]);
+  const [validationResult, setValidationResult] = useState<AuditoireValidationResult | null>(null);
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
+
+  // Récupérer les contraintes d'auditoires pour validation
+  const { data: contraintesAuditoires } = useQuery({
+    queryKey: ['contraintes-auditoires-validation'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contraintes_auditoires')
+        .select('auditoire');
+
+      if (error) throw error;
+      return new Set(data.map(c => c.auditoire.toLowerCase()));
+    }
+  });
 
   const parseCallyFile = (file: File): Promise<CallyData[]> => {
     return new Promise((resolve, reject) => {
@@ -70,13 +92,17 @@ export const CallyImporter = () => {
 
             const disponibilites: Record<string, boolean> = {};
 
-            // Parser les disponibilités
+            // Parser les disponibilités avec validation des dates
             timeSlotHeaders.forEach((timeSlot, index) => {
               const cellValue = row[3 + index]?.toString().trim();
               // Interpréter ✓, V, 1, true comme disponible
-              // Interpréter ✗, X, 0, false, ou vide comme non disponible
               const isAvailable = /^(✓|v|1|true|oui|yes)$/i.test(cellValue || '');
-              disponibilites[timeSlot] = isAvailable;
+              
+              // Valider le format de date dans le créneau
+              const dateValidation = parseFlexibleDate(timeSlot.split(' ')[0]);
+              if (dateValidation) {
+                disponibilites[timeSlot] = isAvailable;
+              }
             });
 
             parsedData.push({
@@ -98,6 +124,49 @@ export const CallyImporter = () => {
     });
   };
 
+  const validateAuditoires = (data: CallyData[]): AuditoireValidationResult => {
+    if (!contraintesAuditoires) {
+      return {
+        validationPassed: false,
+        auditoiresNonReconnus: [],
+        totalCreneaux: 0,
+        creneauxValides: 0
+      };
+    }
+
+    const auditoiresDetectes = new Set<string>();
+    let totalCreneaux = 0;
+    let creneauxValides = 0;
+
+    data.forEach(callyData => {
+      Object.keys(callyData.disponibilites).forEach(timeSlot => {
+        totalCreneaux++;
+        
+        // Extraire l'auditoire du créneau (format attendu: "date heure-heure auditoire")
+        const parts = timeSlot.split(' ');
+        if (parts.length >= 3) {
+          const auditoire = parts.slice(2).join(' ').toLowerCase();
+          auditoiresDetectes.add(auditoire);
+          
+          if (contraintesAuditoires.has(auditoire)) {
+            creneauxValides++;
+          }
+        }
+      });
+    });
+
+    const auditoiresNonReconnus = Array.from(auditoiresDetectes).filter(
+      auditoire => !contraintesAuditoires.has(auditoire)
+    );
+
+    return {
+      validationPassed: auditoiresNonReconnus.length === 0,
+      auditoiresNonReconnus,
+      totalCreneaux,
+      creneauxValides
+    };
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
@@ -107,9 +176,14 @@ export const CallyImporter = () => {
     try {
       const data = await parseCallyFile(selectedFile);
       setPreview(data);
+      
+      // Valider les auditoires
+      const validation = validateAuditoires(data);
+      setValidationResult(validation);
+      
       toast({
         title: "Fichier analysé",
-        description: `${data.length} surveillants trouvés dans le fichier.`
+        description: `${data.length} surveillants trouvés. ${validation.validationPassed ? 'Tous les auditoires sont reconnus.' : `${validation.auditoiresNonReconnus.length} auditoire(s) non reconnu(s).`}`
       });
     } catch (error: any) {
       toast({
@@ -118,6 +192,7 @@ export const CallyImporter = () => {
         variant: "destructive"
       });
       setPreview([]);
+      setValidationResult(null);
     }
   };
 
@@ -209,6 +284,7 @@ export const CallyImporter = () => {
       });
       setFile(null);
       setPreview([]);
+      setValidationResult(null);
     },
     onError: (error: any) => {
       toast({
@@ -242,10 +318,10 @@ export const CallyImporter = () => {
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Upload className="h-5 w-5" />
-          <span>Import Cally</span>
+          <span>Import Cally avec Validation Auditoires</span>
         </CardTitle>
         <CardDescription>
-          Importez les disponibilités depuis un fichier Cally (Excel/CSV) avec format matriciel.
+          Importez les disponibilités depuis un fichier Cally avec validation automatique des auditoires
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -253,8 +329,8 @@ export const CallyImporter = () => {
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             <strong>Format attendu :</strong> Le fichier doit contenir les colonnes "Surveillant", "Email", "Type", 
-            suivies des créneaux horaires au format "YYYY-MM-DD HH:MM-HH:MM". 
-            Utilisez ✓ ou V pour "disponible" et ✗ ou X pour "non disponible".
+            suivies des créneaux horaires au format "YYYY-MM-DD HH:MM-HH:MM Auditoire". 
+            Les auditoires seront automatiquement validés contre les contraintes existantes.
           </AlertDescription>
         </Alert>
 
@@ -267,6 +343,30 @@ export const CallyImporter = () => {
             onChange={handleFileChange}
           />
         </div>
+
+        {validationResult && (
+          <Alert className={validationResult.validationPassed ? "border-green-200 bg-green-50" : "border-orange-200 bg-orange-50"}>
+            {validationResult.validationPassed ? (
+              <CheckCircle className="h-4 w-4 text-green-600" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-orange-600" />
+            )}
+            <AlertDescription>
+              <div className="space-y-2">
+                <div className={validationResult.validationPassed ? "text-green-800" : "text-orange-800"}>
+                  <strong>Validation des auditoires:</strong> {validationResult.creneauxValides}/{validationResult.totalCreneaux} créneaux reconnus
+                </div>
+                {!validationResult.validationPassed && (
+                  <div className="text-orange-700 text-sm">
+                    <strong>Auditoires non reconnus:</strong> {validationResult.auditoiresNonReconnus.join(', ')}
+                    <br />
+                    <em>Veuillez d'abord corriger ces auditoires dans la section "Validation des Auditoires"</em>
+                  </div>
+                )}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {preview.length > 0 && (
           <div className="space-y-4">
@@ -288,7 +388,7 @@ export const CallyImporter = () => {
             <div className="flex space-x-2">
               <Button 
                 onClick={handleImport} 
-                disabled={importing || importMutation.isPending}
+                disabled={importing || importMutation.isPending || (validationResult && !validationResult.validationPassed)}
               >
                 {importing || importMutation.isPending ? 'Import en cours...' : 'Importer les disponibilités'}
               </Button>
@@ -297,6 +397,7 @@ export const CallyImporter = () => {
                 onClick={() => {
                   setFile(null);
                   setPreview([]);
+                  setValidationResult(null);
                 }}
               >
                 Annuler
