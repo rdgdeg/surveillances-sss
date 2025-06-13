@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Users, Filter, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatDateWithDayBelgian } from "@/lib/dateUtils";
 
 export const PlanningView = () => {
   const [selectedDate, setSelectedDate] = useState("");
@@ -191,7 +192,7 @@ export const PlanningView = () => {
                 <div className="flex items-start justify-between">
                   <div className="space-y-3 flex-1">
                     <div className="flex items-center space-x-4">
-                      <Badge variant="outline">{examen.date}</Badge>
+                      <Badge variant="outline">{formatDateWithDayBelgian(examen.date)}</Badge>
                       <Badge variant="outline">{examen.heure}</Badge>
                       <Badge className={getStatutColor(examen.statut)}>
                         {getStatutText(examen.statut)}
