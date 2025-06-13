@@ -1,3 +1,4 @@
+
 import {
   LayoutDashboard,
   Calendar,
@@ -19,7 +20,6 @@ import {
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
-  SidebarItem,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
