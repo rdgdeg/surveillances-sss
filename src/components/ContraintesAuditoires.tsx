@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Building, Trash2, Plus, RefreshCw, Edit2, Check, X } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Building, Trash2, Plus, RefreshCw, Edit2, Check, X, Upload } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface ContrainteAuditoire {
@@ -25,6 +25,8 @@ export const ContraintesAuditoires = () => {
   const [description, setDescription] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{ nombre: number; description: string }>({ nombre: 1, description: "" });
+  const [bulkAuditoires, setBulkAuditoires] = useState<string>("");
+  const [showBulkImport, setShowBulkImport] = useState<boolean>(false);
 
   // Récupérer les contraintes existantes
   const { data: contraintes = [] } = useQuery({
@@ -58,6 +60,89 @@ export const ContraintesAuditoires = () => {
       return uniqueAuditoires.sort();
     },
     enabled: !!activeSession?.id
+  });
+
+  // Fonction pour parser les auditoires depuis le texte en vrac
+  const parseAuditoires = (text: string): string[] => {
+    // Nettoyer le texte et diviser par lignes
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    const auditoires = new Set<string>();
+
+    lines.forEach(line => {
+      // Ignorer les lignes qui ressemblent à des heures
+      if (line.match(/^\d{1,2}:\d{2}\s*(AM|PM)?$/i) || line === "A fixer") {
+        return;
+      }
+
+      // Diviser par virgules et traiter chaque partie
+      const parts = line.split(',').map(part => part.trim());
+      
+      parts.forEach(part => {
+        if (part && part.length > 0 && !part.match(/^\d{1,2}:\d{2}/)) {
+          // Nettoyer les auditoires (enlever les espaces en trop)
+          const cleanAuditoire = part.trim();
+          if (cleanAuditoire.length > 0) {
+            auditoires.add(cleanAuditoire);
+          }
+        }
+      });
+    });
+
+    return Array.from(auditoires).sort();
+  };
+
+  // Créer des contraintes en lot depuis le texte
+  const createBulkContraintes = useMutation({
+    mutationFn: async () => {
+      if (!bulkAuditoires.trim()) {
+        throw new Error("Veuillez saisir la liste des auditoires");
+      }
+
+      const auditoires = parseAuditoires(bulkAuditoires);
+      console.log("Auditoires parsés:", auditoires);
+
+      if (auditoires.length === 0) {
+        throw new Error("Aucun auditoire valide trouvé dans le texte");
+      }
+
+      // Vérifier quels auditoires existent déjà
+      const existingAuditoires = contraintes.map(c => c.auditoire);
+      const newAuditoires = auditoires.filter(auditoire => !existingAuditoires.includes(auditoire));
+
+      if (newAuditoires.length === 0) {
+        throw new Error("Tous les auditoires sont déjà configurés");
+      }
+
+      // Créer les nouvelles contraintes avec 1 surveillant par défaut
+      const newContraintes = newAuditoires.map(auditoire => ({
+        auditoire,
+        nombre_surveillants_requis: 1,
+        description: "Créé automatiquement depuis import en lot"
+      }));
+
+      const { error } = await supabase
+        .from('contraintes_auditoires')
+        .insert(newContraintes);
+
+      if (error) throw error;
+      return { created: newAuditoires.length, total: auditoires.length };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['contraintes-auditoires'] });
+      setBulkAuditoires("");
+      setShowBulkImport(false);
+      toast({
+        title: "Import réussi",
+        description: `${result.created} nouvelle(s) contrainte(s) créée(s) sur ${result.total} auditoires détectés.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible d'importer les contraintes.",
+        variant: "destructive"
+      });
+    }
   });
 
   // Créer une contrainte
@@ -200,32 +285,14 @@ export const ContraintesAuditoires = () => {
     }
   });
 
-  const handleEdit = (contrainte: ContrainteAuditoire) => {
-    setEditingId(contrainte.id);
-    setEditValues({
-      nombre: contrainte.nombre_surveillants_requis,
-      description: contrainte.description || ""
-    });
-  };
-
-  const handleSaveEdit = (id: string) => {
-    updateContrainte.mutate({
-      id,
-      nombre_surveillants_requis: editValues.nombre,
-      description: editValues.description
-    });
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditValues({ nombre: 1, description: "" });
-  };
-
   // Auditoires sans contrainte
   const existingAuditoires = contraintes.map(c => c.auditoire);
   const auditoriesSansContrainte = auditoriesFromExams.filter(auditoire => 
     !existingAuditoires.includes(auditoire)
   );
+
+  // Prévisualiser les auditoires du texte en vrac
+  const previewAuditoires = bulkAuditoires.trim() ? parseAuditoires(bulkAuditoires) : [];
 
   return (
     <div className="space-y-6">
@@ -263,7 +330,78 @@ export const ContraintesAuditoires = () => {
             </div>
           )}
 
-          {/* Formulaire d'ajout */}
+          {/* Import en lot */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">Gestion des contraintes</h4>
+              <Button
+                variant="outline"
+                onClick={() => setShowBulkImport(!showBulkImport)}
+                size="sm"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import en lot
+              </Button>
+            </div>
+
+            {showBulkImport && (
+              <div className="p-4 bg-gray-50 rounded-lg space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Liste des auditoires (un par ligne ou séparés par virgules)
+                  </label>
+                  <Textarea
+                    placeholder="Collez votre liste d'auditoires ici...&#10;Ex:&#10;51 A - Lacroix, 51 C, 51 B&#10;51 F&#10;55 Harvey 2"
+                    value={bulkAuditoires}
+                    onChange={(e) => setBulkAuditoires(e.target.value)}
+                    rows={8}
+                    className="w-full"
+                  />
+                </div>
+
+                {previewAuditoires.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">
+                      Aperçu ({previewAuditoires.length} auditoires détectés)
+                    </p>
+                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto">
+                      {previewAuditoires.map((auditoire, index) => (
+                        <Badge 
+                          key={index} 
+                          variant={existingAuditoires.includes(auditoire) ? "secondary" : "default"}
+                          className="text-xs"
+                        >
+                          {auditoire}
+                          {existingAuditoires.includes(auditoire) && " (existant)"}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex space-x-2">
+                  <Button
+                    onClick={() => createBulkContraintes.mutate()}
+                    disabled={!bulkAuditoires.trim() || createBulkContraintes.isPending}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Créer les contraintes
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setBulkAuditoires("");
+                      setShowBulkImport(false);
+                    }}
+                  >
+                    Annuler
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Formulaire d'ajout individuel */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
             <div>
               <label className="block text-sm font-medium mb-2">Auditoire</label>
