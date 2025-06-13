@@ -25,40 +25,31 @@ export const SoldesSurveillants = () => {
 
   const { data: soldes, isLoading } = useQuery({
     queryKey: ['soldes-surveillants', activeSession?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<SoldeSurveillant[]> => {
       if (!activeSession?.id) return [];
 
       const { data, error } = await supabase
         .from('surveillance_assignments_view')
-        .select(`
-          surveillant_id,
-          nom,
-          prenom,
-          email,
-          surveillant_type,
-          quota,
-          sessions_imposees,
-          attributions_actuelles
-        `)
+        .select('*')
         .eq('session_id', activeSession.id);
 
       if (error) throw error;
 
       // Grouper par surveillant et calculer les soldes
-      const surveillantsMap = new Map();
+      const surveillantsMap = new Map<string, SoldeSurveillant>();
       
       data?.forEach(row => {
-        if (!surveillantsMap.has(row.surveillant_id)) {
+        if (row.surveillant_id && !surveillantsMap.has(row.surveillant_id)) {
           const attributions = row.attributions_actuelles || 0;
           const quota = row.quota || 0;
           const solde = quota - attributions;
           
           surveillantsMap.set(row.surveillant_id, {
             id: row.surveillant_id,
-            nom: row.nom,
-            prenom: row.prenom,
-            email: row.email,
-            type: row.surveillant_type,
+            nom: row.nom || '',
+            prenom: row.prenom || '',
+            email: row.email || '',
+            type: row.surveillant_type || '',
             quota: quota,
             attributions_actuelles: attributions,
             solde: solde,
@@ -67,7 +58,7 @@ export const SoldesSurveillants = () => {
         }
       });
 
-      return Array.from(surveillantsMap.values()) as SoldeSurveillant[];
+      return Array.from(surveillantsMap.values());
     },
     enabled: !!activeSession?.id
   });
