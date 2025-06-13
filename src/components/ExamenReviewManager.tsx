@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ClipboardList, Users, Save, Eye, Building2, Search, Check, CheckCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { formatDateWithDayBelgian } from "@/lib/dateUtils";
+import { DeleteAllExamensButton } from "@/components/DeleteAllExamensButton";
 
 interface ExamenReview {
   id: string;
@@ -431,13 +432,18 @@ export const ExamenReviewManager = () => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <ClipboardList className="h-5 w-5" />
-            <span>Révision des Besoins par Auditoire</span>
-          </CardTitle>
-          <CardDescription>
-            Configurez les besoins en surveillance pour chaque examen et auditoire (groupés par similarité)
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center space-x-2">
+                <ClipboardList className="h-5 w-5" />
+                <span>Révision des Besoins par Auditoire</span>
+              </CardTitle>
+              <CardDescription>
+                Configurez les besoins en surveillance pour chaque examen et auditoire (groupés par similarité)
+              </CardDescription>
+            </div>
+            <DeleteAllExamensButton />
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Actions globales */}
