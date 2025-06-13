@@ -15,6 +15,7 @@ import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
 import { CallyImporter } from "@/components/CallyImporter";
 import { DataConsistencyChecker } from "@/components/DataConsistencyChecker";
 import { IntelligentAssignmentEngine } from "@/components/IntelligentAssignmentEngine";
+import { SurveillantCreator } from "@/components/SurveillantCreator";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("sessions");
@@ -47,6 +48,7 @@ const Admin = () => {
       case "constraints": return "Contraintes par Salle";
       case "history": return "Historique des Surveillances";
       case "planning": return "Planning des Surveillances";
+      case "surveillant-creator": return "Créer des Surveillants";
       default: return "Administration";
     }
   };
@@ -228,6 +230,9 @@ const Admin = () => {
       case "planning":
         return <NewPlanningView />;
       
+      case "surveillant-creator":
+        return <SurveillantCreator />;
+      
       default:
         return <div>Section non trouvée</div>;
     }
@@ -271,6 +276,7 @@ const Admin = () => {
                 {activeView === "constraints" && "Définissez les contraintes par salle d'examen"}
                 {activeView === "history" && "Consultez l'historique des surveillances par surveillant"}
                 {activeView === "planning" && "Visualisez et gérez le planning des surveillances"}
+                {activeView === "surveillant-creator" && "Créer des Surveillants"}
               </p>
             </div>
             

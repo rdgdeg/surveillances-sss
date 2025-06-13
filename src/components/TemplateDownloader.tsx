@@ -1,9 +1,9 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, FileSpreadsheet } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
+import { formatDateBelgian } from "@/lib/dateUtils";
 
 interface Template {
   name: string;
@@ -131,6 +131,23 @@ const templates: Template[] = [
     ]
   }
 ];
+
+const getExpectedFormat = (templateType: string) => {
+  switch (templateType) {
+    case 'surveillants':
+      return ['Nom', 'Prénom', 'Email', 'Type', 'Statut'];
+    case 'examens':
+      return ['Date (jj/mm/aaaa)', 'Heure début', 'Heure fin', 'Matière', 'Salle', 'Nombre surveillants', 'Type requis'];
+    case 'disponibilites':
+      return ['Email', 'Date (jj/mm/aaaa)', 'Heure début', 'Heure fin', 'Disponible'];
+    case 'quotas':
+      return ['Email', 'Quota', 'Sessions imposées'];
+    case 'indisponibilites':
+      return ['Email', 'Date début (jj/mm/aaaa)', 'Date fin (jj/mm/aaaa)', 'Motif'];
+    default:
+      return [];
+  }
+};
 
 const generateExcelTemplate = (template: Template) => {
   try {

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, Lock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
 
 interface Surveillant {
   id: string;
@@ -44,7 +45,7 @@ export const PreAssignmentManager = () => {
   const [selectedExamen, setSelectedExamen] = useState<string>("");
   const [selectedSurveillant, setSelectedSurveillant] = useState<string>("");
 
-  // Récupérer les surveillants actifs
+  // Récupérer les surveillants actifs de la session
   const { data: surveillants = [] } = useQuery({
     queryKey: ['surveillants', activeSession?.id],
     queryFn: async () => {
@@ -64,7 +65,7 @@ export const PreAssignmentManager = () => {
     enabled: !!activeSession?.id
   });
 
-  // Récupérer les examens
+  // Récupérer les examens de la session
   const { data: examens = [] } = useQuery({
     queryKey: ['examens', activeSession?.id],
     queryFn: async () => {
@@ -173,8 +174,9 @@ export const PreAssignmentManager = () => {
   });
 
   const formatExamenLabel = (examen: Examen) => {
-    const date = new Date(examen.date_examen).toLocaleDateString('fr-FR');
-    return `${date} ${examen.heure_debut}-${examen.heure_fin} | ${examen.matiere} | ${examen.salle}`;
+    const dateBelge = formatDateBelgian(examen.date_examen);
+    const heures = formatTimeRange(examen.heure_debut, examen.heure_fin);
+    return `${dateBelge} ${heures} | ${examen.matiere} | ${examen.salle}`;
   };
 
   const formatSurveillantLabel = (surveillant: Surveillant) => {
@@ -188,6 +190,24 @@ export const PreAssignmentManager = () => {
           <p className="text-center text-gray-500">
             Veuillez d'abord sélectionner une session active dans l'onglet Sessions.
           </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (surveillants.length === 0 || examens.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center space-y-4">
+            <p className="text-gray-500">
+              {surveillants.length === 0 && "Aucun surveillant trouvé dans cette session."}
+              {examens.length === 0 && "Aucun examen trouvé dans cette session."}
+            </p>
+            <p className="text-sm text-blue-600">
+              💡 Assurez-vous d'avoir importé les données dans l'onglet "Import des Données"
+            </p>
+          </div>
         </CardContent>
       </Card>
     );
