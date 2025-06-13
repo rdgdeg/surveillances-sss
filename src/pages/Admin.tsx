@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { SessionSelector } from "@/components/SessionSelector";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
@@ -12,6 +11,8 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
+import { CallyImporter } from "@/components/CallyImporter";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("sessions");
@@ -36,6 +37,8 @@ const Admin = () => {
       case "sessions": return "Gestion des Sessions";
       case "templates": return "Téléchargement des Templates";
       case "import": return "Import des Données";
+      case "availability": return "Matrice des Disponibilités";
+      case "cally-import": return "Import Cally";
       case "pre-assignments": return "Pré-assignations";
       case "constraints": return "Contraintes par Salle";
       case "history": return "Historique des Surveillances";
@@ -171,6 +174,12 @@ const Admin = () => {
           </Card>
         );
       
+      case "availability":
+        return <AvailabilityMatrix />;
+      
+      case "cally-import":
+        return <CallyImporter />;
+      
       case "pre-assignments":
         return <PreAssignmentManager />;
       
@@ -218,6 +227,8 @@ const Admin = () => {
                 {activeView === "sessions" && "Créez et gérez les sessions d'examens"}
                 {activeView === "templates" && "Téléchargez les modèles Excel pour l'import des données"}
                 {activeView === "import" && "Importez vos données à partir des fichiers Excel"}
+                {activeView === "availability" && "Gérez les disponibilités avec une matrice visuelle"}
+                {activeView === "cally-import" && "Importez les disponibilités depuis un fichier Cally"}
                 {activeView === "pre-assignments" && "Gérez les assignations obligatoires de surveillants"}
                 {activeView === "constraints" && "Définissez les contraintes par salle d'examen"}
                 {activeView === "history" && "Consultez l'historique des surveillances par surveillant"}

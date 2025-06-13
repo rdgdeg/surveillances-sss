@@ -50,6 +50,18 @@ const menuItems = [
     description: "Importer les données Excel"
   },
   {
+    id: "availability",
+    title: "Disponibilités",
+    icon: UserCheck,
+    description: "Gérer les disponibilités matricielles"
+  },
+  {
+    id: "cally-import",
+    title: "Import Cally",
+    icon: FileSpreadsheet,
+    description: "Importer depuis Cally"
+  },
+  {
     id: "pre-assignments",
     title: "Pré-assignations",
     icon: UserCheck,

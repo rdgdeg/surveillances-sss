@@ -52,11 +52,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "attributions_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["examen_id"]
+          },
+          {
             foreignKeyName: "attributions_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "sessions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attributions_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["surveillant_id"]
           },
           {
             foreignKeyName: "attributions_surveillant_id_fkey"
@@ -98,6 +112,64 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      disponibilites: {
+        Row: {
+          created_at: string
+          date_examen: string
+          est_disponible: boolean
+          heure_debut: string
+          heure_fin: string
+          id: string
+          session_id: string
+          surveillant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date_examen: string
+          est_disponible?: boolean
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          session_id: string
+          surveillant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date_examen?: string
+          est_disponible?: boolean
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          session_id?: string
+          surveillant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disponibilites_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disponibilites_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["surveillant_id"]
+          },
+          {
+            foreignKeyName: "disponibilites_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
+            referencedRelation: "surveillants"
             referencedColumns: ["id"]
           },
         ]
@@ -190,6 +262,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "sessions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indisponibilites_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["surveillant_id"]
           },
           {
             foreignKeyName: "indisponibilites_surveillant_id_fkey"
@@ -317,6 +396,13 @@ export type Database = {
             foreignKeyName: "surveillant_sessions_surveillant_id_fkey"
             columns: ["surveillant_id"]
             isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["surveillant_id"]
+          },
+          {
+            foreignKeyName: "surveillant_sessions_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
             referencedRelation: "surveillants"
             referencedColumns: ["id"]
           },
@@ -357,7 +443,29 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      surveillance_assignments_view: {
+        Row: {
+          attributions_actuelles: number | null
+          date_examen: string | null
+          email: string | null
+          est_disponible: boolean | null
+          examen_id: string | null
+          heure_debut: string | null
+          heure_fin: string | null
+          matiere: string | null
+          nom: string | null
+          nombre_surveillants: number | null
+          prenom: string | null
+          quota: number | null
+          salle: string | null
+          sessions_imposees: number | null
+          statut: string | null
+          surveillant_id: string | null
+          surveillant_type: string | null
+          type_requis: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never

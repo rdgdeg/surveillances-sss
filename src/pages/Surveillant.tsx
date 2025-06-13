@@ -1,325 +1,258 @@
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Mail, Clock, Calendar, User, History } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Calendar, Clock, User, Mail, AlertTriangle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useActiveSession } from "@/hooks/useSessions";
 import { toast } from "@/hooks/use-toast";
 
 const Surveillant = () => {
   const [email, setEmail] = useState("");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [surveillantData, setSurveilantData] = useState(null);
+  const [surveillantData, setSurveillantData] = useState<any>(null);
+  const { data: activeSession } = useActiveSession();
 
-  // Données d'exemple pour la démonstration
-  const mockSurveilantData = {
-    nom: "Dupont",
-    prenom: "Marie",
-    email: "marie.dupont@university.fr",
-    type: "PAT",
-    quota: 8,
-    surveillancesAttribuees: [
-      {
-        id: 1,
-        date: "2024-01-15",
-        heure: "08:00-10:00",
-        matiere: "Mathématiques L1",
-        salle: "Amphi A",
-        type: "PAT",
-        duree: 2
-      },
-      {
-        id: 2,
-        date: "2024-01-17",
-        heure: "14:00-16:00",
-        matiere: "Physique L2",
-        salle: "Salle 203",
-        type: "Assistant",
-        duree: 2
-      },
-      {
-        id: 3,
-        date: "2024-01-20",
-        heure: "09:00-12:00",
-        matiere: "Chimie L3",
-        salle: "Labo 1",
-        type: "PAT",
-        duree: 3
+  const { data: attributions = [], refetch } = useQuery({
+    queryKey: ['surveillant-attributions', surveillantData?.id, activeSession?.id],
+    queryFn: async () => {
+      if (!surveillantData || !activeSession) return [];
+      
+      const { data, error } = await supabase
+        .from('attributions')
+        .select(`
+          *,
+          examens (
+            date_examen,
+            heure_debut, 
+            heure_fin,
+            matiere,
+            salle,
+            nombre_surveillants
+          )
+        `)
+        .eq('surveillant_id', surveillantData.id)
+        .eq('session_id', activeSession.id)
+        .order('examens(date_examen)')
+        .order('examens(heure_debut)');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!(surveillantData && activeSession)
+  });
+
+  const handleLogin = async () => {
+    if (!email.trim() || !activeSession) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('surveillants')
+        .select(`
+          *,
+          surveillant_sessions!inner (
+            quota,
+            sessions_imposees
+          )
+        `)
+        .eq('email', email.toLowerCase().trim())
+        .eq('surveillant_sessions.session_id', activeSession.id)
+        .eq('surveillant_sessions.is_active', true)
+        .single();
+
+      if (error) {
+        toast({
+          title: "Surveillant non trouvé",
+          description: "Aucun surveillant trouvé avec cet email pour la session active.",
+          variant: "destructive"
+        });
+        return;
       }
-    ],
-    totalSurveillances: 3,
-    totalHeures: 7,
-    historique: [
-      {
-        session: "Session Janvier 2024",
-        surveillances: 5,
-        heures: 12
-      },
-      {
-        session: "Session Décembre 2023",
-        surveillances: 3,
-        heures: 8
-      }
-    ]
-  };
 
-  const handleLogin = () => {
-    if (!email) {
-      toast({
-        title: "Email requis",
-        description: "Veuillez saisir votre adresse email.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Simulation de connexion
-    if (email.includes("@")) {
-      setIsLoggedIn(true);
-      setSurveilantData(mockSurveilantData);
+      setSurveillantData(data);
       toast({
         title: "Connexion réussie",
-        description: "Accès à votre espace personnel accordé.",
+        description: `Bienvenue ${data.prenom} ${data.nom} !`
       });
-    } else {
+    } catch (error: any) {
       toast({
-        title: "Email invalide",
-        description: "Veuillez saisir une adresse email valide.",
+        title: "Erreur de connexion",
+        description: error.message,
         variant: "destructive"
       });
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case "PAT": return "bg-blue-100 text-blue-800";
-      case "Assistant": return "bg-green-100 text-green-800";
-      case "Jobiste": return "bg-orange-100 text-orange-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
+  const handleLogout = () => {
+    setSurveillantData(null);
+    setEmail("");
   };
 
-  if (!isLoggedIn) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-teal-100">
-        {/* Header */}
-        <header className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex items-center space-x-4">
-              <Link to="/">
-                <Button variant="ghost" size="sm" className="flex items-center space-x-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  <span>Retour</span>
-                </Button>
-              </Link>
-              <div className="flex items-center space-x-3">
-                <User className="h-6 w-6 text-green-600" />
-                <h1 className="text-xl font-bold text-gray-900">Espace Surveillant</h1>
-              </div>
-            </div>
-          </div>
-        </header>
+  const getAttributionStatus = (attribution: any) => {
+    if (attribution.is_locked) return { text: "Verrouillé", color: "bg-red-100 text-red-800" };
+    if (attribution.is_pre_assigne) return { text: "Pré-assigné", color: "bg-blue-100 text-blue-800" };
+    if (attribution.is_obligatoire) return { text: "Obligatoire", color: "bg-orange-100 text-orange-800" };
+    return { text: "Assigné", color: "bg-green-100 text-green-800" };
+  };
 
-        {/* Login Form */}
-        <main className="max-w-md mx-auto px-4 py-20">
-          <Card className="shadow-lg">
-            <CardHeader className="text-center">
-              <div className="mx-auto bg-green-100 rounded-full p-3 w-16 h-16 flex items-center justify-center mb-4">
-                <Mail className="h-8 w-8 text-green-600" />
-              </div>
-              <CardTitle className="text-2xl text-green-900">Accès Surveillant</CardTitle>
-              <CardDescription>
-                Connectez-vous avec votre adresse email pour consulter vos surveillances
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Adresse email
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="votre.email@university.fr"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && handleLogin()}
-                />
-              </div>
-              <Button 
-                onClick={handleLogin}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                Accéder à mon espace
-              </Button>
-              <p className="text-xs text-gray-500 text-center">
-                En cas de problème d'accès, contactez l'administration
-              </p>
-            </CardContent>
-          </Card>
-        </main>
+  if (!activeSession) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 text-center">
+            <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500">Aucune session active. Contactez l'administrateur.</p>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
+  if (!surveillantData) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <User className="h-5 w-5" />
+              <span>Connexion Surveillant</span>
+            </CardTitle>
+            <CardDescription>
+              Connectez-vous avec votre email pour voir vos surveillances - Session {activeSession.name}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="votre.email@exemple.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+              />
+            </div>
+            <Button onClick={handleLogin} className="w-full" disabled={!email.trim()}>
+              Se connecter
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const quotaData = surveillantData.surveillant_sessions[0];
+  const attributionsCount = attributions.length;
+  const progressPercentage = quotaData ? (attributionsCount / quotaData.quota) * 100 : 0;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Link to="/">
-                <Button variant="ghost" size="sm" className="flex items-center space-x-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  <span>Retour</span>
-                </Button>
-              </Link>
-              <div className="flex items-center space-x-3">
-                <User className="h-6 w-6 text-green-600" />
-                <h1 className="text-xl font-bold text-gray-900">Mon Espace</h1>
+    <div className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* En-tête avec infos surveillant */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center space-x-2">
+                  <User className="h-5 w-5" />
+                  <span>{surveillantData.prenom} {surveillantData.nom}</span>
+                </CardTitle>
+                <CardDescription className="flex items-center space-x-4 mt-2">
+                  <span className="flex items-center space-x-1">
+                    <Mail className="h-4 w-4" />
+                    <span>{surveillantData.email}</span>
+                  </span>
+                  <Badge variant="outline">{surveillantData.type}</Badge>
+                  <Badge variant="outline">{surveillantData.statut}</Badge>
+                </CardDescription>
+              </div>
+              <Button variant="outline" onClick={handleLogout}>
+                Déconnexion
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{attributionsCount}</div>
+                <div className="text-sm text-gray-600">Surveillances assignées</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{quotaData?.quota || 0}</div>
+                <div className="text-sm text-gray-600">Quota total</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${progressPercentage > 100 ? 'text-red-600' : 'text-orange-600'}`}>
+                  {Math.round(progressPercentage)}%
+                </div>
+                <div className="text-sm text-gray-600">Progression</div>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <div className="font-medium text-gray-900">
-                  {surveillantData.prenom} {surveillantData.nom}
-                </div>
-                <div className="text-sm text-gray-500">{surveillantData.email}</div>
+            
+            {progressPercentage > 100 && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+                <span className="text-sm text-red-800">
+                  Attention : Vous dépassez votre quota de {quotaData?.quota} surveillances.
+                </span>
               </div>
-              <Badge className={getTypeColor(surveillantData.type)}>
-                {surveillantData.type}
-              </Badge>
-            </div>
-          </div>
-        </div>
-      </header>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Summary Cards */}
-        <div className="grid md:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center space-x-2">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                <span>Surveillances</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-blue-600">
-                {surveillantData.totalSurveillances}
-              </div>
-              <p className="text-sm text-gray-600">sessions attribuées</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-green-600" />
-                <span>Heures</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-600">
-                {surveillantData.totalHeures}h
-              </div>
-              <p className="text-sm text-gray-600">sur {surveillantData.quota}h quota</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Progression</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Quota utilisé</span>
-                  <span>{Math.round((surveillantData.totalHeures / surveillantData.quota) * 100)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min((surveillantData.totalHeures / surveillantData.quota) * 100, 100)}%` }}
-                  ></div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Surveillances List */}
+        {/* Liste des surveillances */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Calendar className="h-5 w-5" />
-              <span>Mes Surveillances Attribuées</span>
+              <span>Mes Surveillances - Session {activeSession.name}</span>
             </CardTitle>
             <CardDescription>
-              Planning de vos surveillances pour la session en cours
+              Voici la liste de vos surveillances assignées pour cette session.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {surveillantData.surveillancesAttribuees.map((surveillance) => (
-                <div key={surveillance.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-4">
-                        <Badge variant="outline">{surveillance.date}</Badge>
-                        <Badge variant="outline">{surveillance.heure}</Badge>
-                        <Badge className={getTypeColor(surveillance.type)}>
-                          {surveillance.type}
-                        </Badge>
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-gray-900">{surveillance.matiere}</h3>
-                        <p className="text-sm text-gray-600">Salle : {surveillance.salle}</p>
+            {attributions.length === 0 ? (
+              <div className="text-center py-8">
+                <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">Aucune surveillance assignée pour le moment.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {attributions.map((attribution) => (
+                  <div key={attribution.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center space-x-4">
+                          <Badge variant="outline">{attribution.examens.date_examen}</Badge>
+                          <Badge variant="outline">
+                            {attribution.examens.heure_debut} - {attribution.examens.heure_fin}
+                          </Badge>
+                          <Badge className={getAttributionStatus(attribution).color}>
+                            {getAttributionStatus(attribution).text}
+                          </Badge>
+                        </div>
+                        
+                        <div>
+                          <h3 className="font-medium text-gray-900">{attribution.examens.matiere}</h3>
+                          <p className="text-gray-600">Salle : {attribution.examens.salle}</p>
+                          <p className="text-sm text-gray-500">
+                            {attribution.examens.nombre_surveillants} surveillant(s) requis pour cet examen
+                          </p>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-lg font-medium text-gray-900">{surveillance.duree}h</div>
-                      <p className="text-sm text-gray-500">durée</p>
-                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
-
-        {/* Historique */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <History className="h-5 w-5" />
-              <span>Historique</span>
-            </CardTitle>
-            <CardDescription>
-              Vos surveillances des sessions précédentes
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {surveillantData.historique.map((session, index) => (
-                <div key={index} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                  <div>
-                    <h4 className="font-medium text-gray-900">{session.session}</h4>
-                  </div>
-                  <div className="flex items-center space-x-6 text-sm text-gray-600">
-                    <span>{session.surveillances} surveillances</span>
-                    <span>{session.heures}h total</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </main>
+      </div>
     </div>
   );
 };
