@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X, Trash2 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X, Trash2, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,7 @@ export const StandardExcelImporter = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isValidating, setIsValidating] = useState(false);
   const [processingStats, setProcessingStats] = useState<ProcessingResult | null>(null);
   const [parsedData, setParsedData] = useState<StandardExamenData[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
@@ -296,21 +297,90 @@ export const StandardExcelImporter = () => {
   };
 
   const formatDateFromJour = (jour: string): string => {
+    console.log('🔍 Formatage de la date:', jour);
     try {
+      // Si déjà au format ISO (YYYY-MM-DD)
       if (/^\d{4}-\d{2}-\d{2}$/.test(jour)) {
+        console.log('✅ Date déjà au format ISO:', jour);
         return jour;
       }
       
+      // Si au format DD/MM/YYYY
       if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(jour)) {
         const [day, month, year] = jour.split('/');
-        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        const formatted = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        console.log('✅ Date convertie DD/MM/YYYY vers ISO:', jour, '->', formatted);
+        return formatted;
       }
       
+      // Essayer de parser comme date normale
       const date = new Date(jour);
-      return date.toISOString().split('T')[0];
-    } catch {
-      return new Date().toISOString().split('T')[0];
+      if (!isNaN(date.getTime())) {
+        const formatted = date.toISOString().split('T')[0];
+        console.log('✅ Date parsée vers ISO:', jour, '->', formatted);
+        return formatted;
+      }
+      
+      throw new Error(`Format de date non reconnu: ${jour}`);
+    } catch (error) {
+      console.error('❌ Erreur formatage date:', error);
+      const fallback = new Date().toISOString().split('T')[0];
+      console.log('⚠️ Utilisation date par défaut:', fallback);
+      return fallback;
     }
+  };
+
+  const validateTimeFormat = (time: string): string => {
+    console.log('🔍 Validation format heure:', time);
+    
+    // Vérifier le format HH:MM
+    if (!/^\d{2}:\d{2}$/.test(time)) {
+      console.error('❌ Format heure invalide:', time);
+      throw new Error(`Format d'heure invalide: ${time}. Attendu: HH:MM`);
+    }
+    
+    const [hours, minutes] = time.split(':').map(Number);
+    
+    if (hours < 0 || hours > 23) {
+      throw new Error(`Heures invalides: ${hours}. Doit être entre 0 et 23.`);
+    }
+    
+    if (minutes < 0 || minutes > 59) {
+      throw new Error(`Minutes invalides: ${minutes}. Doit être entre 0 et 59.`);
+    }
+    
+    console.log('✅ Format heure validé:', time);
+    return time;
+  };
+
+  const validateExamenData = (examen: StandardExamenData): void => {
+    console.log('🔍 Validation données examen:', examen.code_cours_extrait);
+    
+    if (!examen.code_cours_extrait?.trim()) {
+      throw new Error('Code cours manquant');
+    }
+    
+    if (!examen.auditoires?.trim()) {
+      throw new Error('Auditoire manquant');
+    }
+    
+    if (!examen.activite?.trim()) {
+      throw new Error('Activité manquante');
+    }
+    
+    // Valider la date
+    formatDateFromJour(examen.jour);
+    
+    // Valider les heures
+    validateTimeFormat(examen.heure_debut);
+    validateTimeFormat(examen.heure_fin);
+    
+    // Valider la durée
+    if (examen.duree <= 0) {
+      throw new Error(`Durée invalide: ${examen.duree}`);
+    }
+    
+    console.log('✅ Données examen validées');
   };
 
   const formatDureeDisplay = (duree: number): string => {
@@ -394,69 +464,134 @@ export const StandardExcelImporter = () => {
   };
 
   const validateSelected = async () => {
-    if (!activeSession?.id || selectedItems.length === 0) return;
+    if (!activeSession?.id || selectedItems.length === 0) {
+      toast({
+        title: "Erreur de validation",
+        description: "Session manquante ou aucun examen sélectionné.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    console.log('🚀 Début validation de', selectedItems.length, 'examens');
+    setIsValidating(true);
 
     const selectedExamens = parsedData.filter((_, index) => 
       selectedItems.includes(index.toString())
     );
 
     let examensGeneres = 0;
+    let erreurs: string[] = [];
 
-    for (const examen of selectedExamens) {
-      try {
-        const examenData = {
-          session_id: activeSession.id,
-          code_examen: examen.code_cours_extrait,
-          matiere: examen.activite.split('=')[0].trim(),
-          date_examen: formatDateFromJour(examen.jour),
-          heure_debut: examen.heure_debut,
-          heure_fin: examen.heure_fin,
-          salle: examen.auditoires,
-          nombre_surveillants: 1, // Valeur par défaut
-          type_requis: 'Assistant',
-          statut_validation: examen.statut_validation
-        };
+    try {
+      for (const [index, examen] of selectedExamens.entries()) {
+        console.log(`📝 Traitement examen ${index + 1}/${selectedExamens.length}:`, examen.code_cours_extrait);
+        
+        try {
+          // Validation des données avant insertion
+          validateExamenData(examen);
+          
+          const examenData = {
+            session_id: activeSession.id,
+            code_examen: examen.code_cours_extrait,
+            matiere: examen.activite.split('=')[0].trim(),
+            date_examen: formatDateFromJour(examen.jour),
+            heure_debut: validateTimeFormat(examen.heure_debut),
+            heure_fin: validateTimeFormat(examen.heure_fin),
+            salle: examen.auditoires.trim(),
+            nombre_surveillants: 1,
+            type_requis: 'Assistant',
+            statut_validation: examen.statut_validation || 'NON_TRAITE'
+          };
 
-        const { data: nouvelExamen, error: examenError } = await supabase
-          .from('examens')
-          .insert(examenData)
-          .select()
-          .single();
+          console.log('📤 Insertion examen en base:', examenData);
 
-        if (examenError) throw examenError;
+          const { data: nouvelExamen, error: examenError } = await supabase
+            .from('examens')
+            .insert(examenData)
+            .select()
+            .single();
 
-        // Créer l'entrée de validation avec remarques
-        const { error: validationError } = await supabase
-          .from('examens_validation')
-          .insert({
+          if (examenError) {
+            console.error('❌ Erreur insertion examen:', examenError);
+            throw examenError;
+          }
+
+          console.log('✅ Examen créé avec ID:', nouvelExamen.id);
+
+          // Créer l'entrée de validation avec remarques
+          const validationData = {
             examen_id: nouvelExamen.id,
             code_original: examen.code_complet_original,
             type_detecte: examen.type_detecte,
             statut_validation: examen.statut_validation,
-            commentaire: `Import manuel - Groupes: ${examen.groupes_etudiants} - Enseignants: ${examen.enseignants}`
-          });
+            commentaire: `Import manuel - Groupes: ${examen.groupes_etudiants || 'N/A'} - Enseignants: ${examen.enseignants || 'N/A'}`
+          };
 
-        if (validationError) throw validationError;
+          console.log('📤 Insertion validation:', validationData);
 
-        examensGeneres++;
-      } catch (error: any) {
-        console.error(`Erreur pour ${examen.code_cours_extrait}:`, error);
+          const { error: validationError } = await supabase
+            .from('examens_validation')
+            .insert(validationData);
+
+          if (validationError) {
+            console.error('❌ Erreur insertion validation:', validationError);
+            throw validationError;
+          }
+
+          console.log('✅ Validation créée pour examen:', nouvelExamen.id);
+          examensGeneres++;
+
+        } catch (error: any) {
+          console.error(`❌ Erreur pour ${examen.code_cours_extrait}:`, error);
+          erreurs.push(`${examen.code_cours_extrait}: ${error.message || 'Erreur inconnue'}`);
+        }
       }
-    }
 
-    if (examensGeneres > 0) {
+      // Afficher le résultat
+      if (examensGeneres > 0) {
+        toast({
+          title: "Validation réussie",
+          description: `${examensGeneres} examens ont été créés avec succès.`,
+        });
+
+        queryClient.invalidateQueries({ queryKey: ['examens-validation'] });
+        queryClient.invalidateQueries({ queryKey: ['examens-review'] });
+        
+        // Nettoyer après validation réussie
+        setParsedData([]);
+        setSelectedItems([]);
+        setProcessingStats(null);
+      }
+
+      // Afficher les erreurs s'il y en a
+      if (erreurs.length > 0) {
+        console.error('❌ Erreurs de validation:', erreurs);
+        toast({
+          title: `Erreurs de validation (${erreurs.length})`,
+          description: erreurs.slice(0, 3).join('; ') + (erreurs.length > 3 ? '...' : ''),
+          variant: "destructive"
+        });
+      }
+
+      if (examensGeneres === 0 && erreurs.length > 0) {
+        toast({
+          title: "Échec de la validation",
+          description: "Aucun examen n'a pu être créé. Vérifiez les données.",
+          variant: "destructive"
+        });
+      }
+
+    } catch (error: any) {
+      console.error('❌ Erreur générale de validation:', error);
       toast({
-        title: "Validation réussie",
-        description: `${examensGeneres} examens ont été créés avec succès.`,
+        title: "Erreur de validation",
+        description: error.message || "Une erreur inattendue s'est produite.",
+        variant: "destructive"
       });
-
-      queryClient.invalidateQueries({ queryKey: ['examens-validation'] });
-      queryClient.invalidateQueries({ queryKey: ['examens-review'] });
-      
-      // Nettoyer après validation
-      setParsedData([]);
-      setSelectedItems([]);
-      setProcessingStats(null);
+    } finally {
+      setIsValidating(false);
+      console.log('🏁 Fin du processus de validation');
     }
   };
 
@@ -739,10 +874,19 @@ export const StandardExcelImporter = () => {
               
               <Button 
                 onClick={validateSelected} 
-                disabled={selectedItems.length === 0}
+                disabled={selectedItems.length === 0 || isValidating}
                 className="bg-green-600 hover:bg-green-700"
               >
-                Valider la sélection ({selectedItems.length})
+                {isValidating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Validation en cours...
+                  </>
+                ) : (
+                  <>
+                    Valider la sélection ({selectedItems.length})
+                  </>
+                )}
               </Button>
             </div>
 
