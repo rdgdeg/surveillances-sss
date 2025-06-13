@@ -59,9 +59,9 @@ const Surveillant = () => {
         surveillant_prenom: item.prenom || '',
         surveillant_email: item.email || '',
         surveillant_type: item.surveillant_type || '',
-        is_pre_assigne: false, // Ces données ne sont pas disponibles dans la vue
-        is_obligatoire: false, // Ces données ne sont pas disponibles dans la vue
-        session_name: item.sessions?.name || ''
+        is_pre_assigne: false,
+        is_obligatoire: false,
+        session_name: Array.isArray(item.sessions) ? item.sessions[0]?.name || '' : item.sessions?.name || ''
       }));
 
       setSearchResult(formattedData);

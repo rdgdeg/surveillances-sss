@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { SessionSelector } from "@/components/SessionSelector";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
@@ -19,6 +18,9 @@ import { IntelligentAssignmentEngine } from "@/components/IntelligentAssignmentE
 import { SurveillantCreator } from "@/components/SurveillantCreator";
 import { SoldesSurveillants } from "@/components/SoldesSurveillants";
 import { DemandeChangement } from "@/components/DemandeChangement";
+import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
+import { CandidatsSurveillance } from "@/components/CandidatsSurveillance";
+import { ExamenReviewManager } from "@/components/ExamenReviewManager";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("sessions");
