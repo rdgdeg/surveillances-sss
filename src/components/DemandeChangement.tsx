@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +27,13 @@ const demandeSchema = z.object({
 });
 
 type DemandeFormData = z.infer<typeof demandeSchema>;
+
+// Define valid type options to prevent empty string values
+const typeDemandeOptions = [
+  { value: "absence", label: "Absence/Indisponibilité" },
+  { value: "permutation", label: "Permutation avec un collègue" },
+  { value: "autre", label: "Autre motif" }
+];
 
 export const DemandeChangement = () => {
   const { data: activeSession } = useActiveSession();
@@ -230,9 +236,11 @@ export const DemandeChangement = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="absence">Absence/Indisponibilité</SelectItem>
-                          <SelectItem value="permutation">Permutation avec un collègue</SelectItem>
-                          <SelectItem value="autre">Autre motif</SelectItem>
+                          {typeDemandeOptions.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

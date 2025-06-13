@@ -147,7 +147,6 @@ export const PreAssignmentManager = () => {
     }
   });
 
-  // Supprimer une pré-assignation
   const deletePreAssignment = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -183,6 +182,10 @@ export const PreAssignmentManager = () => {
     return `${surveillant.nom} ${surveillant.prenom} (${surveillant.type})`;
   };
 
+  // Filter out items with empty or invalid IDs
+  const validExamens = examens.filter(examen => examen.id && examen.id.trim() !== '');
+  const validSurveillants = surveillants.filter(surveillant => surveillant.id && surveillant.id.trim() !== '');
+
   if (!activeSession) {
     return (
       <Card>
@@ -195,14 +198,14 @@ export const PreAssignmentManager = () => {
     );
   }
 
-  if (surveillants.length === 0 || examens.length === 0) {
+  if (validSurveillants.length === 0 || validExamens.length === 0) {
     return (
       <Card>
         <CardContent className="pt-6">
           <div className="text-center space-y-4">
             <p className="text-gray-500">
-              {surveillants.length === 0 && "Aucun surveillant trouvé dans cette session."}
-              {examens.length === 0 && "Aucun examen trouvé dans cette session."}
+              {validSurveillants.length === 0 && "Aucun surveillant trouvé dans cette session."}
+              {validExamens.length === 0 && "Aucun examen trouvé dans cette session."}
             </p>
             <p className="text-sm text-blue-600">
               💡 Assurez-vous d'avoir importé les données dans l'onglet "Import des Données"
@@ -236,7 +239,7 @@ export const PreAssignmentManager = () => {
                   <SelectValue placeholder="Sélectionner un examen" />
                 </SelectTrigger>
                 <SelectContent>
-                  {examens.map((examen) => (
+                  {validExamens.map((examen) => (
                     <SelectItem key={examen.id} value={examen.id}>
                       {formatExamenLabel(examen)}
                     </SelectItem>
@@ -252,7 +255,7 @@ export const PreAssignmentManager = () => {
                   <SelectValue placeholder="Sélectionner un surveillant" />
                 </SelectTrigger>
                 <SelectContent>
-                  {surveillants.map((surveillant) => (
+                  {validSurveillants.map((surveillant) => (
                     <SelectItem key={surveillant.id} value={surveillant.id}>
                       {formatSurveillantLabel(surveillant)}
                     </SelectItem>
