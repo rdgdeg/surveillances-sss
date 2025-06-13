@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -235,6 +234,28 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
 
         updated++;
         console.log('Updated existing surveillant:', email);
+
+        // Update quota in session based on EFT if provided
+        if (surveillant.eft !== undefined) {
+          let baseQuota = 6; // Default quota
+          if (surveillant.type === 'PAT') baseQuota = 12;
+          else if (surveillant.type === 'Jobiste') baseQuota = 4;
+          
+          const adjustedQuota = surveillant.eft ? Math.round(baseQuota * surveillant.eft) : baseQuota;
+          const finalQuota = Math.max(1, adjustedQuota); // Minimum 1
+
+          const { error: quotaError } = await supabase
+            .from('surveillant_sessions')
+            .update({ quota: finalQuota })
+            .eq('surveillant_id', existing.id)
+            .eq('session_id', sessionId);
+
+          if (quotaError) {
+            console.error('Error updating quota:', quotaError);
+          } else {
+            console.log(`Updated quota for ${email}: ${finalQuota} (EFT: ${surveillant.eft})`);
+          }
+        }
       } else {
         // Insert new surveillant
         const { data: newSurveillant, error: insertError } = await supabase
@@ -251,16 +272,14 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
         console.log('Inserted new surveillant:', newSurveillant);
 
         if (newSurveillant) {
-          // Calculate default quota based on type and EFT
-          let defaultQuota = 6; // Default for Assistant and others
-          if (surveillant.type === 'PAT') defaultQuota = 12;
-          else if (surveillant.type === 'Jobiste') defaultQuota = 4;
+          // Calculate quota based on type and EFT
+          let baseQuota = 6; // Default for Assistant and others
+          if (surveillant.type === 'PAT') baseQuota = 12;
+          else if (surveillant.type === 'Jobiste') baseQuota = 4;
           
           // Adjust quota based on EFT if provided
-          if (surveillant.eft && surveillant.eft > 0) {
-            defaultQuota = Math.round(defaultQuota * surveillant.eft);
-            defaultQuota = Math.max(1, defaultQuota); // Minimum 1
-          }
+          const adjustedQuota = surveillant.eft ? Math.round(baseQuota * surveillant.eft) : baseQuota;
+          const finalQuota = Math.max(1, adjustedQuota); // Minimum 1
 
           // Add to current session
           const { error: sessionError } = await supabase
@@ -268,7 +287,7 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
             .insert({
               surveillant_id: newSurveillant.id,
               session_id: sessionId,
-              quota: defaultQuota
+              quota: finalQuota
             });
 
           if (sessionError) {
@@ -277,7 +296,7 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
           }
 
           processed++;
-          console.log('Added to session with quota:', defaultQuota);
+          console.log('Added to session with quota:', finalQuota, 'EFT:', surveillant.eft);
         }
       }
     }
