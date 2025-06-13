@@ -206,9 +206,10 @@ export const SurveillantListEditor = () => {
 
     if (type === "select" && options) {
       return (
-        <Select value={editValue || ""} onValueChange={(val) => {
-          setEditValue(val);
-          onSave(val);
+        <Select value={editValue || "none"} onValueChange={(val) => {
+          const finalValue = val === "none" ? null : val;
+          setEditValue(finalValue);
+          onSave(finalValue);
         }}>
           <SelectTrigger className="w-full">
             <SelectValue />
@@ -239,8 +240,9 @@ export const SurveillantListEditor = () => {
     );
   };
 
+  // Fixed option arrays - no empty strings, use "none" as placeholder
   const faculteOptions = [
-    { value: "", label: "Aucune restriction" },
+    { value: "none", label: "Aucune restriction" },
     { value: "FASB", label: "FASB" },
     { value: "EPL", label: "EPL" },
     { value: "FIAL", label: "FIAL" },
@@ -260,7 +262,7 @@ export const SurveillantListEditor = () => {
   ];
 
   const affectationOptions = [
-    { value: "", label: "Non renseigné" },
+    { value: "none", label: "Non renseigné" },
     { value: "FASB", label: "FASB" },
     { value: "EPL", label: "EPL" },
     { value: "FIAL", label: "FIAL" },
@@ -272,7 +274,7 @@ export const SurveillantListEditor = () => {
   ];
 
   const campusOptions = [
-    { value: "", label: "Non renseigné" },
+    { value: "none", label: "Non renseigné" },
     { value: "Louvain-la-Neuve", label: "Louvain-la-Neuve" },
     { value: "Woluwe", label: "Woluwe" },
     { value: "Mons", label: "Mons" },
@@ -456,11 +458,11 @@ export const SurveillantListEditor = () => {
                         <TableCell>
                           {editingId === surveillant.id ? (
                             <EditableCell
-                              value={surveillant.faculte_interdite || ""}
+                              value={surveillant.faculte_interdite || "none"}
                               type="select"
                               options={faculteOptions}
                               onSave={(value) => setSurvaillants(prev => 
-                                prev.map(s => s.id === surveillant.id ? { ...s, faculte_interdite: value || null } : s)
+                                prev.map(s => s.id === surveillant.id ? { ...s, faculte_interdite: value === "none" ? null : value } : s)
                               )}
                             />
                           ) : (
@@ -493,11 +495,11 @@ export const SurveillantListEditor = () => {
                             <TableCell>
                               {editingId === surveillant.id ? (
                                 <EditableCell
-                                  value={surveillant.affectation_fac || ""}
+                                  value={surveillant.affectation_fac || "none"}
                                   type="select"
                                   options={affectationOptions}
                                   onSave={(value) => setSurvaillants(prev => 
-                                    prev.map(s => s.id === surveillant.id ? { ...s, affectation_fac: value || null } : s)
+                                    prev.map(s => s.id === surveillant.id ? { ...s, affectation_fac: value === "none" ? null : value } : s)
                                   )}
                                 />
                               ) : (
@@ -550,11 +552,11 @@ export const SurveillantListEditor = () => {
                             <TableCell>
                               {editingId === surveillant.id ? (
                                 <EditableCell
-                                  value={surveillant.campus || ""}
+                                  value={surveillant.campus || "none"}
                                   type="select"
                                   options={campusOptions}
                                   onSave={(value) => setSurvaillants(prev => 
-                                    prev.map(s => s.id === surveillant.id ? { ...s, campus: value || null } : s)
+                                    prev.map(s => s.id === surveillant.id ? { ...s, campus: value === "none" ? null : value } : s)
                                   )}
                                 />
                               ) : (
