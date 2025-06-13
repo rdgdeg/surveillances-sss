@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Building, Trash2, Plus, RefreshCw, Edit2, Check, X, Upload } from "lucide-react";
+import { Building, Trash2, Plus, RefreshCw, Edit2, Check, X, Upload, MapPin, ExternalLink } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface ContrainteAuditoire {
@@ -15,6 +15,8 @@ interface ContrainteAuditoire {
   auditoire: string;
   nombre_surveillants_requis: number;
   description?: string;
+  adresse?: string;
+  lien_google_maps?: string;
 }
 
 export const ContraintesAuditoires = () => {
@@ -23,21 +25,33 @@ export const ContraintesAuditoires = () => {
   const [nouvelAuditoire, setNouvelAuditoire] = useState<string>("");
   const [nombreSurveillants, setNombreSurveillants] = useState<number>(1);
   const [description, setDescription] = useState<string>("");
+  const [adresse, setAdresse] = useState<string>("");
+  const [lienGoogleMaps, setLienGoogleMaps] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<{ nombre: number; description: string }>({ nombre: 1, description: "" });
+  const [editValues, setEditValues] = useState<{ 
+    nombre: number; 
+    description: string; 
+    adresse: string; 
+    lien_google_maps: string; 
+  }>({ nombre: 1, description: "", adresse: "", lien_google_maps: "" });
   const [bulkAuditoires, setBulkAuditoires] = useState<string>("");
   const [showBulkImport, setShowBulkImport] = useState<boolean>(false);
 
   // Récupérer les contraintes existantes
-  const { data: contraintes = [] } = useQuery({
+  const { data: contraintes = [], isLoading } = useQuery({
     queryKey: ['contraintes-auditoires'],
     queryFn: async () => {
+      console.log("Fetching contraintes auditoires...");
       const { data, error } = await supabase
         .from('contraintes_auditoires')
         .select('*')
         .order('auditoire');
       
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching contraintes:", error);
+        throw error;
+      }
+      console.log("Contraintes fetched:", data);
       return data as ContrainteAuditoire[];
     }
   });
@@ -157,7 +171,9 @@ export const ContraintesAuditoires = () => {
         .insert({
           auditoire: nouvelAuditoire.trim(),
           nombre_surveillants_requis: nombreSurveillants,
-          description: description.trim() || null
+          description: description.trim() || null,
+          adresse: adresse.trim() || null,
+          lien_google_maps: lienGoogleMaps.trim() || null
         })
         .select()
         .single();
@@ -170,6 +186,8 @@ export const ContraintesAuditoires = () => {
       setNouvelAuditoire("");
       setNombreSurveillants(1);
       setDescription("");
+      setAdresse("");
+      setLienGoogleMaps("");
       toast({
         title: "Contrainte créée",
         description: "La contrainte d'auditoire a été créée avec succès.",
@@ -186,12 +204,20 @@ export const ContraintesAuditoires = () => {
 
   // Mettre à jour une contrainte
   const updateContrainte = useMutation({
-    mutationFn: async ({ id, nombre_surveillants_requis, description }: { id: string; nombre_surveillants_requis: number; description: string }) => {
+    mutationFn: async ({ id, nombre_surveillants_requis, description, adresse, lien_google_maps }: { 
+      id: string; 
+      nombre_surveillants_requis: number; 
+      description: string; 
+      adresse: string; 
+      lien_google_maps: string; 
+    }) => {
       const { error } = await supabase
         .from('contraintes_auditoires')
         .update({ 
           nombre_surveillants_requis,
-          description: description.trim() || null
+          description: description.trim() || null,
+          adresse: adresse.trim() || null,
+          lien_google_maps: lien_google_maps.trim() || null
         })
         .eq('id', id);
 
@@ -299,7 +325,9 @@ export const ContraintesAuditoires = () => {
     setEditingId(contrainte.id);
     setEditValues({
       nombre: contrainte.nombre_surveillants_requis,
-      description: contrainte.description || ""
+      description: contrainte.description || "",
+      adresse: contrainte.adresse || "",
+      lien_google_maps: contrainte.lien_google_maps || ""
     });
   };
 
@@ -307,14 +335,26 @@ export const ContraintesAuditoires = () => {
     updateContrainte.mutate({
       id,
       nombre_surveillants_requis: editValues.nombre,
-      description: editValues.description
+      description: editValues.description,
+      adresse: editValues.adresse,
+      lien_google_maps: editValues.lien_google_maps
     });
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
-    setEditValues({ nombre: 1, description: "" });
+    setEditValues({ nombre: 1, description: "", adresse: "", lien_google_maps: "" });
   };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-center text-gray-500">Chargement des contraintes...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -424,25 +464,27 @@ export const ContraintesAuditoires = () => {
           </div>
 
           {/* Formulaire d'ajout individuel */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-            <div>
-              <label className="block text-sm font-medium mb-2">Auditoire</label>
-              <Input
-                placeholder="Ex: A001, Grand Amphi..."
-                value={nouvelAuditoire}
-                onChange={(e) => setNouvelAuditoire(e.target.value)}
-              />
-            </div>
+          <div className="grid grid-cols-1 gap-4 p-4 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Auditoire</label>
+                <Input
+                  placeholder="Ex: A001, Grand Amphi..."
+                  value={nouvelAuditoire}
+                  onChange={(e) => setNouvelAuditoire(e.target.value)}
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Nb surveillants</label>
-              <Input
-                type="number"
-                min="1"
-                max="20"
-                value={nombreSurveillants}
-                onChange={(e) => setNombreSurveillants(parseInt(e.target.value) || 1)}
-              />
+              <div>
+                <label className="block text-sm font-medium mb-2">Nb surveillants</label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={nombreSurveillants}
+                  onChange={(e) => setNombreSurveillants(parseInt(e.target.value) || 1)}
+                />
+              </div>
             </div>
 
             <div>
@@ -454,11 +496,28 @@ export const ContraintesAuditoires = () => {
               />
             </div>
 
-            <div className="flex items-end">
+            <div>
+              <label className="block text-sm font-medium mb-2">Adresse (optionnel)</label>
+              <Input
+                placeholder="Ex: Avenue Hippocrate 10, 1200 Woluwe-Saint-Lambert"
+                value={adresse}
+                onChange={(e) => setAdresse(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Lien Google Maps (optionnel)</label>
+              <Input
+                placeholder="Ex: https://maps.google.com/..."
+                value={lienGoogleMaps}
+                onChange={(e) => setLienGoogleMaps(e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-end">
               <Button 
                 onClick={() => createContrainte.mutate()}
                 disabled={!nouvelAuditoire.trim() || createContrainte.isPending}
-                className="w-full"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Ajouter
@@ -476,38 +535,68 @@ export const ContraintesAuditoires = () => {
             ) : (
               <div className="space-y-2">
                 {contraintes.map((contrainte) => (
-                  <div key={contrainte.id} className="flex items-center justify-between p-3 bg-white border rounded-lg">
+                  <div key={contrainte.id} className="flex items-start justify-between p-4 bg-white border rounded-lg">
                     <div className="flex-1">
-                      <div className="font-medium">{contrainte.auditoire}</div>
+                      <div className="font-medium flex items-center gap-2">
+                        {contrainte.auditoire}
+                        {contrainte.lien_google_maps && (
+                          <a 
+                            href={contrainte.lien_google_maps} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
+                      
                       {editingId === contrainte.id ? (
-                        <div className="flex items-center space-x-2 mt-2">
-                          <Input
-                            type="number"
-                            min="1"
-                            max="20"
-                            value={editValues.nombre}
-                            onChange={(e) => setEditValues({...editValues, nombre: parseInt(e.target.value) || 1})}
-                            className="w-20"
-                          />
-                          <span className="text-sm text-gray-600">surveillant(s)</span>
+                        <div className="space-y-2 mt-2">
+                          <div className="flex items-center space-x-2">
+                            <Input
+                              type="number"
+                              min="1"
+                              max="20"
+                              value={editValues.nombre}
+                              onChange={(e) => setEditValues({...editValues, nombre: parseInt(e.target.value) || 1})}
+                              className="w-20"
+                            />
+                            <span className="text-sm text-gray-600">surveillant(s)</span>
+                          </div>
                           <Input
                             placeholder="Description..."
                             value={editValues.description}
                             onChange={(e) => setEditValues({...editValues, description: e.target.value})}
-                            className="flex-1"
+                          />
+                          <Input
+                            placeholder="Adresse..."
+                            value={editValues.adresse}
+                            onChange={(e) => setEditValues({...editValues, adresse: e.target.value})}
+                          />
+                          <Input
+                            placeholder="Lien Google Maps..."
+                            value={editValues.lien_google_maps}
+                            onChange={(e) => setEditValues({...editValues, lien_google_maps: e.target.value})}
                           />
                         </div>
                       ) : (
-                        <div className="text-sm text-gray-600">
-                          {contrainte.nombre_surveillants_requis} surveillant(s) requis
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <div>{contrainte.nombre_surveillants_requis} surveillant(s) requis</div>
                           {contrainte.description && (
-                            <span className="ml-2 text-gray-500">• {contrainte.description}</span>
+                            <div className="text-gray-500">• {contrainte.description}</div>
+                          )}
+                          {contrainte.adresse && (
+                            <div className="flex items-center gap-1 text-gray-500">
+                              <MapPin className="h-3 w-3" />
+                              {contrainte.adresse}
+                            </div>
                           )}
                         </div>
                       )}
                     </div>
                     
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 ml-4">
                       {editingId === contrainte.id ? (
                         <>
                           <Button

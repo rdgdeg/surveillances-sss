@@ -179,26 +179,32 @@ export type Database = {
       }
       contraintes_auditoires: {
         Row: {
+          adresse: string | null
           auditoire: string
           created_at: string
           description: string | null
           id: string
+          lien_google_maps: string | null
           nombre_surveillants_requis: number
           updated_at: string
         }
         Insert: {
+          adresse?: string | null
           auditoire: string
           created_at?: string
           description?: string | null
           id?: string
+          lien_google_maps?: string | null
           nombre_surveillants_requis?: number
           updated_at?: string
         }
         Update: {
+          adresse?: string | null
           auditoire?: string
           created_at?: string
           description?: string | null
           id?: string
+          lien_google_maps?: string | null
           nombre_surveillants_requis?: number
           updated_at?: string
         }

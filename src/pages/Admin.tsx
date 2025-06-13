@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +19,7 @@ import { CandidatsSurveillance } from "@/components/CandidatsSurveillance";
 import { CandidaturesManager } from "@/components/CandidaturesManager";
 import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
+import { RoomConstraintsManager } from "@/components/RoomConstraintsManager";
 import { DataConsistencyChecker } from "@/components/DataConsistencyChecker";
 import { SensitiveDataManager } from "@/components/SensitiveDataManager";
 import { StandardExcelImporter } from "@/components/StandardExcelImporter";
@@ -174,6 +174,9 @@ const Admin = () => {
       
       case "contraintes":
         return <ContraintesAuditoires />;
+      
+      case "contraintes-salles":
+        return <RoomConstraintsManager />;
       
       case "consistency":
         return <DataConsistencyChecker />;
