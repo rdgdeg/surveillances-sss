@@ -21,9 +21,13 @@ import { DemandeChangement } from "@/components/DemandeChangement";
 import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
 import { CandidatsSurveillance } from "@/components/CandidatsSurveillance";
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
+import { DashboardOverview } from "@/components/DashboardOverview";
+import { Button } from "@/components/ui/button";
+import { Home, ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
 
 const Admin = () => {
-  const [activeView, setActiveView] = useState("sessions");
+  const [activeView, setActiveView] = useState("dashboard");
   const [uploadStates, setUploadStates] = useState({
     surveillants: false,
     examens: false,
@@ -40,6 +44,7 @@ const Admin = () => {
 
   const getViewTitle = () => {
     switch (activeView) {
+      case "dashboard": return "Tableau de Bord";
       case "sessions": return "Gestion des Sessions";
       case "templates": return "Templates de Données";
       case "import": return "Import des Données";
@@ -63,6 +68,9 @@ const Admin = () => {
 
   const renderContent = () => {
     switch (activeView) {
+      case "dashboard":
+        return <DashboardOverview />;
+        
       case "sessions":
         return <SessionSelector />;
       
@@ -272,22 +280,38 @@ const Admin = () => {
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem className="hidden md:block">
-                  <BreadcrumbLink href="/admin">
-                    Administration
+                  <BreadcrumbLink asChild>
+                    <Link to="/" className="flex items-center space-x-1">
+                      <Home className="h-4 w-4" />
+                      <span>Accueil</span>
+                    </Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
                 <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Administration</BreadcrumbPage>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
                 <BreadcrumbItem>
                   <BreadcrumbPage>{getViewTitle()}</BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
+            <div className="ml-auto">
+              <Button variant="outline" asChild>
+                <Link to="/" className="flex items-center space-x-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>Retour à l'accueil</span>
+                </Link>
+              </Button>
+            </div>
           </header>
           
           <div className="flex flex-1 flex-col gap-4 p-4">
             <div className="space-y-2">
               <h1 className="text-2xl font-bold tracking-tight">{getViewTitle()}</h1>
               <p className="text-muted-foreground">
+                {activeView === "dashboard" && "Vue d'ensemble des statistiques et de l'avancement"}
                 {activeView === "sessions" && "Créez et gérez les sessions d'examens"}
                 {activeView === "templates" && "Téléchargez les modèles Excel avec recoupement par email"}
                 {activeView === "import" && "Importez vos données avec contrôles de cohérence"}

@@ -39,6 +39,24 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
   return (
     <Sidebar>
       <SidebarContent>
+        {/* Vue d'ensemble */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Vue d'ensemble</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onViewChange("dashboard")}
+                  isActive={activeView === "dashboard"}
+                >
+                  <BarChart4 className="h-4 w-4" />
+                  <span>Tableau de Bord</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {/* Configuration de base */}
         <SidebarGroup>
           <SidebarGroupLabel>Configuration</SidebarGroupLabel>
