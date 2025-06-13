@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, ExternalLink, BookOpen, HelpCircle, Users, Building2 } from "lucide-react";
+import { UserPlus, ExternalLink, BookOpen, HelpCircle, Users, Building2, Home } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
 
 interface ExamenSlot {
   id: string;
@@ -148,6 +148,14 @@ export const CollecteSurveillants = () => {
   if (!activeSession) {
     return (
       <div className="max-w-4xl mx-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <Button variant="outline" asChild className="border-uclouvain-blue text-uclouvain-blue hover:bg-uclouvain-blue hover:text-white">
+            <Link to="/">
+              <Home className="h-4 w-4 mr-2" />
+              Retour à l'accueil
+            </Link>
+          </Button>
+        </div>
         <Card className="border-uclouvain-blue/20">
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">
@@ -162,6 +170,14 @@ export const CollecteSurveillants = () => {
   if (submitted) {
     return (
       <div className="max-w-4xl mx-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <Button variant="outline" asChild className="border-uclouvain-blue text-uclouvain-blue hover:bg-uclouvain-blue hover:text-white">
+            <Link to="/">
+              <Home className="h-4 w-4 mr-2" />
+              Retour à l'accueil
+            </Link>
+          </Button>
+        </div>
         <Card className="border-uclouvain-cyan">
           <CardHeader className="text-center">
             <CardTitle className="text-uclouvain-blue">Disponibilités enregistrées !</CardTitle>
@@ -176,6 +192,16 @@ export const CollecteSurveillants = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
+      {/* Navigation Button */}
+      <div className="flex justify-between items-center">
+        <Button variant="outline" asChild className="border-uclouvain-blue text-uclouvain-blue hover:bg-uclouvain-blue hover:text-white">
+          <Link to="/">
+            <Home className="h-4 w-4 mr-2" />
+            Retour à l'accueil
+          </Link>
+        </Button>
+      </div>
+
       {/* Header avec logo UCLouvain */}
       <div className="text-center space-y-4 py-8 bg-gradient-uclouvain rounded-lg text-white">
         <div className="flex justify-center mb-4">
