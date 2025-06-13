@@ -27,6 +27,20 @@ interface SurveillanceData {
   session_name: string;
 }
 
+interface QueryResultItem {
+  examen_id?: string;
+  date_examen?: string;
+  heure_debut?: string;
+  heure_fin?: string;
+  matiere?: string;
+  salle?: string;
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  surveillant_type?: string;
+  sessions?: { name: string } | { name: string }[];
+}
+
 const Surveillant = () => {
   const [searchEmail, setSearchEmail] = useState("");
   const [searchResult, setSearchResult] = useState<SurveillanceData[] | null>(null);
@@ -48,21 +62,32 @@ const Surveillant = () => {
 
       if (error) throw error;
 
-      const formattedData: SurveillanceData[] = (data || []).map(item => ({
-        id: item.examen_id || '',
-        date_examen: item.date_examen || '',
-        heure_debut: item.heure_debut || '',
-        heure_fin: item.heure_fin || '',
-        matiere: item.matiere || '',
-        salle: item.salle || '',
-        surveillant_nom: item.nom || '',
-        surveillant_prenom: item.prenom || '',
-        surveillant_email: item.email || '',
-        surveillant_type: item.surveillant_type || '',
-        is_pre_assigne: false,
-        is_obligatoire: false,
-        session_name: Array.isArray(item.sessions) ? item.sessions[0]?.name || '' : item.sessions?.name || ''
-      }));
+      const formattedData: SurveillanceData[] = (data as QueryResultItem[] || []).map(item => {
+        let sessionName = '';
+        if (item.sessions) {
+          if (Array.isArray(item.sessions)) {
+            sessionName = item.sessions[0]?.name || '';
+          } else {
+            sessionName = item.sessions.name || '';
+          }
+        }
+
+        return {
+          id: item.examen_id || '',
+          date_examen: item.date_examen || '',
+          heure_debut: item.heure_debut || '',
+          heure_fin: item.heure_fin || '',
+          matiere: item.matiere || '',
+          salle: item.salle || '',
+          surveillant_nom: item.nom || '',
+          surveillant_prenom: item.prenom || '',
+          surveillant_email: item.email || '',
+          surveillant_type: item.surveillant_type || '',
+          is_pre_assigne: false,
+          is_obligatoire: false,
+          session_name: sessionName
+        };
+      });
 
       setSearchResult(formattedData);
     } catch (error) {
