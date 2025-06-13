@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { SessionSelector } from "@/components/SessionSelector";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
-import { ExcelFileUploader } from "@/components/ExcelFileUploader";
+import { NewFileUploader } from "@/components/NewFileUploader";
 import { NewPlanningView } from "@/components/NewPlanningView";
 import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 import { RoomConstraintsManager } from "@/components/RoomConstraintsManager";
@@ -121,11 +121,11 @@ const Admin = () => {
                     <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">1</span>
                     <h3 className="font-medium">Surveillants (Obligatoire en premier)</h3>
                   </div>
-                  <ExcelFileUploader
+                  <NewFileUploader
                     title="Import des Surveillants"
                     description="Importez la liste des surveillants - Base pour tous les recoupements par email"
                     fileType="surveillants"
-                    expectedFormat={["Nom", "Prénom", "Email", "Type", "Statut"]}
+                    expectedFormat={["nom", "prenom", "email", "type", "faculte_interdite", "eft", "affectation_fac", "date_fin_contrat", "telephone_gsm", "campus"]}
                     onUpload={(success) => handleUpload('surveillants', success)}
                     uploaded={uploadStates.surveillants}
                   />
@@ -137,11 +137,11 @@ const Admin = () => {
                     <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">2</span>
                     <h3 className="font-medium">Examens</h3>
                   </div>
-                  <ExcelFileUploader
+                  <NewFileUploader
                     title="Import des Examens"
                     description="Importez le planning des examens - Définit les créneaux disponibles"
                     fileType="examens"
-                    expectedFormat={["Date", "Heure début", "Heure fin", "Matière", "Salle", "Nombre surveillants", "Type requis"]}
+                    expectedFormat={["date_examen", "heure_debut", "heure_fin", "matiere", "salle", "nombre_surveillants", "type_requis", "faculte", "auditoire_original"]}
                     onUpload={(success) => handleUpload('examens', success)}
                     uploaded={uploadStates.examens}
                   />
@@ -153,11 +153,11 @@ const Admin = () => {
                     <span className="bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">3</span>
                     <h3 className="font-medium">Disponibilités (Recommandé)</h3>
                   </div>
-                  <ExcelFileUploader
+                  <NewFileUploader
                     title="Import des Disponibilités"
                     description="Matrice des disponibilités par surveillant et créneau (recoupement par email)"
-                    fileType="disponibilites"
-                    expectedFormat={["Email", "Date", "Heure début", "Heure fin", "Disponible"]}
+                    fileType="indisponibilites"
+                    expectedFormat={["email", "date_examen", "heure_debut", "heure_fin", "est_disponible"]}
                     onUpload={(success) => handleUpload('disponibilites', success)}
                     uploaded={uploadStates.disponibilites}
                   />
@@ -169,11 +169,11 @@ const Admin = () => {
                     <span className="bg-gray-400 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-medium">4</span>
                     <h3 className="font-medium">Quotas Personnalisés (Optionnel)</h3>
                   </div>
-                  <ExcelFileUploader
+                  <NewFileUploader
                     title="Import des Quotas"
                     description="Modifiez les quotas par défaut pour certains surveillants (recoupement par email)"
                     fileType="quotas"
-                    expectedFormat={["Email", "Quota", "Sessions imposées"]}
+                    expectedFormat={["email", "quota", "sessions_imposees"]}
                     onUpload={(success) => handleUpload('quotas', success)}
                     uploaded={uploadStates.quotas}
                   />

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,24 +62,37 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
     let processed = 0;
     let excluded = 0;
 
+    // Vérifier les colonnes requises selon le template
+    const requiredColumns = ['nom', 'prenom', 'email', 'type'];
+    const headerLower = headers.map(h => h.toLowerCase());
+    
+    for (const required of requiredColumns) {
+      if (!headerLower.includes(required)) {
+        throw new Error(`Colonne manquante: ${required}`);
+      }
+    }
+
     for (const row of rows) {
+      if (row.length === 0 || !row[0] || !row[1] || !row[2]) continue; // Skip empty rows
+
       const surveillantData: any = {
         nom: row[0],
-        prenom: row[1],
+        prenom: row[1], 
         email: row[2],
         type: row[3],
-        statut: row[4] || 'actif',
-        faculte_interdite: row[5] || null
+        statut: 'actif'
       };
 
-      // Ajouter les nouvelles colonnes sensibles si présentes
-      if (row.length > 6) {
-        surveillantData.eft = row[6] ? parseFloat(row[6]) : null;
-        surveillantData.affectation_fac = row[7] || null;
-        surveillantData.date_fin_contrat = row[8] || null;
-        surveillantData.telephone_gsm = row[9] || null;
-        surveillantData.campus = row[10] || null;
+      // Ajouter les colonnes optionnelles selon l'ordre du template
+      if (row.length > 4 && row[4]) surveillantData.faculte_interdite = row[4];
+      if (row.length > 5 && row[5]) {
+        const eftValue = parseFloat(row[5]);
+        surveillantData.eft = !isNaN(eftValue) ? eftValue : null;
       }
+      if (row.length > 6 && row[6]) surveillantData.affectation_fac = row[6];
+      if (row.length > 7 && row[7]) surveillantData.date_fin_contrat = row[7];
+      if (row.length > 8 && row[8]) surveillantData.telephone_gsm = row[8];
+      if (row.length > 9 && row[9]) surveillantData.campus = row[9];
 
       // Vérifier si c'est un surveillant FSM (à exclure)
       if (surveillantData.affectation_fac?.toUpperCase().includes('FSM')) {
@@ -158,7 +170,9 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
       matiere: row[3],
       salle: row[4],
       nombre_surveillants: parseInt(row[5]) || 1,
-      type_requis: row[6]
+      type_requis: row[6],
+      faculte: row[7] || null,
+      auditoire_original: row[8] || null
     }));
 
     const { error } = await supabase
@@ -313,7 +327,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
             <FileSpreadsheet className="h-5 w-5" />
             <span>{title}</span>
             {isSensitiveFileType && (
-              <div title="Contient des données sensibles">
+              <div>
                 <Shield className="h-4 w-4 text-red-600" />
               </div>
             )}
