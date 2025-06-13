@@ -1,10 +1,11 @@
+
 import { useState } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X, Trash2, Loader2, Building2, BarChart3 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X, Trash2, Loader2, Building2, BarChart3, Calendar } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
