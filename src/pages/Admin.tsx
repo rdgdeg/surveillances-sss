@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +21,8 @@ import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
 import { DataConsistencyChecker } from "@/components/DataConsistencyChecker";
 import { SensitiveDataManager } from "@/components/SensitiveDataManager";
+import { StandardExcelImporter } from "@/components/StandardExcelImporter";
+import { ExamenValidationProcessor } from "@/components/ExamenValidationProcessor";
 import SurveillanceHistory from "@/components/SurveillanceHistory";
 import { DemandeChangement } from "@/components/DemandeChangement";
 import { ExamenAdvancedManager } from "@/components/ExamenAdvancedManager";
@@ -55,10 +58,11 @@ const Admin = () => {
               <p className="text-gray-600">Importez vos données au format CSV ou Excel</p>
             </div>
             
-            {/* Composant de vérification des imports */}
             <ImportVerification />
             
             <div className="grid gap-6">
+              <StandardExcelImporter />
+              
               <NewFileUploader
                 title="Import Surveillants"
                 description="Importer la liste des surveillants avec leurs informations détaillées"
@@ -127,6 +131,9 @@ const Admin = () => {
             </div>
           </div>
         );
+      
+      case "validation":
+        return <ExamenValidationProcessor />;
       
       case "templates":
         return <TemplateDownloader />;

@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X, Trash2, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X, Trash2, Loader2, Building2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ interface StandardExamenData {
   code_complet_original: string;
   type_detecte: string;
   statut_validation: string;
+  nombre_surveillants_calcule: number;
 }
 
 interface ProcessingResult {
@@ -38,6 +39,11 @@ interface ProcessingResult {
     O: number;
     AUTRES: number;
   };
+}
+
+interface ContrainteAuditoire {
+  auditoire: string;
+  nombre_surveillants_requis: number;
 }
 
 export const StandardExcelImporter = () => {
@@ -52,6 +58,26 @@ export const StandardExcelImporter = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingRow, setEditingRow] = useState<string | null>(null);
   const [editedData, setEditedData] = useState<Partial<StandardExamenData>>({});
+  const [contraintesAuditoires, setContraintesAuditoires] = useState<ContrainteAuditoire[]>([]);
+
+  // Charger les contraintes d'auditoires
+  const loadContraintesAuditoires = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('contraintes_auditoires')
+        .select('auditoire, nombre_surveillants_requis');
+
+      if (error) throw error;
+      setContraintesAuditoires(data || []);
+    } catch (error) {
+      console.error('Erreur chargement contraintes:', error);
+    }
+  };
+
+  const getNombreSurveillants = (auditoire: string): number => {
+    const contrainte = contraintesAuditoires.find(c => c.auditoire === auditoire);
+    return contrainte ? contrainte.nombre_surveillants_requis : 1; // Fallback à 1
+  };
 
   const extraireCodeCours = (activite: string): string => {
     const match = activite.match(/([A-Z]+\d+)/);
@@ -258,6 +284,8 @@ export const StandardExcelImporter = () => {
                 continue;
               }
 
+              const nombreSurveillants = getNombreSurveillants(auditoire);
+
               examensData.push({
                 jour: String(row[0] || '').trim(),
                 duree: duree,
@@ -273,7 +301,8 @@ export const StandardExcelImporter = () => {
                 code_cours_extrait: codeCours,
                 code_complet_original: activite,
                 type_detecte,
-                statut_validation
+                statut_validation,
+                nombre_surveillants_calcule: nombreSurveillants
               });
             }
           }
@@ -435,6 +464,9 @@ export const StandardExcelImporter = () => {
     setParsedData([]);
 
     try {
+      // Charger les contraintes avant de parser
+      await loadContraintesAuditoires();
+      
       const examensData = await parseStandardExcel(file);
       setParsedData(examensData);
       setSelectedItems([]);
@@ -499,7 +531,7 @@ export const StandardExcelImporter = () => {
             heure_debut: validateTimeFormat(examen.heure_debut),
             heure_fin: validateTimeFormat(examen.heure_fin),
             salle: examen.auditoires.trim(),
-            nombre_surveillants: 1,
+            nombre_surveillants: examen.nombre_surveillants_calcule,
             type_requis: 'Assistant',
             statut_validation: examen.statut_validation || 'NON_TRAITE'
           };
@@ -525,7 +557,7 @@ export const StandardExcelImporter = () => {
             code_original: examen.code_complet_original,
             type_detecte: examen.type_detecte,
             statut_validation: examen.statut_validation,
-            commentaire: `Import manuel - Groupes: ${examen.groupes_etudiants || 'N/A'} - Enseignants: ${examen.enseignants || 'N/A'}`
+            commentaire: `Import Excel - Groupes: ${examen.groupes_etudiants || 'N/A'} - Enseignants: ${examen.enseignants || 'N/A'} - Surveillants calculés: ${examen.nombre_surveillants_calcule}`
           };
 
           console.log('📤 Insertion validation:', validationData);
@@ -696,6 +728,7 @@ export const StandardExcelImporter = () => {
       updated.type_detecte = classification.type_detecte;
       updated.statut_validation = classification.statut_validation;
       updated.heure_arrivee_surveillance = calculerHeureArrivee(updated.heure_debut);
+      updated.nombre_surveillants_calcule = getNombreSurveillants(updated.auditoires);
       
       setParsedData(updatedData);
       setEditingRow(null);
@@ -770,7 +803,7 @@ export const StandardExcelImporter = () => {
           <span>Import Excel Standard des Examens</span>
         </CardTitle>
         <CardDescription>
-          Importez le fichier Excel standardisé avec classification automatique et édition en ligne
+          Importez le fichier Excel standardisé avec calcul automatique des surveillants par auditoire
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -795,6 +828,15 @@ export const StandardExcelImporter = () => {
                   onChange={handleFileSelect}
                 />
               </label>
+              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center gap-2 text-blue-800 text-sm">
+                  <Building2 className="h-4 w-4" />
+                  <span className="font-medium">Calcul automatique des surveillants</span>
+                </div>
+                <p className="text-blue-700 text-xs mt-1">
+                  Le nombre de surveillants sera calculé automatiquement selon les contraintes d'auditoires (défaut: 1)
+                </p>
+              </div>
             </div>
           </div>
         )}
@@ -803,7 +845,7 @@ export const StandardExcelImporter = () => {
           <div className="text-center py-8">
             <div className="animate-spin mx-auto w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mb-4"></div>
             <p className="text-sm text-gray-600">
-              Analyse du fichier et classification automatique...
+              Analyse du fichier et calcul des besoins en surveillance...
             </p>
           </div>
         )}
@@ -915,7 +957,7 @@ export const StandardExcelImporter = () => {
                     <th className="p-3 text-left">Arrivée</th>
                     <th className="p-3 text-left">Activité</th>
                     <th className="p-3 text-left">Auditoire</th>
-                    <th className="p-3 text-left">Auditoires Orig.</th>
+                    <th className="p-3 text-left">Nb Surveil.</th>
                     <th className="p-3 text-left">Groupes</th>
                     <th className="p-3 text-left">Enseignants</th>
                   </tr>
@@ -964,7 +1006,11 @@ export const StandardExcelImporter = () => {
                         <td className="p-3 text-blue-600">{examen.heure_arrivee_surveillance}</td>
                         <td className="p-3 max-w-48 truncate">{renderEditableCell(examen, 'activite', actualIndex)}</td>
                         <td className="p-3">{renderEditableCell(examen, 'auditoires', actualIndex)}</td>
-                        <td className="p-3 text-xs bg-gray-50">{examen.auditoires_originaux}</td>
+                        <td className="p-3 text-center">
+                          <Badge variant="outline" className="bg-purple-50 text-purple-800">
+                            {examen.nombre_surveillants_calcule}
+                          </Badge>
+                        </td>
                         <td className="p-3 text-xs">{renderEditableCell(examen, 'groupes_etudiants', actualIndex)}</td>
                         <td className="p-3 text-xs">{renderEditableCell(examen, 'enseignants', actualIndex)}</td>
                       </tr>
@@ -992,48 +1038,12 @@ export const StandardExcelImporter = () => {
         )}
 
         <div className="border-t pt-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Format Excel attendu :</h4>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Calcul automatique des surveillants :</h4>
           <div className="text-xs text-gray-600 space-y-1">
-            <div><strong>Colonne A :</strong> Jour (date de l'examen)</div>
-            <div><strong>Colonne B :</strong> Durée (h) (format: 04h30 ou 4.5)</div>
-            <div><strong>Colonne C :</strong> Début (heure de début examen)</div>
-            <div><strong>Colonne D :</strong> Fin (heure de fin examen)</div>
-            <div><strong>Colonne E :</strong> Activité (contient le code d'examen)</div>
-            <div><strong>Colonne F :</strong> Code (code supplémentaire)</div>
-            <div><strong>Colonne G :</strong> Auditoires (salles séparées par virgules)</div>
-            <div><strong>Colonne H :</strong> Groupes d'étudiants (noms des groupes)</div>
-            <div><strong>Colonne I :</strong> Enseignants (noms des enseignants)</div>
-          </div>
-          
-          <div className="mt-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Horaires de surveillance :</h4>
-            <div className="text-xs text-gray-600 space-y-1">
-              <div>• <strong>Heure d'arrivée :</strong> 45 minutes avant le début de l'examen</div>
-              <div>• <strong>Heure de fin :</strong> Identique à la fin de l'examen</div>
-              <div>• Ces horaires s'adaptent automatiquement si vous modifiez les heures d'examen</div>
-            </div>
-          </div>
-          
-          <div className="mt-4">
-            <h4 className="text-sm font-medium text-gray-700 mb-2">Classification automatique :</h4>
-            <div className="text-xs text-gray-600 space-y-1">
-              <div className="flex items-center gap-2">
-                <Badge className="bg-green-100 text-green-800">Écrit</Badge>
-                <span>Codes se terminant par "=E" (validés automatiquement)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-red-100 text-red-800">Oral</Badge>
-                <span>Codes se terminant par "=O" (rejetés automatiquement)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-orange-100 text-orange-800">Mixte</Badge>
-                <span>Codes contenant "=E+" (nécessitent validation)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className="bg-blue-100 text-blue-800">Autre</Badge>
-                <span>Autres formats (nécessitent validation)</span>
-              </div>
-            </div>
+            <div>• <strong>Basé sur les contraintes d'auditoires :</strong> Le système consulte automatiquement vos contraintes configurées</div>
+            <div>• <strong>Valeur par défaut :</strong> 1 surveillant si l'auditoire n'a pas de contrainte spécifique</div>
+            <div>• <strong>Modifiable :</strong> Vous pouvez ajuster ces valeurs après validation</div>
+            <div>• <strong>Visible dans la colonne :</strong> "Nb Surveil." pour vérification avant validation</div>
           </div>
         </div>
       </CardContent>
