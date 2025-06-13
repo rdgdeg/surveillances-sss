@@ -362,6 +362,7 @@ export type Database = {
           heure_debut: string
           heure_fin: string
           id: string
+          is_active: boolean
           lien_enseignant_token: string | null
           matiere: string
           nombre_surveillants: number
@@ -388,6 +389,7 @@ export type Database = {
           heure_debut: string
           heure_fin: string
           id?: string
+          is_active?: boolean
           lien_enseignant_token?: string | null
           matiere: string
           nombre_surveillants?: number
@@ -414,6 +416,7 @@ export type Database = {
           heure_debut?: string
           heure_fin?: string
           id?: string
+          is_active?: boolean
           lien_enseignant_token?: string | null
           matiere?: string
           nombre_surveillants?: number

@@ -1,29 +1,22 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { 
-  Users, 
-  FileSpreadsheet, 
+  Home, 
+  FileText, 
+  CheckCircle, 
   Calendar, 
+  Users, 
   Settings, 
-  BarChart3, 
-  Shield, 
-  UserCheck, 
-  ClipboardList, 
-  AlertTriangle, 
-  Database, 
-  Eye, 
+  UserPlus, 
+  Clock,
   History,
-  FileText,
-  Home,
-  ChevronLeft,
+  Eye,
+  ChevronDown,
   ChevronRight
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface AdminSidebarProps {
   activeView: string;
@@ -31,317 +24,138 @@ interface AdminSidebarProps {
 }
 
 export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expandedSections, setExpandedSections] = useState<string[]>(['examens']);
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => 
+      prev.includes(section) 
+        ? prev.filter(s => s !== section)
+        : [...prev, section]
+    );
+  };
 
   const menuItems = [
     {
       id: "dashboard",
-      label: "Dashboard",
-      icon: BarChart3,
-      description: "Vue d'ensemble"
+      label: "Tableau de bord",
+      icon: Home,
+      type: "single"
     },
     {
-      category: "Import & Validation",
-      items: [
-        {
-          id: "import",
-          label: "Import de données",
-          icon: FileSpreadsheet,
-          description: "Importer fichiers CSV/Excel"
-        },
-        {
-          id: "validation",
-          label: "Validation",
-          icon: Shield,
-          description: "Validation des données"
-        },
-        {
-          id: "examens-workflow",
-          label: "Workflow Examens",
-          icon: FileText,
-          description: "Gestion workflow examens"
-        },
-        {
-          id: "templates",
-          label: "Modèles",
-          icon: FileSpreadsheet,
-          description: "Télécharger modèles"
-        }
+      id: "examens",
+      label: "Gestion des Examens",
+      icon: FileText,
+      type: "section",
+      children: [
+        { id: "examens", label: "Import & Révision", icon: FileText },
+        { id: "validation", label: "Workflow de Validation", icon: CheckCircle },
+        { id: "enseignant-view", label: "Vue Enseignant", icon: Eye }
       ]
     },
     {
-      category: "Gestion Surveillants",
-      items: [
-        {
-          id: "surveillants",
-          label: "Liste Surveillants",
-          icon: Users,
-          description: "Édition des surveillants"
-        },
-        {
-          id: "surveillants-manager",
-          label: "Gestion Surveillants",
-          icon: UserCheck,
-          description: "Gestion avancée"
-        },
-        {
-          id: "disponibilites",
-          label: "Disponibilités",
-          icon: Calendar,
-          description: "Matrice des disponibilités"
-        }
-      ]
+      id: "planning",
+      label: "Planning & Attribution",
+      icon: Calendar,
+      type: "single"
     },
     {
-      category: "Planning & Attribution",
-      items: [
-        {
-          id: "planning",
-          label: "Planning",
-          icon: Calendar,
-          description: "Vue planning"
-        },
-        {
-          id: "soldes",
-          label: "Soldes",
-          icon: BarChart3,
-          description: "Soldes des surveillants"
-        },
-        {
-          id: "assignment",
-          label: "Attribution intelligente",
-          icon: Shield,
-          description: "Moteur d'attribution"
-        }
-      ]
+      id: "surveillants",
+      label: "Gestion Surveillants",
+      icon: Users,
+      type: "single"
     },
     {
-      category: "Examens",
-      items: [
-        {
-          id: "examens",
-          label: "Révision Examens",
-          icon: ClipboardList,
-          description: "Gestion des examens"
-        },
-        {
-          id: "examens-advanced",
-          label: "Examens Avancé",
-          icon: Settings,
-          description: "Gestion avancée examens"
-        }
-      ]
+      id: "contraintes",
+      label: "Contraintes Auditoires",
+      icon: Settings,
+      type: "single"
     },
     {
-      category: "Candidatures",
-      items: [
-        {
-          id: "candidats",
-          label: "Candidats",
-          icon: Users,
-          description: "Surveillance candidats"
-        },
-        {
-          id: "candidatures",
-          label: "Candidatures",
-          icon: UserCheck,
-          description: "Gestion candidatures"
-        },
-        {
-          id: "pre-assignment",
-          label: "Pré-assignation",
-          icon: Shield,
-          description: "Gestion pré-assignations"
-        }
-      ]
+      id: "candidatures",
+      label: "Candidatures",
+      icon: UserPlus,
+      type: "single"
     },
     {
-      category: "Contraintes & Salles",
-      items: [
-        {
-          id: "contraintes",
-          label: "Contraintes Auditoires",
-          icon: AlertTriangle,
-          description: "Gestion contraintes"
-        },
-        {
-          id: "contraintes-salles",
-          label: "Contraintes Salles",
-          icon: Settings,
-          description: "Contraintes par salle"
-        }
-      ]
+      id: "disponibilites",
+      label: "Collecte Disponibilités",
+      icon: Clock,
+      type: "single"
     },
     {
-      category: "Données & Historique",
-      items: [
-        {
-          id: "consistency",
-          label: "Cohérence Données",
-          icon: Database,
-          description: "Vérification cohérence"
-        },
-        {
-          id: "sensitive",
-          label: "Données Sensibles",
-          icon: Eye,
-          description: "Gestion données sensibles"
-        },
-        {
-          id: "history",
-          label: "Historique",
-          icon: History,
-          description: "Historique surveillance"
-        },
-        {
-          id: "historique-complet",
-          label: "Historique Complet",
-          icon: History,
-          description: "Historique complet"
-        },
-        {
-          id: "changements",
-          label: "Demandes Changement",
-          icon: AlertTriangle,
-          description: "Gestion changements"
-        }
-      ]
+      id: "historique",
+      label: "Historique",
+      icon: History,
+      type: "single"
+    },
+    {
+      id: "donnees-sensibles",
+      label: "Données Sensibles",
+      icon: Eye,
+      type: "single"
     }
   ];
 
-  const handleHomeClick = () => {
-    window.location.href = '/';
+  const renderMenuItem = (item: any) => {
+    if (item.type === "section") {
+      const isExpanded = expandedSections.includes(item.id);
+      return (
+        <div key={item.id} className="space-y-1">
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-left"
+            onClick={() => toggleSection(item.id)}
+          >
+            <item.icon className="mr-2 h-4 w-4" />
+            {item.label}
+            {isExpanded ? (
+              <ChevronDown className="ml-auto h-4 w-4" />
+            ) : (
+              <ChevronRight className="ml-auto h-4 w-4" />
+            )}
+          </Button>
+          {isExpanded && (
+            <div className="ml-4 space-y-1">
+              {item.children.map((child: any) => (
+                <Button
+                  key={child.id}
+                  variant={activeView === child.id ? "secondary" : "ghost"}
+                  className="w-full justify-start text-left text-sm"
+                  onClick={() => onViewChange(child.id)}
+                >
+                  <child.icon className="mr-2 h-3 w-3" />
+                  {child.label}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <Button
+        key={item.id}
+        variant={activeView === item.id ? "secondary" : "ghost"}
+        className="w-full justify-start"
+        onClick={() => onViewChange(item.id)}
+      >
+        <item.icon className="mr-2 h-4 w-4" />
+        {item.label}
+      </Button>
+    );
   };
 
   return (
-    <div className={cn(
-      "bg-white border-r border-gray-200 transition-all duration-300",
-      isCollapsed ? "w-16" : "w-80"
-    )}>
-      <div className="p-4 border-b">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="space-y-2 flex-1 mr-3">
-              <h2 className="text-lg font-semibold text-gray-900">Administration</h2>
-              <Button
-                onClick={handleHomeClick}
-                variant="outline"
-                size="sm"
-                className="w-full justify-start"
-              >
-                <Home className="h-4 w-4 mr-2" />
-                Retour à l'accueil
-              </Button>
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="shrink-0"
-          >
-            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </Button>
-        </div>
-        {isCollapsed && (
-          <Button
-            onClick={handleHomeClick}
-            variant="ghost"
-            size="sm"
-            className="w-full mt-2 p-2"
-            title="Retour à l'accueil"
-          >
-            <Home className="h-4 w-4" />
-          </Button>
-        )}
+    <div className="w-64 bg-white border-r">
+      <div className="p-4">
+        <h2 className="text-lg font-semibold">Administration</h2>
       </div>
-      
-      <ScrollArea className="h-[calc(100vh-120px)]">
-        <div className="p-4 space-y-4">
-          {menuItems.map((section, index) => (
-            <div key={index}>
-              {section.category ? (
-                <div>
-                  {!isCollapsed && (
-                    <h3 className="text-sm font-medium text-gray-500 mb-2 px-2">
-                      {section.category}
-                    </h3>
-                  )}
-                  <div className="space-y-1">
-                    {section.items?.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = activeView === item.id;
-                      
-                      return (
-                        <Button
-                          key={item.id}
-                          variant={isActive ? "default" : "ghost"}
-                          size="sm"
-                          onClick={() => onViewChange(item.id)}
-                          className={cn(
-                            "w-full justify-start text-left",
-                            isCollapsed ? "px-2" : "px-3",
-                            isActive && "bg-primary text-primary-foreground"
-                          )}
-                          title={isCollapsed ? item.label : undefined}
-                        >
-                          <Icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
-                          {!isCollapsed && (
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium">{item.label}</div>
-                              <div className="text-xs text-muted-foreground truncate">
-                                {item.description}
-                              </div>
-                            </div>
-                          )}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  {/* Single item section (like dashboard) */}
-                  <div className="space-y-1">
-                    {(() => {
-                      const Icon = section.icon;
-                      const isActive = activeView === section.id;
-                      
-                      return (
-                        <Button
-                          key={section.id}
-                          variant={isActive ? "default" : "ghost"}
-                          size="sm"
-                          onClick={() => onViewChange(section.id)}
-                          className={cn(
-                            "w-full justify-start text-left",
-                            isCollapsed ? "px-2" : "px-3",
-                            isActive && "bg-primary text-primary-foreground"
-                          )}
-                          title={isCollapsed ? section.label : undefined}
-                        >
-                          <Icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
-                          {!isCollapsed && (
-                            <div className="flex-1 min-w-0">
-                              <div className="font-medium">{section.label}</div>
-                              <div className="text-xs text-muted-foreground truncate">
-                                {section.description}
-                              </div>
-                            </div>
-                          )}
-                        </Button>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-              
-              {index < menuItems.length - 1 && !isCollapsed && (
-                <Separator className="my-4" />
-              )}
-            </div>
-          ))}
-        </div>
+      <Separator />
+      <ScrollArea className="flex-1 p-4">
+        <nav className="space-y-2">
+          {menuItems.map(renderMenuItem)}
+        </nav>
       </ScrollArea>
     </div>
   );

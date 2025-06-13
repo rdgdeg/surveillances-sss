@@ -11,6 +11,7 @@ import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
 import { CandidaturesManager } from "@/components/CandidaturesManager";
 import { CollecteDisponibilites } from "@/components/CollecteDisponibilites";
 import SurveillanceHistory from "@/components/SurveillanceHistory";
+import { EnseignantViewManager } from "@/components/EnseignantViewManager";
 
 type ActiveTab = 
   | "dashboard" 
@@ -22,7 +23,8 @@ type ActiveTab =
   | "candidatures" 
   | "disponibilites" 
   | "historique"
-  | "donnees-sensibles";
+  | "donnees-sensibles"
+  | "enseignant-view";
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
@@ -40,6 +42,8 @@ const Admin = () => {
         return <ExamenReviewManager />;
       case "validation":
         return <ExamenWorkflowManager />;
+      case "enseignant-view":
+        return <EnseignantViewManager />;
       case "planning":
         return <NewPlanningView />;
       case "surveillants":

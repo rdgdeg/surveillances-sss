@@ -1,4 +1,3 @@
-
 export interface ExamenReview {
   id: string;
   code_examen: string;
@@ -14,6 +13,7 @@ export interface ExamenReview {
   surveillants_a_attribuer: number;
   type_requis: string;
   statut_validation: string;
+  is_active: boolean;
 }
 
 export interface ContrainteAuditoire {

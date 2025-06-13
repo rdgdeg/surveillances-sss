@@ -22,6 +22,7 @@ export const useExamenReview = () => {
         .select('*')
         .eq('session_id', activeSession.id)
         .eq('statut_validation', 'NON_TRAITE')
+        .eq('is_active', true) // Seulement les examens actifs
         .order('date_examen', { ascending: true })
         .order('heure_debut', { ascending: true })
         .order('code_examen', { ascending: true });
@@ -107,6 +108,7 @@ export const useExamenReview = () => {
     },
     onSuccess: (_, groupes) => {
       queryClient.invalidateQueries({ queryKey: ['examens-review'] });
+      queryClient.invalidateQueries({ queryKey: ['examens-valides'] });
       setSelectedGroupes(new Set());
       toast({
         title: "Examens validés",
@@ -166,6 +168,34 @@ export const useExamenReview = () => {
     }
   });
 
+  const toggleExamenActiveMutation = useMutation({
+    mutationFn: async ({ examenId, isActive }: { examenId: string; isActive: boolean }) => {
+      const { error } = await supabase
+        .from('examens')
+        .update({ is_active: isActive })
+        .eq('id', examenId);
+
+      if (error) throw error;
+    },
+    onSuccess: (_, { isActive }) => {
+      queryClient.invalidateQueries({ queryKey: ['examens-review'] });
+      queryClient.invalidateQueries({ queryKey: ['examens-valides'] });
+      toast({
+        title: isActive ? "Examen activé" : "Examen désactivé",
+        description: isActive 
+          ? "L'examen est maintenant actif et peut être attribué."
+          : "L'examen est désactivé et ne sera pas attribué.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de modifier le statut de l'examen.",
+        variant: "destructive"
+      });
+    }
+  });
+
   return {
     examens,
     contraintesAuditoires,
@@ -177,6 +207,7 @@ export const useExamenReview = () => {
     updateExamenMutation,
     validateExamensMutation,
     applquerContraintesAuditoiresMutation,
+    toggleExamenActiveMutation,
     activeSession
   };
 };

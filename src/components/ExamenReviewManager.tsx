@@ -1,12 +1,14 @@
 
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClipboardList, Upload } from "lucide-react";
 import { DeleteAllExamensButton } from "@/components/DeleteAllExamensButton";
 import { ExamenReviewFilters } from "@/components/ExamenReviewFilters";
 import { ExamenReviewActions } from "@/components/ExamenReviewActions";
 import { ExamenReviewTable } from "@/components/ExamenReviewTable";
 import { ExamenReviewStats } from "@/components/ExamenReviewStats";
+import { ExamenImportSection } from "@/components/ExamenImportSection";
 import { useExamenReview } from "@/hooks/useExamenReview";
 import { 
   groupExamens, 
@@ -169,78 +171,96 @@ export const ExamenReviewManager = () => {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center space-x-2">
-                <ClipboardList className="h-5 w-5" />
-                <span>Révision des Besoins par Auditoire</span>
-              </CardTitle>
-              <CardDescription>
-                Configurez les besoins en surveillance pour chaque examen et auditoire (groupés par similarité)
-              </CardDescription>
-            </div>
-            <DeleteAllExamensButton />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ExamenReviewActions
-            selectedCount={selectedGroupes.size}
-            totalCount={filteredExamens.length}
-            onSelectAll={handleSelectAll}
-            onApplyConstraints={() => applquerContraintesAuditoiresMutation.mutate()}
-            onValidateSelected={handleValidateSelected}
-            isApplyingConstraints={applquerContraintesAuditoiresMutation.isPending}
-            isValidating={validateExamensMutation.isPending}
-            hasConstraints={!!contraintesAuditoires}
-          />
+      <Tabs defaultValue="import" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="import" className="flex items-center space-x-2">
+            <Upload className="h-4 w-4" />
+            <span>Import</span>
+          </TabsTrigger>
+          <TabsTrigger value="review" className="flex items-center space-x-2">
+            <ClipboardList className="h-4 w-4" />
+            <span>Révision</span>
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="import" className="space-y-4">
+          <ExamenImportSection />
+        </TabsContent>
+        
+        <TabsContent value="review" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center space-x-2">
+                    <ClipboardList className="h-5 w-5" />
+                    <span>Révision des Besoins par Auditoire</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Configurez les besoins en surveillance pour chaque examen et auditoire (groupés par similarité)
+                  </CardDescription>
+                </div>
+                <DeleteAllExamensButton />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <ExamenReviewActions
+                selectedCount={selectedGroupes.size}
+                totalCount={filteredExamens.length}
+                onSelectAll={handleSelectAll}
+                onApplyConstraints={() => applquerContraintesAuditoiresMutation.mutate()}
+                onValidateSelected={handleValidateSelected}
+                isApplyingConstraints={applquerContraintesAuditoiresMutation.isPending}
+                isValidating={validateExamensMutation.isPending}
+                hasConstraints={!!contraintesAuditoires}
+              />
 
-          <ExamenReviewFilters
-            searchTerm={searchTerm}
-            onSearchChange={handleSearchChange}
-            searchSuggestions={searchSuggestions}
-            showSuggestions={showSuggestions}
-            onSelectSuggestion={selectSuggestion}
-            onSuggestionsVisibilityChange={setShowSuggestions}
-          />
+              <ExamenReviewFilters
+                searchTerm={searchTerm}
+                onSearchChange={handleSearchChange}
+                searchSuggestions={searchSuggestions}
+                showSuggestions={showSuggestions}
+                onSelectSuggestion={selectSuggestion}
+                onSuggestionsVisibilityChange={setShowSuggestions}
+              />
 
-          {/* Information sur les statuts NON_TRAITE */}
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-medium text-blue-800 mb-2">À propos du statut "NON_TRAITE"</h4>
-            <p className="text-sm text-blue-700">
-              Les examens apparaissent comme "NON_TRAITE" car ils n'ont pas encore été validés dans le processus de validation des examens. 
-              Une fois validés, ils passeront automatiquement au statut "VALIDE" et pourront être utilisés pour l'attribution des surveillants.
-            </p>
-          </div>
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-medium text-blue-800 mb-2">À propos du statut "NON_TRAITE"</h4>
+                <p className="text-sm text-blue-700">
+                  Les examens apparaissent comme "NON_TRAITE" car ils n'ont pas encore été validés dans le processus de validation des examens. 
+                  Une fois validés, ils passeront automatiquement au statut "VALIDE" et pourront être utilisés pour l'attribution des surveillants.
+                </p>
+              </div>
 
-          <ExamenReviewTable
-            examens={filteredExamens}
-            selectedGroupes={selectedGroupes}
-            editingExamens={editingExamens}
-            contraintes={contraintesAuditoires || []}
-            onSelectGroupe={handleSelectGroupe}
-            onFieldChange={handleFieldChange}
-            onSaveGroupe={handleSaveGroupe}
-            onValidateGroupe={handleValidateGroupe}
-            isSaving={updateExamenMutation.isPending}
-            isValidating={validateExamensMutation.isPending}
-            getFieldValue={getFieldValue}
-            getContrainteUnifiee={getContrainteUnifiee}
-          />
+              <ExamenReviewTable
+                examens={filteredExamens}
+                selectedGroupes={selectedGroupes}
+                editingExamens={editingExamens}
+                contraintes={contraintesAuditoires || []}
+                onSelectGroupe={handleSelectGroupe}
+                onFieldChange={handleFieldChange}
+                onSaveGroupe={handleSaveGroupe}
+                onValidateGroupe={handleValidateGroupe}
+                isSaving={updateExamenMutation.isPending}
+                isValidating={validateExamensMutation.isPending}
+                getFieldValue={getFieldValue}
+                getContrainteUnifiee={getContrainteUnifiee}
+              />
 
-          {filteredExamens && filteredExamens.length > 0 && (
-            <ExamenReviewStats
-              filteredCount={filteredExamens.length}
-              totalCount={examensGroupes?.length}
-              searchTerm={searchTerm}
-              totalToAssign={stats.totalToAssign}
-              uniqueAuditoires={stats.uniqueAuditoires}
-              uniqueDays={stats.uniqueDays}
-            />
-          )}
-        </CardContent>
-      </Card>
+              {filteredExamens && filteredExamens.length > 0 && (
+                <ExamenReviewStats
+                  filteredCount={filteredExamens.length}
+                  totalCount={examensGroupes?.length}
+                  searchTerm={searchTerm}
+                  totalToAssign={stats.totalToAssign}
+                  uniqueAuditoires={stats.uniqueAuditoires}
+                  uniqueDays={stats.uniqueDays}
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
