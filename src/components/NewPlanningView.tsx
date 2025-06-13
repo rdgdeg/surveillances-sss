@@ -1,14 +1,14 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Users, Filter, Search } from "lucide-react";
+import { Calendar, Clock, Users, Filter } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
+import { DeleteAllExamensButton } from "@/components/DeleteAllExamensButton";
 
 export const NewPlanningView = () => {
   const [selectedDate, setSelectedDate] = useState("");
@@ -152,13 +152,18 @@ export const NewPlanningView = () => {
       {/* Filtres et recherche */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Calendar className="h-5 w-5" />
-            <span>Planning des Examens - {activeSession.name}</span>
-          </CardTitle>
-          <CardDescription>
-            Vue d'ensemble et gestion des attributions de surveillances
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center space-x-2">
+                <Calendar className="h-5 w-5" />
+                <span>Planning des Examens - {activeSession.name}</span>
+              </CardTitle>
+              <CardDescription>
+                Vue d'ensemble et gestion des attributions de surveillances
+              </CardDescription>
+            </div>
+            <DeleteAllExamensButton />
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-4">
