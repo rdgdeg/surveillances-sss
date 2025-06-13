@@ -551,7 +551,11 @@ export type Database = {
       }
       surveillants: {
         Row: {
+          affectation_fac: string | null
+          campus: string | null
           created_at: string
+          date_fin_contrat: string | null
+          eft: number | null
           email: string
           faculte_interdite: string | null
           id: string
@@ -559,11 +563,16 @@ export type Database = {
           prenom: string
           statut: string
           telephone: string | null
+          telephone_gsm: string | null
           type: string
           updated_at: string
         }
         Insert: {
+          affectation_fac?: string | null
+          campus?: string | null
           created_at?: string
+          date_fin_contrat?: string | null
+          eft?: number | null
           email: string
           faculte_interdite?: string | null
           id?: string
@@ -571,11 +580,16 @@ export type Database = {
           prenom: string
           statut?: string
           telephone?: string | null
+          telephone_gsm?: string | null
           type: string
           updated_at?: string
         }
         Update: {
+          affectation_fac?: string | null
+          campus?: string | null
           created_at?: string
+          date_fin_contrat?: string | null
+          eft?: number | null
           email?: string
           faculte_interdite?: string | null
           id?: string
@@ -583,6 +597,7 @@ export type Database = {
           prenom?: string
           statut?: string
           telephone?: string | null
+          telephone_gsm?: string | null
           type?: string
           updated_at?: string
         }

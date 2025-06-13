@@ -1,9 +1,8 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Upload, CheckCircle, FileSpreadsheet, X, AlertCircle } from "lucide-react";
+import { Upload, CheckCircle, FileSpreadsheet, X, AlertCircle, Shield } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
@@ -53,37 +52,75 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
   };
 
   const processSurveillants = async (headers: string[], rows: string[][], sessionId: string) => {
-    const surveillants = rows.map(row => ({
-      nom: row[0],
-      prenom: row[1],
-      email: row[2],
-      type: row[3],
-      statut: row[4] || 'actif'
-    }));
+    let processed = 0;
+    let excluded = 0;
 
-    // Insert or update surveillants
-    for (const surveillant of surveillants) {
+    for (const row of rows) {
+      const surveillantData: any = {
+        nom: row[0],
+        prenom: row[1],
+        email: row[2],
+        type: row[3],
+        statut: row[4] || 'actif',
+        faculte_interdite: row[5] || null
+      };
+
+      // Ajouter les nouvelles colonnes sensibles si présentes
+      if (row.length > 6) {
+        surveillantData.eft = row[6] ? parseFloat(row[6]) : null;
+        surveillantData.affectation_fac = row[7] || null;
+        surveillantData.date_fin_contrat = row[8] || null;
+        surveillantData.telephone_gsm = row[9] || null;
+        surveillantData.campus = row[10] || null;
+      }
+
+      // Vérifier si c'est un surveillant FSM (à exclure)
+      if (surveillantData.affectation_fac?.toUpperCase().includes('FSM')) {
+        console.log(`Exclusion surveillant FSM: ${surveillantData.email}`);
+        excluded++;
+        continue;
+      }
+
+      // Vérifier la validité du contrat
+      if (surveillantData.date_fin_contrat) {
+        const endDate = new Date(surveillantData.date_fin_contrat);
+        const today = new Date();
+        if (endDate <= today) {
+          console.log(`Exclusion contrat expiré: ${surveillantData.email}`);
+          excluded++;
+          continue;
+        }
+      }
+
+      // Insert or update surveillant
       const { data: existing } = await supabase
         .from('surveillants')
         .select('id')
-        .eq('email', surveillant.email)
+        .eq('email', surveillantData.email)
         .single();
 
       if (existing) {
         await supabase
           .from('surveillants')
-          .update(surveillant)
-          .eq('email', surveillant.email);
+          .update(surveillantData)
+          .eq('email', surveillantData.email);
       } else {
         const { data: newSurveillant } = await supabase
           .from('surveillants')
-          .insert(surveillant)
+          .insert(surveillantData)
           .select('id')
           .single();
 
-        // Add to current session with default quota
+        // Add to current session with adjusted quota based on EFT
         if (newSurveillant) {
-          const defaultQuota = surveillant.type === 'PAT' ? 12 : 6;
+          let defaultQuota = surveillantData.type === 'PAT' ? 12 : 6;
+          
+          // Ajuster le quota selon l'EFT
+          if (surveillantData.eft && surveillantData.eft > 0) {
+            defaultQuota = Math.round(defaultQuota * surveillantData.eft);
+            defaultQuota = Math.max(1, defaultQuota); // Minimum 1
+          }
+
           await supabase
             .from('surveillant_sessions')
             .insert({
@@ -93,9 +130,15 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
             });
         }
       }
+      processed++;
     }
 
-    return { processed: surveillants.length, type: 'surveillants' };
+    return { 
+      processed, 
+      type: 'surveillants',
+      excluded,
+      message: excluded > 0 ? `${processed} importés, ${excluded} exclus (FSM ou contrat expiré)` : undefined
+    };
   };
 
   const processExamens = async (headers: string[], rows: string[][], sessionId: string) => {
@@ -210,7 +253,8 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
       
       toast({
         title: "Import réussi",
-        description: `${result.processed} ${result.type} importé(s) avec succès.`,
+        description: result.message || `${result.processed} ${result.type} importé(s) avec succès.`,
+        variant: result.excluded && result.excluded > 0 ? "default" : "default"
       });
       
       onUpload(true);
@@ -251,19 +295,27 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
     onUpload(false);
   };
 
+  const isSensitiveFileType = fileType === 'surveillants';
+
   return (
-    <Card className={`transition-all duration-200 ${uploaded ? 'border-green-200 bg-green-50' : isDragOver ? 'border-blue-300 bg-blue-50' : ''}`}>
+    <Card className={`transition-all duration-200 ${uploaded ? 'border-green-200 bg-green-50' : isDragOver ? 'border-blue-300 bg-blue-50' : ''} ${isSensitiveFileType ? 'border-l-4 border-l-red-500' : ''}`}>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <FileSpreadsheet className="h-5 w-5" />
             <span>{title}</span>
+            {isSensitiveFileType && (
+              <Shield className="h-4 w-4 text-red-600" title="Contient des données sensibles" />
+            )}
           </div>
           {uploaded && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={resetUpload}
+              onClick={() => {
+                setFileName("");
+                onUpload(false);
+              }}
               className="text-gray-500 hover:text-gray-700"
             >
               <X className="h-4 w-4" />
@@ -280,6 +332,16 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
           </div>
         )}
 
+        {isSensitiveFileType && (
+          <div className="flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <Shield className="h-5 w-5 text-red-600" />
+            <div className="text-red-800 text-sm">
+              <p className="font-medium">Données sensibles incluses :</p>
+              <p className="text-xs mt-1">EFT, affectations, contrats, GSM - Exclusion automatique FSM</p>
+            </div>
+          </div>
+        )}
+
         {!uploaded ? (
           <div
             className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
@@ -293,7 +355,15 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
               e.preventDefault();
               setIsDragOver(false);
             }}
-            onDrop={handleDrop}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              
+              const file = e.dataTransfer.files[0];
+              if (file) {
+                handleFileUpload(file);
+              }
+            }}
           >
             {isUploading ? (
               <div className="space-y-2">
@@ -318,7 +388,13 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
                       type="file"
                       className="hidden"
                       accept=".csv"
-                      onChange={handleFileSelect}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleFileUpload(file);
+                        }
+                        e.target.value = '';
+                      }}
                       disabled={!activeSession}
                     />
                   </label>
@@ -345,7 +421,15 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
           <h4 className="text-sm font-medium text-gray-700 mb-2">Format attendu :</h4>
           <div className="flex flex-wrap gap-1">
             {expectedFormat.map((column, index) => (
-              <Badge key={index} variant="secondary" className="text-xs">
+              <Badge 
+                key={index} 
+                variant="secondary" 
+                className={`text-xs ${
+                  ['eft', 'affectation_fac', 'date_fin_contrat', 'telephone_gsm', 'campus'].includes(column) 
+                    ? 'bg-red-100 text-red-800 border-red-300' 
+                    : ''
+                }`}
+              >
                 {column}
               </Badge>
             ))}

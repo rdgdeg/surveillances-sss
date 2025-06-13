@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
+import { useSurveillantSensitiveData } from "@/hooks/useSurveillantSensitiveData";
+import { SensitiveDataManager } from "./SensitiveDataManager";
 import { supabase } from "@/integrations/supabase/client";
-import { Edit, Save, X, Users } from "lucide-react";
+import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin } from "lucide-react";
 
 interface SurveillantData {
   id: string;
@@ -22,6 +24,12 @@ interface SurveillantData {
   quota: number;
   is_active: boolean;
   sessions_imposees: number;
+  // Nouvelles colonnes sensibles
+  eft: number | null;
+  affectation_fac: string | null;
+  date_fin_contrat: string | null;
+  telephone_gsm: string | null;
+  campus: string | null;
 }
 
 export const SurveillantListEditor = () => {
@@ -30,6 +38,14 @@ export const SurveillantListEditor = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { data: activeSession } = useActiveSession();
+  const {
+    showSensitiveData,
+    setShowSensitiveData,
+    shouldExcludeFromAssignment,
+    isContractExpiringSoon,
+    calculateAdjustedQuota,
+    formatSensitiveDisplay
+  } = useSurveillantSensitiveData();
 
   useEffect(() => {
     if (activeSession) {
@@ -45,6 +61,7 @@ export const SurveillantListEditor = () => {
         .from('surveillants')
         .select(`
           id, nom, prenom, email, type, faculte_interdite,
+          eft, affectation_fac, date_fin_contrat, telephone_gsm, campus,
           surveillant_sessions!inner(quota, is_active, sessions_imposees)
         `)
         .eq('surveillant_sessions.session_id', activeSession.id)
@@ -60,6 +77,11 @@ export const SurveillantListEditor = () => {
         email: s.email,
         type: s.type,
         faculte_interdite: s.faculte_interdite,
+        eft: s.eft,
+        affectation_fac: s.affectation_fac,
+        date_fin_contrat: s.date_fin_contrat,
+        telephone_gsm: s.telephone_gsm,
+        campus: s.campus,
         quota: s.surveillant_sessions[0]?.quota || 6,
         is_active: s.surveillant_sessions[0]?.is_active || false,
         sessions_imposees: s.surveillant_sessions[0]?.sessions_imposees || 0
@@ -88,6 +110,11 @@ export const SurveillantListEditor = () => {
       if (updatedData.email !== undefined) surveillantUpdates.email = updatedData.email;
       if (updatedData.type !== undefined) surveillantUpdates.type = updatedData.type;
       if (updatedData.faculte_interdite !== undefined) surveillantUpdates.faculte_interdite = updatedData.faculte_interdite;
+      if (updatedData.eft !== undefined) surveillantUpdates.eft = updatedData.eft;
+      if (updatedData.affectation_fac !== undefined) surveillantUpdates.affectation_fac = updatedData.affectation_fac;
+      if (updatedData.date_fin_contrat !== undefined) surveillantUpdates.date_fin_contrat = updatedData.date_fin_contrat;
+      if (updatedData.telephone_gsm !== undefined) surveillantUpdates.telephone_gsm = updatedData.telephone_gsm;
+      if (updatedData.campus !== undefined) surveillantUpdates.campus = updatedData.campus;
 
       if (Object.keys(surveillantUpdates).length > 0) {
         const { error: surveillantError } = await supabase
@@ -156,7 +183,7 @@ export const SurveillantListEditor = () => {
   }: { 
     value: any, 
     onSave: (value: any) => void, 
-    type?: "text" | "number" | "select" | "switch",
+    type?: "text" | "number" | "date" | "select" | "switch",
     options?: { value: string, label: string }[]
   }) => {
     const [editValue, setEditValue] = useState(value);
@@ -202,7 +229,7 @@ export const SurveillantListEditor = () => {
         <Input
           type={type}
           value={editValue}
-          onChange={(e) => setEditValue(type === "number" ? parseInt(e.target.value) || 0 : e.target.value)}
+          onChange={(e) => setEditValue(type === "number" ? parseFloat(e.target.value) || 0 : e.target.value)}
           className="min-w-[120px]"
         />
         <Button size="sm" onClick={handleSaveClick}>
@@ -232,6 +259,27 @@ export const SurveillantListEditor = () => {
     { value: "Autre", label: "Autre" }
   ];
 
+  const affectationOptions = [
+    { value: "", label: "Non renseigné" },
+    { value: "FASB", label: "FASB" },
+    { value: "EPL", label: "EPL" },
+    { value: "FIAL", label: "FIAL" },
+    { value: "PSSP", label: "PSSP" },
+    { value: "ESPO", label: "ESPO" },
+    { value: "FLTR", label: "FLTR" },
+    { value: "TECO", label: "TECO" },
+    { value: "FSM", label: "FSM (exclu)" }
+  ];
+
+  const campusOptions = [
+    { value: "", label: "Non renseigné" },
+    { value: "Louvain-la-Neuve", label: "Louvain-la-Neuve" },
+    { value: "Woluwe", label: "Woluwe" },
+    { value: "Mons", label: "Mons" },
+    { value: "Tournai", label: "Tournai" },
+    { value: "Charleroi", label: "Charleroi" }
+  ];
+
   if (loading) {
     return (
       <Card>
@@ -254,191 +302,352 @@ export const SurveillantListEditor = () => {
     );
   }
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Users className="h-5 w-5" />
-          <span>Éditeur de Liste des Surveillants</span>
-        </CardTitle>
-        <CardDescription>
-          Modifiez les informations, quotas et statuts des surveillants avant l'attribution.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              {surveillants.length} surveillant(s) dans la session active
-            </div>
-            <div className="flex items-center space-x-2">
-              <Badge variant="outline" className="text-green-600">
-                {surveillants.filter(s => s.is_active).length} Actifs
-              </Badge>
-              <Badge variant="outline" className="text-gray-600">
-                {surveillants.filter(s => !s.is_active).length} Inactifs
-              </Badge>
-            </div>
-          </div>
+  const excludedSurvaillants = surveillants.filter(s => 
+    shouldExcludeFromAssignment({ 
+      affectation_fac: s.affectation_fac, 
+      date_fin_contrat: s.date_fin_contrat, 
+      statut: 'actif' 
+    }).exclude
+  );
 
-          <div className="border rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>Prénom</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Faculté interdite</TableHead>
-                  <TableHead>Quota</TableHead>
-                  <TableHead>Sessions imposées</TableHead>
-                  <TableHead>Actif</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {surveillants.map((surveillant) => (
-                  <TableRow key={surveillant.id}>
-                    <TableCell>
-                      {editingId === surveillant.id ? (
-                        <EditableCell
-                          value={surveillant.nom}
-                          onSave={(value) => setSurvaillants(prev => 
-                            prev.map(s => s.id === surveillant.id ? { ...s, nom: value } : s)
-                          )}
-                        />
-                      ) : (
-                        surveillant.nom
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === surveillant.id ? (
-                        <EditableCell
-                          value={surveillant.prenom}
-                          onSave={(value) => setSurvaillants(prev => 
-                            prev.map(s => s.id === surveillant.id ? { ...s, prenom: value } : s)
-                          )}
-                        />
-                      ) : (
-                        surveillant.prenom
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {editingId === surveillant.id ? (
-                        <EditableCell
-                          value={surveillant.email}
-                          onSave={(value) => setSurvaillants(prev => 
-                            prev.map(s => s.id === surveillant.id ? { ...s, email: value } : s)
-                          )}
-                        />
-                      ) : (
-                        surveillant.email
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === surveillant.id ? (
-                        <EditableCell
-                          value={surveillant.type}
-                          type="select"
-                          options={typeOptions}
-                          onSave={(value) => setSurvaillants(prev => 
-                            prev.map(s => s.id === surveillant.id ? { ...s, type: value } : s)
-                          )}
-                        />
-                      ) : (
-                        <Badge variant="outline">{surveillant.type}</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === surveillant.id ? (
-                        <EditableCell
-                          value={surveillant.faculte_interdite || ""}
-                          type="select"
-                          options={faculteOptions}
-                          onSave={(value) => setSurvaillants(prev => 
-                            prev.map(s => s.id === surveillant.id ? { ...s, faculte_interdite: value || null } : s)
-                          )}
-                        />
-                      ) : (
-                        surveillant.faculte_interdite ? (
-                          <Badge variant="destructive">{surveillant.faculte_interdite}</Badge>
-                        ) : (
-                          <span className="text-gray-400">Aucune</span>
-                        )
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === surveillant.id ? (
-                        <EditableCell
-                          value={surveillant.quota}
-                          type="number"
-                          onSave={(value) => setSurvaillants(prev => 
-                            prev.map(s => s.id === surveillant.id ? { ...s, quota: value } : s)
-                          )}
-                        />
-                      ) : (
-                        surveillant.quota
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {editingId === surveillant.id ? (
-                        <EditableCell
-                          value={surveillant.sessions_imposees}
-                          type="number"
-                          onSave={(value) => setSurvaillants(prev => 
-                            prev.map(s => s.id === surveillant.id ? { ...s, sessions_imposees: value } : s)
-                          )}
-                        />
-                      ) : (
-                        surveillant.sessions_imposees
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <EditableCell
-                        value={surveillant.is_active}
-                        type="switch"
-                        onSave={(value) => setSurvaillants(prev => 
-                          prev.map(s => s.id === surveillant.id ? { ...s, is_active: value } : s)
-                        )}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        {editingId === surveillant.id ? (
-                          <>
-                            <Button
-                              size="sm"
-                              onClick={() => handleSave(surveillant)}
-                              disabled={saving}
-                            >
-                              <Save className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={handleCancel}
-                            >
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(surveillant.id)}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
+  const expiringSoon = surveillants.filter(s => 
+    isContractExpiringSoon(s.date_fin_contrat)
+  );
+
+  return (
+    <div className="space-y-4">
+      <SensitiveDataManager 
+        showSensitiveData={showSensitiveData}
+        onToggle={setShowSensitiveData}
+      />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Users className="h-5 w-5" />
+            <span>Éditeur de Liste des Surveillants</span>
+          </CardTitle>
+          <CardDescription>
+            Modifiez les informations, quotas et données sensibles des surveillants avant l'attribution.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-600">
+                {surveillants.length} surveillant(s) dans la session active
+              </div>
+              <div className="flex items-center space-x-2">
+                <Badge variant="outline" className="text-green-600">
+                  {surveillants.filter(s => s.is_active).length} Actifs
+                </Badge>
+                <Badge variant="outline" className="text-gray-600">
+                  {surveillants.filter(s => !s.is_active).length} Inactifs
+                </Badge>
+                {excludedSurvaillants.length > 0 && (
+                  <Badge variant="destructive">
+                    {excludedSurvaillants.length} Exclus
+                  </Badge>
+                )}
+                {expiringSoon.length > 0 && (
+                  <Badge variant="outline" className="text-orange-600">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {expiringSoon.length} Contrats exp.
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="border rounded-lg overflow-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nom</TableHead>
+                    <TableHead>Prénom</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Faculté interdite</TableHead>
+                    {showSensitiveData && (
+                      <>
+                        <TableHead>EFT</TableHead>
+                        <TableHead>Affectation</TableHead>
+                        <TableHead>Fin contrat</TableHead>
+                        <TableHead>GSM</TableHead>
+                        <TableHead>Campus</TableHead>
+                      </>
+                    )}
+                    <TableHead>Quota</TableHead>
+                    <TableHead>Sessions imposées</TableHead>
+                    <TableHead>Actif</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {surveillants.map((surveillant) => {
+                    const exclusionInfo = shouldExcludeFromAssignment({
+                      affectation_fac: surveillant.affectation_fac,
+                      date_fin_contrat: surveillant.date_fin_contrat,
+                      statut: 'actif'
+                    });
+                    const contractExpiring = isContractExpiringSoon(surveillant.date_fin_contrat);
+
+                    return (
+                      <TableRow 
+                        key={surveillant.id}
+                        className={exclusionInfo.exclude ? 'bg-red-50' : contractExpiring ? 'bg-orange-50' : ''}
+                      >
+                        <TableCell>
+                          {editingId === surveillant.id ? (
+                            <EditableCell
+                              value={surveillant.nom}
+                              onSave={(value) => setSurvaillants(prev => 
+                                prev.map(s => s.id === surveillant.id ? { ...s, nom: value } : s)
+                              )}
+                            />
+                          ) : (
+                            <div className="flex items-center space-x-2">
+                              <span>{surveillant.nom}</span>
+                              {exclusionInfo.exclude && (
+                                <AlertTriangle className="h-3 w-3 text-red-500" title={exclusionInfo.reason} />
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingId === surveillant.id ? (
+                            <EditableCell
+                              value={surveillant.prenom}
+                              onSave={(value) => setSurvaillants(prev => 
+                                prev.map(s => s.id === surveillant.id ? { ...s, prenom: value } : s)
+                              )}
+                            />
+                          ) : (
+                            surveillant.prenom
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate">
+                          {editingId === surveillant.id ? (
+                            <EditableCell
+                              value={surveillant.email}
+                              onSave={(value) => setSurvaillants(prev => 
+                                prev.map(s => s.id === surveillant.id ? { ...s, email: value } : s)
+                              )}
+                            />
+                          ) : (
+                            surveillant.email
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingId === surveillant.id ? (
+                            <EditableCell
+                              value={surveillant.type}
+                              type="select"
+                              options={typeOptions}
+                              onSave={(value) => setSurvaillants(prev => 
+                                prev.map(s => s.id === surveillant.id ? { ...s, type: value } : s)
+                              )}
+                            />
+                          ) : (
+                            <Badge variant="outline">{surveillant.type}</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingId === surveillant.id ? (
+                            <EditableCell
+                              value={surveillant.faculte_interdite || ""}
+                              type="select"
+                              options={faculteOptions}
+                              onSave={(value) => setSurvaillants(prev => 
+                                prev.map(s => s.id === surveillant.id ? { ...s, faculte_interdite: value || null } : s)
+                              )}
+                            />
+                          ) : (
+                            surveillant.faculte_interdite ? (
+                              <Badge variant="destructive">{surveillant.faculte_interdite}</Badge>
+                            ) : (
+                              <span className="text-gray-400">Aucune</span>
+                            )
+                          )}
+                        </TableCell>
+                        
+                        {/* Colonnes sensibles */}
+                        {showSensitiveData && (
+                          <>
+                            <TableCell>
+                              {editingId === surveillant.id ? (
+                                <EditableCell
+                                  value={surveillant.eft || ""}
+                                  type="number"
+                                  onSave={(value) => setSurvaillants(prev => 
+                                    prev.map(s => s.id === surveillant.id ? { ...s, eft: value || null } : s)
+                                  )}
+                                />
+                              ) : (
+                                <span className="text-sm">
+                                  {formatSensitiveDisplay(surveillant.eft, 'eft')}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {editingId === surveillant.id ? (
+                                <EditableCell
+                                  value={surveillant.affectation_fac || ""}
+                                  type="select"
+                                  options={affectationOptions}
+                                  onSave={(value) => setSurvaillants(prev => 
+                                    prev.map(s => s.id === surveillant.id ? { ...s, affectation_fac: value || null } : s)
+                                  )}
+                                />
+                              ) : (
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-sm">
+                                    {formatSensitiveDisplay(surveillant.affectation_fac, 'text')}
+                                  </span>
+                                  {surveillant.affectation_fac === 'FSM' && (
+                                    <Badge variant="destructive" className="text-xs">Exclu</Badge>
+                                  )}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {editingId === surveillant.id ? (
+                                <EditableCell
+                                  value={surveillant.date_fin_contrat || ""}
+                                  type="date"
+                                  onSave={(value) => setSurvaillants(prev => 
+                                    prev.map(s => s.id === surveillant.id ? { ...s, date_fin_contrat: value || null } : s)
+                                  )}
+                                />
+                              ) : (
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-sm">
+                                    {formatSensitiveDisplay(surveillant.date_fin_contrat, 'date')}
+                                  </span>
+                                  {contractExpiring && (
+                                    <Calendar className="h-3 w-3 text-orange-500" title="Contrat expire bientôt" />
+                                  )}
+                                </div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {editingId === surveillant.id ? (
+                                <EditableCell
+                                  value={surveillant.telephone_gsm || ""}
+                                  onSave={(value) => setSurvaillants(prev => 
+                                    prev.map(s => s.id === surveillant.id ? { ...s, telephone_gsm: value || null } : s)
+                                  )}
+                                />
+                              ) : (
+                                <span className="text-sm">
+                                  {formatSensitiveDisplay(surveillant.telephone_gsm, 'text')}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {editingId === surveillant.id ? (
+                                <EditableCell
+                                  value={surveillant.campus || ""}
+                                  type="select"
+                                  options={campusOptions}
+                                  onSave={(value) => setSurvaillants(prev => 
+                                    prev.map(s => s.id === surveillant.id ? { ...s, campus: value || null } : s)
+                                  )}
+                                />
+                              ) : (
+                                <div className="flex items-center space-x-1">
+                                  <span className="text-sm">
+                                    {formatSensitiveDisplay(surveillant.campus, 'text')}
+                                  </span>
+                                  {surveillant.campus && (
+                                    <MapPin className="h-3 w-3 text-gray-400" />
+                                  )}
+                                </div>
+                              )}
+                            </TableCell>
+                          </>
+                        )}
+
+                        <TableCell>
+                          {editingId === surveillant.id ? (
+                            <EditableCell
+                              value={surveillant.quota}
+                              type="number"
+                              onSave={(value) => setSurvaillants(prev => 
+                                prev.map(s => s.id === surveillant.id ? { ...s, quota: value } : s)
+                              )}
+                            />
+                          ) : (
+                            <div className="flex flex-col">
+                              <span>{surveillant.quota}</span>
+                              {surveillant.eft && showSensitiveData && (
+                                <span className="text-xs text-gray-500">
+                                  (ajusté: {calculateAdjustedQuota(surveillant.quota, surveillant.eft)})
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {editingId === surveillant.id ? (
+                            <EditableCell
+                              value={surveillant.sessions_imposees}
+                              type="number"
+                              onSave={(value) => setSurvaillants(prev => 
+                                prev.map(s => s.id === surveillant.id ? { ...s, sessions_imposees: value } : s)
+                              )}
+                            />
+                          ) : (
+                            surveillant.sessions_imposees
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <EditableCell
+                            value={surveillant.is_active}
+                            type="switch"
+                            onSave={(value) => setSurvaillants(prev => 
+                              prev.map(s => s.id === surveillant.id ? { ...s, is_active: value } : s)
+                            )}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            {editingId === surveillant.id ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  onClick={() => updateSurveillant(surveillant.id, surveillant)}
+                                  disabled={saving}
+                                >
+                                  <Save className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingId(null)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingId(surveillant.id)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
