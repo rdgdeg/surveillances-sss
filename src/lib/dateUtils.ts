@@ -7,6 +7,11 @@ export const formatDateBelgian = (date: string | Date): string => {
   return format(dateObj, 'dd/MM/yyyy', { locale: fr });
 };
 
+export const formatDateWithDayBelgian = (date: string | Date): string => {
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  return format(dateObj, 'EEEE dd/MM/yyyy', { locale: fr });
+};
+
 export const formatDateTimeBelgian = (date: string | Date): string => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   return format(dateObj, 'dd/MM/yyyy HH:mm', { locale: fr });

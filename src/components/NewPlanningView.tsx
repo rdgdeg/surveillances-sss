@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { DeleteAllExamensButton } from "@/components/DeleteAllExamensButton";
+import { formatDateWithDayBelgian } from "@/lib/dateUtils";
 
 export const NewPlanningView = () => {
   const [selectedDate, setSelectedDate] = useState("");
@@ -41,30 +41,6 @@ export const NewPlanningView = () => {
     },
     enabled: !!activeSession
   });
-
-  // Fonction pour formater la date en français
-  const formatDateToFrench = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      
-      // Vérifier si la date est valide
-      if (isNaN(date.getTime())) {
-        return dateString; // Retourner la chaîne originale si invalide
-      }
-
-      const options: Intl.DateTimeFormatOptions = {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      };
-      
-      return date.toLocaleDateString('fr-FR', options);
-    } catch (error) {
-      console.error('Erreur formatage date:', error);
-      return dateString;
-    }
-  };
 
   // Fonction pour trier les examens par date puis par heure
   const sortExamens = (examens: any[]) => {
@@ -249,7 +225,7 @@ export const NewPlanningView = () => {
                   <div className="space-y-3 flex-1">
                     <div className="flex items-center space-x-4">
                       <Badge variant="outline" className="font-semibold">
-                        {formatDateToFrench(examen.date_examen)}
+                        {formatDateWithDayBelgian(examen.date_examen)}
                       </Badge>
                       <Badge variant="outline">{examen.heure_debut} - {examen.heure_fin}</Badge>
                       <Badge className={getStatutColor(examen)}>

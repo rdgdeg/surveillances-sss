@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ClipboardList, Users, Save, Eye, Building2, Search, Check, CheckCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { formatDateBelgian } from "@/lib/dateUtils";
+import { formatDateWithDayBelgian } from "@/lib/dateUtils";
 
 interface ExamenReview {
   id: string;
@@ -540,7 +539,7 @@ export const ExamenReviewManager = () => {
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
-                          <div>{formatDateBelgian(groupe.date_examen)}</div>
+                          <div>{formatDateWithDayBelgian(groupe.date_examen)}</div>
                           <div className="text-gray-500">
                             {groupe.heure_debut} - {groupe.heure_fin}
                           </div>
