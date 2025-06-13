@@ -60,7 +60,9 @@ export const PreAssignmentManager = () => {
         .eq('is_active', true);
       
       if (error) throw error;
-      return data.map(item => item.surveillant).filter(Boolean) as Surveillant[];
+      const result = data.map(item => item.surveillant).filter(Boolean) as Surveillant[];
+      console.log('Surveillants data:', result);
+      return result;
     },
     enabled: !!activeSession?.id
   });
@@ -79,6 +81,7 @@ export const PreAssignmentManager = () => {
         .order('heure_debut', { ascending: true });
       
       if (error) throw error;
+      console.log('Examens data:', data);
       return data as Examen[];
     },
     enabled: !!activeSession?.id
@@ -182,9 +185,25 @@ export const PreAssignmentManager = () => {
     return `${surveillant.nom} ${surveillant.prenom} (${surveillant.type})`;
   };
 
-  // Filter out items with empty or invalid IDs
-  const validExamens = examens.filter(examen => examen.id && examen.id.trim() !== '');
-  const validSurveillants = surveillants.filter(surveillant => surveillant.id && surveillant.id.trim() !== '');
+  // Filter out items with empty or invalid IDs - more robust filtering
+  const validExamens = examens.filter(examen => {
+    const isValid = examen && examen.id && typeof examen.id === 'string' && examen.id.trim() !== '';
+    if (!isValid) {
+      console.log('Invalid examen found:', examen);
+    }
+    return isValid;
+  });
+  
+  const validSurveillants = surveillants.filter(surveillant => {
+    const isValid = surveillant && surveillant.id && typeof surveillant.id === 'string' && surveillant.id.trim() !== '';
+    if (!isValid) {
+      console.log('Invalid surveillant found:', surveillant);
+    }
+    return isValid;
+  });
+
+  console.log('Valid examens:', validExamens);
+  console.log('Valid surveillants:', validSurveillants);
 
   if (!activeSession) {
     return (
@@ -239,11 +258,14 @@ export const PreAssignmentManager = () => {
                   <SelectValue placeholder="Sélectionner un examen" />
                 </SelectTrigger>
                 <SelectContent>
-                  {validExamens.map((examen) => (
-                    <SelectItem key={examen.id} value={examen.id}>
-                      {formatExamenLabel(examen)}
-                    </SelectItem>
-                  ))}
+                  {validExamens.map((examen) => {
+                    console.log('Rendering examen SelectItem with value:', examen.id);
+                    return (
+                      <SelectItem key={examen.id} value={examen.id}>
+                        {formatExamenLabel(examen)}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -255,11 +277,14 @@ export const PreAssignmentManager = () => {
                   <SelectValue placeholder="Sélectionner un surveillant" />
                 </SelectTrigger>
                 <SelectContent>
-                  {validSurveillants.map((surveillant) => (
-                    <SelectItem key={surveillant.id} value={surveillant.id}>
-                      {formatSurveillantLabel(surveillant)}
-                    </SelectItem>
-                  ))}
+                  {validSurveillants.map((surveillant) => {
+                    console.log('Rendering surveillant SelectItem with value:', surveillant.id);
+                    return (
+                      <SelectItem key={surveillant.id} value={surveillant.id}>
+                        {formatSurveillantLabel(surveillant)}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>
