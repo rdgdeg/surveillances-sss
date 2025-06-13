@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import * as XLSX from 'xlsx';
+import { AuditoireComplianceChecker } from "@/components/AuditoireComplianceChecker";
 
 interface StandardExamenData {
   jour: string;
@@ -254,6 +255,7 @@ export const StandardExcelImporter = () => {
           const examensData: StandardExamenData[] = [];
           let doublonsEvites = 0;
           const statsParType = { E: 0, O: 0, AUTRES: 0 };
+          const auditoiresDetectes = new Set<string>(); // Collecter les auditoires
 
           for (const row of rows) {
             const activite = String(row[4] || '').trim();
@@ -276,6 +278,8 @@ export const StandardExcelImporter = () => {
 
             // Vérifier les doublons pour chaque auditoire
             for (const auditoire of auditoiresList) {
+              auditoiresDetectes.add(auditoire.trim()); // Collecter l'auditoire
+              
               const estDoublon = await verifierDoublon(codeCours, auditoire);
               
               if (estDoublon) {
@@ -305,6 +309,19 @@ export const StandardExcelImporter = () => {
                 nombre_surveillants_calcule: nombreSurveillants
               });
             }
+          }
+
+          // Vérifier la conformité des auditoires détectés
+          console.log('🔍 Auditoires détectés dans l\'import:', Array.from(auditoiresDetectes));
+          
+          // Vérifier si des auditoires manquent des contraintes
+          const auditoiresSansContraintes = Array.from(auditoiresDetectes).filter(auditoire => 
+            !contraintesAuditoires.some(c => c.auditoire === auditoire)
+          );
+
+          if (auditoiresSansContraintes.length > 0) {
+            console.warn('⚠️ Auditoires sans contraintes détectés:', auditoiresSansContraintes);
+            // Note: L'alerte sera visible via le composant AuditoireComplianceChecker
           }
 
           setProcessingStats({
@@ -807,6 +824,13 @@ export const StandardExcelImporter = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Alerteur de conformité intégré */}
+        {parsedData.length > 0 && (
+          <div className="mb-4">
+            <AuditoireComplianceChecker />
+          </div>
+        )}
+
         {!isProcessing && parsedData.length === 0 && (
           <div
             className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"

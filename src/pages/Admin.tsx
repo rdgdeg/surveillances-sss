@@ -27,6 +27,7 @@ import { ExamenValidationProcessor } from "@/components/ExamenValidationProcesso
 import SurveillanceHistory from "@/components/SurveillanceHistory";
 import { DemandeChangement } from "@/components/DemandeChangement";
 import { ExamenAdvancedManager } from "@/components/ExamenAdvancedManager";
+import { AuditoireComplianceChecker } from "@/components/AuditoireComplianceChecker";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("dashboard");
@@ -49,7 +50,12 @@ const Admin = () => {
   const renderContent = () => {
     switch (activeView) {
       case "dashboard":
-        return <DashboardOverview />;
+        return (
+          <div className="space-y-6">
+            <DashboardOverview />
+            <AuditoireComplianceChecker />
+          </div>
+        );
       
       case "import":
         return (
@@ -58,6 +64,8 @@ const Admin = () => {
               <h2 className="text-2xl font-bold mb-2">Import de données</h2>
               <p className="text-gray-600">Importez vos données au format CSV ou Excel</p>
             </div>
+            
+            <AuditoireComplianceChecker />
             
             <ImportVerification />
             
@@ -134,7 +142,12 @@ const Admin = () => {
         );
       
       case "validation":
-        return <ExamenValidationProcessor />;
+        return (
+          <div className="space-y-6">
+            <AuditoireComplianceChecker />
+            <ExamenValidationProcessor />
+          </div>
+        );
       
       case "templates":
         return <TemplateDownloader />;
@@ -173,7 +186,12 @@ const Admin = () => {
         return <PreAssignmentManager />;
       
       case "contraintes":
-        return <ContraintesAuditoires />;
+        return (
+          <div className="space-y-6">
+            <AuditoireComplianceChecker />
+            <ContraintesAuditoires />
+          </div>
+        );
       
       case "contraintes-salles":
         return <RoomConstraintsManager />;
