@@ -50,48 +50,43 @@ interface ExamenGroupe {
   surveillants_a_attribuer_total: number;
 }
 
-// Fonction pour unifier les noms d'auditoires similaires
+// Fonction pour unifier SEULEMENT les cas spécifiques (Neerveld)
 const unifierAuditoire = (salle: string): string => {
-  // Nettoyer et normaliser le nom de salle
   const salleNormalisee = salle.trim();
   
-  // Cas spécifique pour Neerveld A, B, C, etc.
+  // Cas spécifique pour Neerveld A, B, C, etc. - les unifier
   if (salleNormalisee.match(/^Neerveld\s+[A-Z]$/i)) {
     return "Neerveld";
   }
   
-  // Autres cas similaires peuvent être ajoutés ici
-  // Ex: "Salle 1A", "Salle 1B" → "Salle 1"
-  const match = salleNormalisee.match(/^(.+?)\s+[A-Z]$/);
-  if (match) {
-    return match[1];
-  }
-  
+  // Pour tous les autres auditoires, garder le nom complet
   return salleNormalisee;
 };
 
-// Fonction pour calculer la contrainte unifiée
+// Fonction pour calculer la contrainte avec logique améliorée
 const getContrainteUnifiee = (auditoire: string, contraintesOriginales: ContrainteAuditoire[]): number => {
+  console.log(`Recherche contrainte pour auditoire: "${auditoire}"`);
+  
   if (auditoire === "Neerveld") {
-    // Compter toutes les contraintes Neerveld A, B, C, etc.
+    // Cas spécial : sommer toutes les contraintes Neerveld A, B, C, etc.
     const contraintesNeerveld = contraintesOriginales.filter(c => 
       c.auditoire.match(/^Neerveld\s+[A-Z]$/i)
     );
-    return contraintesNeerveld.reduce((sum, c) => sum + c.nombre_surveillants_requis, 0) || 1;
+    const total = contraintesNeerveld.reduce((sum, c) => sum + c.nombre_surveillants_requis, 0);
+    console.log(`Contraintes Neerveld trouvées:`, contraintesNeerveld, `Total: ${total}`);
+    return total || 1;
   }
   
-  // Pour d'autres auditoires, chercher la contrainte directe ou calculer
-  const contrainteDirecte = contraintesOriginales.find(c => c.auditoire === auditoire);
-  if (contrainteDirecte) {
-    return contrainteDirecte.nombre_surveillants_requis;
+  // 1. Chercher d'abord une correspondance exacte
+  const contrainteExacte = contraintesOriginales.find(c => c.auditoire === auditoire);
+  if (contrainteExacte) {
+    console.log(`Contrainte exacte trouvée pour "${auditoire}": ${contrainteExacte.nombre_surveillants_requis}`);
+    return contrainteExacte.nombre_surveillants_requis;
   }
   
-  // Chercher des contraintes similaires (ex: "Salle 1A", "Salle 1B" pour "Salle 1")
-  const contraintesSimilaires = contraintesOriginales.filter(c => 
-    c.auditoire.startsWith(auditoire + " ")
-  );
-  
-  return contraintesSimilaires.reduce((sum, c) => sum + c.nombre_surveillants_requis, 0) || 1;
+  // 2. Si pas de correspondance exacte, utiliser la valeur par défaut
+  console.log(`Aucune contrainte trouvée pour "${auditoire}", utilisation de la valeur par défaut: 1`);
+  return 1;
 };
 
 export const ExamenReviewManager = () => {
@@ -131,6 +126,7 @@ export const ExamenReviewManager = () => {
         .select('auditoire, nombre_surveillants_requis');
 
       if (error) throw error;
+      console.log('Contraintes auditoires chargées:', data);
       return data || [];
     }
   });
@@ -558,6 +554,9 @@ export const ExamenReviewManager = () => {
                               {groupe.examens.length} salles
                             </Badge>
                           )}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          Salles: {groupe.examens.map(e => e.salle).join(', ')}
                         </div>
                       </TableCell>
                       <TableCell>
