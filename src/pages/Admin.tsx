@@ -10,7 +10,7 @@ import { NewPlanningView } from "@/components/NewPlanningView";
 import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
 import { CandidaturesManager } from "@/components/CandidaturesManager";
 import { CollecteDisponibilites } from "@/components/CollecteDisponibilites";
-import { SurveillanceHistory } from "@/components/SurveillanceHistory";
+import SurveillanceHistory from "@/components/SurveillanceHistory";
 
 type ActiveTab = 
   | "dashboard" 
@@ -26,6 +26,7 @@ type ActiveTab =
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
+  const [showSensitiveData, setShowSensitiveData] = useState(false);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -48,7 +49,10 @@ const Admin = () => {
       case "historique":
         return <SurveillanceHistory />;
       case "donnees-sensibles":
-        return <SensitiveDataManager />;
+        return <SensitiveDataManager 
+          showSensitiveData={showSensitiveData} 
+          onToggle={setShowSensitiveData} 
+        />;
       default:
         return <DashboardOverview />;
     }
@@ -56,7 +60,7 @@ const Admin = () => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <AdminSidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <AdminSidebar activeView={activeTab} onViewChange={setActiveTab} />
       <main className="flex-1 overflow-auto p-6">
         {renderContent()}
       </main>
