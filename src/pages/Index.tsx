@@ -1,151 +1,186 @@
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Calendar, Users, Settings, Search, BarChart3, Clock, UserPlus, GraduationCap } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Users, Calendar, FileText, Settings, ClipboardList, GraduationCap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Footer } from "@/components/Footer";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-secondary/20">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <header className="bg-uclouvain-blue shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <img 
-                src="/lovable-uploads/f6a7054d-ce38-4ede-84cf-87b92a350bea.png" 
-                alt="UCLouvain" 
-                className="h-12 w-auto"
-              />
-              <div className="border-l-2 border-uclouvain-cyan pl-4">
-                <h1 className="text-xl font-bold text-white">SurveillanceManager</h1>
-                <p className="text-uclouvain-cyan text-sm">Secteur des Sciences de la Santé</p>
-              </div>
+      <header className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Système de Gestion des Surveillances
+              </h1>
+              <p className="text-gray-600 mt-2">
+                Université Libre de Bruxelles - Gestion automatisée des examens
+              </p>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline" asChild className="border-uclouvain-cyan text-uclouvain-cyan hover:bg-uclouvain-cyan hover:text-uclouvain-blue">
-                <Link to="/surveillant">
-                  <Search className="h-4 w-4 mr-2" />
-                  Espace Surveillant
-                </Link>
-              </Button>
-              <Button asChild className="bg-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-cyan/90">
-                <Link to="/admin">
-                  <Settings className="h-4 w-4 mr-2" />
-                  Administration
-                </Link>
-              </Button>
+              <Link to="/admin">
+                <Button variant="outline" className="flex items-center space-x-2">
+                  <Settings className="h-4 w-4" />
+                  <span>Administration</span>
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="flex justify-center mb-8">
-            <Badge variant="outline" className="text-uclouvain-blue border-uclouvain-blue px-4 py-2 text-sm font-medium">
-              <GraduationCap className="h-4 w-4 mr-2" />
-              Université catholique de Louvain
-            </Badge>
-          </div>
-          <h2 className="text-4xl md:text-6xl font-bold text-uclouvain-blue mb-6">
-            Gestion Intelligente
-            <span className="block text-uclouvain-cyan">des Surveillances</span>
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-12">
+        <div className="text-center mb-12">
+          <h2 className="text-4xl font-bold text-gray-900 mb-4">
+            Bienvenue dans le système de surveillance
           </h2>
-          <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-10">
-            Une solution complète pour organiser, planifier et optimiser les surveillances d'examens 
-            du Secteur des Sciences de la Santé de l'UCLouvain.
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Gérez efficacement l'attribution des surveillants pour vos examens, 
+            collectez les disponibilités et optimisez l'organisation de vos sessions d'examens.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" asChild className="text-lg px-8 py-4 bg-uclouvain-blue hover:bg-uclouvain-blue/90">
-              <Link to="/admin">
-                <BarChart3 className="h-5 w-5 mr-2" />
-                Accéder au Tableau de Bord
+        </div>
+
+        {/* Cards Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+          {/* Enseignants */}
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="text-center">
+              <div className="mx-auto bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <GraduationCap className="h-6 w-6 text-green-600" />
+              </div>
+              <CardTitle className="text-xl">Enseignants</CardTitle>
+              <CardDescription>
+                Confirmez vos besoins en surveillance et les personnes qui vous aident
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Link to="/enseignant">
+                <Button className="w-full bg-green-600 hover:bg-green-700">
+                  Confirmer mes examens
+                </Button>
               </Link>
-            </Button>
-            <Button size="lg" variant="outline" asChild className="text-lg px-8 py-4 border-uclouvain-blue text-uclouvain-blue hover:bg-uclouvain-blue hover:text-white">
+            </CardContent>
+          </Card>
+
+          {/* Surveillants */}
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="text-center">
+              <div className="mx-auto bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <Users className="h-6 w-6 text-blue-600" />
+              </div>
+              <CardTitle className="text-xl">Surveillants</CardTitle>
+              <CardDescription>
+                Renseignez vos disponibilités pour les sessions d'examens
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
               <Link to="/surveillant">
-                <Search className="h-5 w-5 mr-2" />
-                Consulter mes Surveillances
+                <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                  Mes disponibilités
+                </Button>
               </Link>
-            </Button>
-          </div>
-        </div>
-      </section>
+            </CardContent>
+          </Card>
 
-      {/* Quick Access */}
-      <section className="py-20">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h3 className="text-3xl font-bold text-center text-uclouvain-blue mb-12">
-            Accès Rapide
-          </h3>
-          
+          {/* Candidatures */}
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="text-center">
+              <div className="mx-auto bg-purple-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <FileText className="h-6 w-6 text-purple-600" />
+              </div>
+              <CardTitle className="text-xl">Candidatures</CardTitle>
+              <CardDescription>
+                Candidatez pour devenir surveillant d'examens
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Link to="/collecte">
+                <Button className="w-full bg-purple-600 hover:bg-purple-700">
+                  Candidater
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Formulaire de disponibilités */}
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardHeader className="text-center">
+              <div className="mx-auto bg-orange-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <Calendar className="h-6 w-6 text-orange-600" />
+              </div>
+              <CardTitle className="text-xl">Disponibilités</CardTitle>
+              <CardDescription>
+                Formulaire de collecte des disponibilités
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Link to="/disponibilites">
+                <Button className="w-full bg-orange-600 hover:bg-orange-700">
+                  Renseigner disponibilités
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Administration */}
+          <Card className="hover:shadow-lg transition-shadow lg:col-span-2">
+            <CardHeader className="text-center">
+              <div className="mx-auto bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
+                <ClipboardList className="h-6 w-6 text-gray-600" />
+              </div>
+              <CardTitle className="text-xl">Administration</CardTitle>
+              <CardDescription>
+                Gérez les examens, surveillants, et organisez les attributions automatiques
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-center">
+              <Link to="/admin">
+                <Button variant="outline" className="w-full">
+                  Accéder à l'administration
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Features Section */}
+        <div className="bg-white rounded-lg shadow-sm p-8">
+          <h3 className="text-2xl font-bold text-center mb-8">Fonctionnalités principales</h3>
           <div className="grid md:grid-cols-3 gap-8">
-            <Card className="border-2 border-uclouvain-blue/20 hover:border-uclouvain-blue/40 transition-all duration-300 hover:shadow-lg group">
-              <CardHeader className="text-center">
-                <div className="h-16 w-16 bg-uclouvain-blue rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-uclouvain-cyan transition-colors duration-300">
-                  <Settings className="h-8 w-8 text-white group-hover:text-uclouvain-blue" />
-                </div>
-                <CardTitle className="text-xl text-uclouvain-blue">Administrateurs</CardTitle>
-                <CardDescription>
-                  Gérez les sessions, configurez les contraintes et optimisez les attributions
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button size="lg" className="w-full bg-uclouvain-blue hover:bg-uclouvain-blue/90" asChild>
-                  <Link to="/admin">
-                    <Settings className="h-5 w-5 mr-2" />
-                    Administration
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 border-uclouvain-cyan/40 hover:border-uclouvain-cyan transition-all duration-300 hover:shadow-lg group">
-              <CardHeader className="text-center">
-                <div className="h-16 w-16 bg-uclouvain-cyan rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-uclouvain-blue transition-colors duration-300">
-                  <Users className="h-8 w-8 text-uclouvain-blue group-hover:text-white" />
-                </div>
-                <CardTitle className="text-xl text-uclouvain-blue">Surveillants</CardTitle>
-                <CardDescription>
-                  Consultez vos surveillances attribuées et vos plannings
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button size="lg" variant="outline" className="w-full border-uclouvain-cyan text-uclouvain-cyan hover:bg-uclouvain-cyan hover:text-uclouvain-blue" asChild>
-                  <Link to="/surveillant">
-                    <Search className="h-5 w-5 mr-2" />
-                    Mes Surveillances
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="border-2 border-uclouvain-blue-grey/40 hover:border-uclouvain-blue-grey transition-all duration-300 hover:shadow-lg group">
-              <CardHeader className="text-center">
-                <div className="h-16 w-16 bg-uclouvain-blue-grey rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-uclouvain-blue transition-colors duration-300">
-                  <Calendar className="h-8 w-8 text-uclouvain-blue group-hover:text-white" />
-                </div>
-                <CardTitle className="text-xl text-uclouvain-blue">Disponibilités</CardTitle>
-                <CardDescription>
-                  Encodez vos disponibilités pour les surveillances d'examens
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button size="lg" variant="outline" className="w-full border-uclouvain-blue-grey text-uclouvain-blue hover:bg-uclouvain-blue-grey hover:text-uclouvain-blue" asChild>
-                  <Link to="/collecte">
-                    <UserPlus className="h-5 w-5 mr-2" />
-                    Encoder mes Disponibilités
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="text-center">
+              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Users className="h-8 w-8 text-blue-600" />
+              </div>
+              <h4 className="font-semibold mb-2">Gestion des Surveillants</h4>
+              <p className="text-gray-600 text-sm">
+                Gérez votre base de données de surveillants avec leurs qualifications et disponibilités
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Calendar className="h-8 w-8 text-green-600" />
+              </div>
+              <h4 className="font-semibold mb-2">Attribution Automatique</h4>
+              <p className="text-gray-600 text-sm">
+                Algorithme intelligent d'attribution basé sur les contraintes et disponibilités
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <FileText className="h-8 w-8 text-purple-600" />
+              </div>
+              <h4 className="font-semibold mb-2">Suivi en Temps Réel</h4>
+              <p className="text-gray-600 text-sm">
+                Tableaux de bord et rapports pour suivre l'avancement des attributions
+              </p>
+            </div>
           </div>
         </div>
-      </section>
+      </main>
 
       <Footer />
     </div>

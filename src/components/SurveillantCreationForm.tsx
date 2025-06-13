@@ -49,7 +49,7 @@ export const SurveillantCreationForm = ({ open, onOpenChange }: SurveillantCreat
           affectation_fac: formData.affectation_fac || null,
           campus: formData.campus || null,
           eft: 1.0,
-          is_active: true
+          statut: 'actif'
         })
         .select()
         .single();
@@ -159,10 +159,12 @@ export const SurveillantCreationForm = ({ open, onOpenChange }: SurveillantCreat
                 <SelectValue placeholder="Sélectionner le type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Académique">Académique</SelectItem>
-                <SelectItem value="PATGS">PATGS</SelectItem>
-                <SelectItem value="Externe">Externe</SelectItem>
-                <SelectItem value="Étudiant">Étudiant</SelectItem>
+                <SelectItem value="Assistant">Assistant</SelectItem>
+                <SelectItem value="Doctorant">Doctorant</SelectItem>
+                <SelectItem value="PAT">PAT</SelectItem>
+                <SelectItem value="PAT FASB">PAT FASB</SelectItem>
+                <SelectItem value="Jobiste">Jobiste</SelectItem>
+                <SelectItem value="Autre">Autre</SelectItem>
               </SelectContent>
             </Select>
           </div>
