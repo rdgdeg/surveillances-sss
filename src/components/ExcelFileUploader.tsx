@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -330,7 +331,7 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
 
     if (error) throw error;
 
-    return { processed: examens.length, type: 'examens' };
+    return { processed: examens.length, type: 'examens', message: `${examens.length} examens importés` };
   };
 
   const processDisponibilites = async (headers: string[], rows: string[][], sessionId: string) => {
@@ -388,7 +389,7 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
 
     if (error) throw error;
 
-    return { processed: disponibilites.length, type: 'disponibilités' };
+    return { processed: disponibilites.length, type: 'disponibilités', message: `${disponibilites.length} disponibilités importées` };
   };
 
   const processIndisponibilites = async (headers: string[], rows: string[][], sessionId: string) => {
@@ -443,7 +444,7 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
 
     if (error) throw error;
 
-    return { processed: indisponibilites.length, type: 'indisponibilités' };
+    return { processed: indisponibilites.length, type: 'indisponibilités', message: `${indisponibilites.length} indisponibilités importées` };
   };
 
   const processQuotas = async (headers: string[], rows: string[][], sessionId: string) => {
@@ -496,7 +497,7 @@ export const ExcelFileUploader = ({ title, description, fileType, expectedFormat
       }
     }
 
-    return { processed: updated, type: 'quotas' };
+    return { processed: updated, type: 'quotas', message: `${updated} quotas mis à jour` };
   };
 
   const handleFileUpload = async (file: File) => {
