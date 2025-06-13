@@ -512,6 +512,23 @@ export const StandardExcelImporter = () => {
     }
   };
 
+  const normalizeStatutValidation = (statut: string): string => {
+    // Mapper les statuts vers les valeurs autorisées par la contrainte DB
+    switch (statut) {
+      case 'VALIDE':
+      case 'EN_COURS':
+      case 'NECESSITE_VALIDATION':
+      case 'REJETE':
+        // Ces valeurs peuvent ne pas être autorisées par la contrainte
+        // On les force toutes vers NON_TRAITE pour éviter les erreurs
+        return 'NON_TRAITE';
+      case 'NON_TRAITE':
+        return 'NON_TRAITE';
+      default:
+        return 'NON_TRAITE';
+    }
+  };
+
   const validateSelected = async () => {
     if (!activeSession?.id || selectedItems.length === 0) {
       toast({
@@ -540,6 +557,9 @@ export const StandardExcelImporter = () => {
           // Validation des données avant insertion
           validateExamenData(examen);
           
+          // Utiliser une valeur de statut_validation sûre
+          const statutValidationSafe = normalizeStatutValidation(examen.statut_validation);
+          
           const examenData = {
             session_id: activeSession.id,
             code_examen: examen.code_cours_extrait,
@@ -550,7 +570,7 @@ export const StandardExcelImporter = () => {
             salle: examen.auditoires.trim(),
             nombre_surveillants: examen.nombre_surveillants_calcule,
             type_requis: 'Assistant',
-            statut_validation: examen.statut_validation || 'NON_TRAITE'
+            statut_validation: statutValidationSafe
           };
 
           console.log('📤 Insertion examen en base:', examenData);
@@ -573,7 +593,7 @@ export const StandardExcelImporter = () => {
             examen_id: nouvelExamen.id,
             code_original: examen.code_complet_original,
             type_detecte: examen.type_detecte,
-            statut_validation: examen.statut_validation,
+            statut_validation: examen.statut_validation, // Garder le statut original pour la validation
             commentaire: `Import Excel - Groupes: ${examen.groupes_etudiants || 'N/A'} - Enseignants: ${examen.enseignants || 'N/A'} - Surveillants calculés: ${examen.nombre_surveillants_calcule}`
           };
 
