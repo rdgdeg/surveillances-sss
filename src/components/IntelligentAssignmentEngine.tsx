@@ -60,11 +60,10 @@ export const IntelligentAssignmentEngine = () => {
         .from('surveillants')
         .select(`
           id, nom, prenom, email, type,
-          surveillant_sessions!inner(quota, sessions_imposees)
+          surveillant_sessions!inner(quota, sessions_imposees, is_active)
         `)
         .eq('statut', 'actif')
-        .eq('surveillant_sessions.session_id', activeSession.id)
-        .eq('surveillant_sessions.is_active', true);
+        .eq('surveillant_sessions.session_id', activeSession.id);
 
       const { data: disponibilites } = await supabase
         .from('disponibilites')
@@ -86,6 +85,11 @@ export const IntelligentAssignmentEngine = () => {
       if (!examens || !surveillants || !disponibilites) {
         throw new Error("Données manquantes pour l'attribution");
       }
+
+      // Filtrer les surveillants actifs pour l'attribution automatique
+      const surveillantsActifs = surveillants.filter(s => 
+        s.surveillant_sessions[0]?.is_active === true
+      );
 
       // Étape 2: Nettoyer les attributions existantes non pré-assignées (20%)
       setProgress(20);
@@ -131,7 +135,7 @@ export const IntelligentAssignmentEngine = () => {
       const unassignedExamens: string[] = [];
       const warnings: string[] = [];
 
-      // Initialiser la charge de travail
+      // Initialiser la charge de travail (inclut tous les surveillants, même inactifs pour les pré-assignations)
       surveillants.forEach(s => {
         surveillantWorkload.set(s.id, 0);
       });
@@ -150,16 +154,11 @@ export const IntelligentAssignmentEngine = () => {
         // Récupérer les pré-assignations pour cet examen
         const preAssigned = preAssignedSurveillants.get(examen.id) || [];
         
-        // Filtrer les surveillants disponibles
-        const surveillantsDisponibles = surveillants.filter(s => {
+        // Filtrer les surveillants disponibles ET actifs pour l'attribution automatique
+        const surveillantsDisponibles = surveillantsActifs.filter(s => {
           const disponibiliteKey = `${s.id}_${examen.date_examen}_${examen.heure_debut}_${examen.heure_fin}`;
           return disponibiliteMap.has(disponibiliteKey);
         });
-
-        // Séparer par type
-        const patDisponibles = surveillantsDisponibles.filter(s => s.type === 'PAT');
-        const assistantsDisponibles = surveillantsDisponibles.filter(s => s.type === 'Assistant');
-        const jobistesDisponibles = surveillantsDisponibles.filter(s => s.type === 'Jobiste');
 
         const selectedSurveillantsIds: string[] = [...preAssigned];
         const nombreAAssigner = examen.nombre_surveillants - preAssigned.length;
@@ -248,6 +247,12 @@ export const IntelligentAssignmentEngine = () => {
         }
       }
 
+      // Ajouter des avertissements sur les surveillants exclus
+      const surveillantsExclus = surveillants.filter(s => !s.surveillant_sessions[0]?.is_active);
+      if (surveillantsExclus.length > 0) {
+        warnings.push(`${surveillantsExclus.length} surveillant(s) exclu(s) de l'attribution automatique`);
+      }
+
       // Étape 7: Finalisation (100%)
       setProgress(100);
       console.log("✅ Attribution terminée!");
@@ -298,7 +303,7 @@ export const IntelligentAssignmentEngine = () => {
           <span>Moteur d'Attribution Intelligent</span>
         </CardTitle>
         <CardDescription>
-          Attribution automatique avec contraintes, quotas et équilibrage de charge
+          Attribution automatique avec contraintes, quotas personnalisés et exclusions
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -311,13 +316,15 @@ export const IntelligentAssignmentEngine = () => {
 
         <div className="space-y-4">
           <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h4 className="font-medium text-blue-900 mb-2">🧠 Algorithme intelligent</h4>
+            <h4 className="font-medium text-blue-900 mb-2">🧠 Algorithme intelligent amélioré</h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Respect des disponibilités et quotas</li>
+              <li>• Respect des disponibilités et quotas personnalisés</li>
+              <li>• Exclusion des surveillants marqués comme inactifs</li>
               <li>• Contraintes par salle (min non-jobistes)</li>
               <li>• Équilibrage automatique de la charge</li>
               <li>• Priorisation selon le type requis</li>
               <li>• Préservation des pré-assignations</li>
+              <li>• Support des quotas illimités</li>
             </ul>
           </div>
 

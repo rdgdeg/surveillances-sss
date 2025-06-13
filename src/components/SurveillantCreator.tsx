@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
 import { UserPlus } from "lucide-react";
 
@@ -20,7 +21,10 @@ const surveillantSchema = z.object({
   email: z.string().email("Email invalide"),
   type: z.enum(["PAT", "Assistant", "Jobiste"], {
     required_error: "Le type est requis"
-  })
+  }),
+  quota_personnalise: z.number().min(0).optional(),
+  est_illimite: z.boolean().default(false),
+  exclure_attribution_auto: z.boolean().default(false)
 });
 
 type SurveillantFormData = z.infer<typeof surveillantSchema>;
@@ -28,7 +32,6 @@ type SurveillantFormData = z.infer<typeof surveillantSchema>;
 export const SurveillantCreator = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
-  const [isCreating, setIsCreating] = useState(false);
 
   const form = useForm<SurveillantFormData>({
     resolver: zodResolver(surveillantSchema),
@@ -36,9 +39,15 @@ export const SurveillantCreator = () => {
       nom: "",
       prenom: "",
       email: "",
-      type: undefined
+      type: undefined,
+      quota_personnalise: undefined,
+      est_illimite: false,
+      exclure_attribution_auto: false
     }
   });
+
+  const watchEstIllimite = form.watch("est_illimite");
+  const watchExclureAuto = form.watch("exclure_attribution_auto");
 
   const createSurveillant = useMutation({
     mutationFn: async (data: SurveillantFormData) => {
@@ -72,16 +81,26 @@ export const SurveillantCreator = () => {
 
       if (surveillantError) throw surveillantError;
 
-      // Ajouter à la session avec quota par défaut
-      const defaultQuota = data.type === 'PAT' ? 12 : data.type === 'Assistant' ? 6 : 4;
+      // Calculer le quota final
+      let quotaFinal: number;
+      if (data.est_illimite) {
+        quotaFinal = 999; // Valeur très élevée pour simuler l'illimité
+      } else if (data.quota_personnalise !== undefined && data.quota_personnalise > 0) {
+        quotaFinal = data.quota_personnalise;
+      } else {
+        // Quota par défaut selon le type
+        quotaFinal = data.type === 'PAT' ? 12 : data.type === 'Assistant' ? 6 : 4;
+      }
       
+      // Ajouter à la session
       const { error: sessionError } = await supabase
         .from('surveillant_sessions')
         .insert({
           surveillant_id: newSurveillant.id,
           session_id: activeSession.id,
-          quota: defaultQuota,
-          is_active: true
+          quota: quotaFinal,
+          is_active: !data.exclure_attribution_auto, // Si exclu de l'auto, marquer comme inactif
+          sessions_imposees: data.exclure_attribution_auto ? 0 : null
         });
 
       if (sessionError) throw sessionError;
@@ -129,7 +148,7 @@ export const SurveillantCreator = () => {
           <span>Créer un nouveau surveillant</span>
         </CardTitle>
         <CardDescription>
-          Ajoutez un surveillant supplémentaire pour réduire la charge sur certaines sessions d'examens.
+          Ajoutez un surveillant avec des paramètres personnalisés de quota et d'attribution.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -192,15 +211,95 @@ export const SurveillantCreator = () => {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="PAT">PAT (Quota: 12)</SelectItem>
-                      <SelectItem value="Assistant">Assistant (Quota: 6)</SelectItem>
-                      <SelectItem value="Jobiste">Jobiste (Quota: 4)</SelectItem>
+                      <SelectItem value="PAT">PAT (Quota par défaut: 12)</SelectItem>
+                      <SelectItem value="Assistant">Assistant (Quota par défaut: 6)</SelectItem>
+                      <SelectItem value="Jobiste">Jobiste (Quota par défaut: 4)</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+              <h4 className="font-medium">Paramètres de quota</h4>
+              
+              <FormField
+                control={form.control}
+                name="est_illimite"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Quota illimité
+                      </FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Ce surveillant peut être assigné à un nombre illimité de surveillances.
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              {!watchEstIllimite && (
+                <FormField
+                  control={form.control}
+                  name="quota_personnalise"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Quota personnalisé (optionnel)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          placeholder="Laisser vide pour utiliser le quota par défaut"
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              <FormField
+                control={form.control}
+                name="exclure_attribution_auto"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Exclure de l'attribution automatique
+                      </FormLabel>
+                      <p className="text-sm text-muted-foreground">
+                        Ce surveillant ne sera pas assigné automatiquement. Utilisé pour les surveillants ponctuels.
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {watchExclureAuto && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ Ce surveillant sera exclu de l'attribution automatique. Vous devrez l'assigner manuellement via les pré-assignations.
+                </p>
+              </div>
+            )}
 
             <Button 
               type="submit" 

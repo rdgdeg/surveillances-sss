@@ -1,4 +1,5 @@
 
+
 import {
   LayoutDashboard,
   Calendar,
@@ -10,7 +11,9 @@ import {
   Lock,
   Clock,
   BarChart4,
-  ListChecks
+  ListChecks,
+  Calculator,
+  MessageSquare
 } from "lucide-react";
 
 import {
@@ -146,6 +149,24 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
                 >
                   <LayoutDashboard className="h-4 w-4" />
                   <span>Planning</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onViewChange("soldes")}
+                  isActive={activeView === "soldes"}
+                >
+                  <Calculator className="h-4 w-4" />
+                  <span>Soldes</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => onViewChange("demandes")}
+                  isActive={activeView === "demandes"}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>Demandes</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { SessionSelector } from "@/components/SessionSelector";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
@@ -16,6 +17,8 @@ import { CallyImporter } from "@/components/CallyImporter";
 import { DataConsistencyChecker } from "@/components/DataConsistencyChecker";
 import { IntelligentAssignmentEngine } from "@/components/IntelligentAssignmentEngine";
 import { SurveillantCreator } from "@/components/SurveillantCreator";
+import { SoldesSurveillants } from "@/components/SoldesSurveillants";
+import { DemandeChangement } from "@/components/DemandeChangement";
 
 const Admin = () => {
   const [activeView, setActiveView] = useState("sessions");
@@ -33,8 +36,6 @@ const Admin = () => {
     }));
   };
 
-  const allUploadsComplete = Object.values(uploadStates).every(state => state === true);
-
   const getViewTitle = () => {
     switch (activeView) {
       case "sessions": return "Gestion des Sessions";
@@ -49,6 +50,8 @@ const Admin = () => {
       case "history": return "Historique des Surveillances";
       case "planning": return "Planning des Surveillances";
       case "surveillant-creator": return "Créer des Surveillants";
+      case "soldes": return "Soldes et Réattribution";
+      case "demandes": return "Demandes de Changement";
       default: return "Administration";
     }
   };
@@ -233,6 +236,12 @@ const Admin = () => {
       case "surveillant-creator":
         return <SurveillantCreator />;
       
+      case "soldes":
+        return <SoldesSurveillants />;
+      
+      case "demandes":
+        return <DemandeChangement />;
+      
       default:
         return <div>Section non trouvée</div>;
     }
@@ -276,7 +285,9 @@ const Admin = () => {
                 {activeView === "constraints" && "Définissez les contraintes par salle d'examen"}
                 {activeView === "history" && "Consultez l'historique des surveillances par surveillant"}
                 {activeView === "planning" && "Visualisez et gérez le planning des surveillances"}
-                {activeView === "surveillant-creator" && "Créer des Surveillants"}
+                {activeView === "surveillant-creator" && "Créez des surveillants avec quotas personnalisés"}
+                {activeView === "soldes" && "Consultez les soldes et gérez les réattributions"}
+                {activeView === "demandes" && "Gérez les demandes de changement des surveillants"}
               </p>
             </div>
             
