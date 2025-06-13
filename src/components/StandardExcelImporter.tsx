@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X } from "lucide-react";
+import { Upload, FileSpreadsheet, CheckCircle, AlertTriangle, Clock, Search, Edit2, Save, X, Trash2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -460,6 +460,39 @@ export const StandardExcelImporter = () => {
     }
   };
 
+  const deleteSelected = () => {
+    if (selectedItems.length === 0) return;
+
+    const selectedIndices = selectedItems.map(index => parseInt(index)).sort((a, b) => b - a);
+    const newParsedData = [...parsedData];
+    
+    selectedIndices.forEach(index => {
+      newParsedData.splice(index, 1);
+    });
+
+    setParsedData(newParsedData);
+    setSelectedItems([]);
+    
+    // Recalculer les statistiques
+    const statsParType = { E: 0, O: 0, AUTRES: 0 };
+    newParsedData.forEach(examen => {
+      if (examen.type_detecte === 'E') statsParType.E++;
+      else if (examen.type_detecte === 'O') statsParType.O++;
+      else statsParType.AUTRES++;
+    });
+
+    setProcessingStats(prev => prev ? {
+      ...prev,
+      examens_affiches: newParsedData.length,
+      par_type: statsParType
+    } : null);
+
+    toast({
+      title: "Examens supprimés",
+      description: `${selectedIndices.length} examens ont été supprimés de la liste.`,
+    });
+  };
+
   const handleSelectAll = () => {
     const filteredData = getFilteredData();
     const filteredIndices = parsedData
@@ -692,6 +725,16 @@ export const StandardExcelImporter = () => {
               
               <Button onClick={handleSelectAll} variant="outline">
                 {selectedItems.length === filteredData.length && filteredData.length > 0 ? 'Tout désélectionner' : 'Tout sélectionner'}
+              </Button>
+              
+              <Button 
+                onClick={deleteSelected} 
+                disabled={selectedItems.length === 0}
+                variant="destructive"
+                className="bg-red-600 hover:bg-red-700"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Supprimer la sélection ({selectedItems.length})
               </Button>
               
               <Button 
