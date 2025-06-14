@@ -51,13 +51,20 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
       children: [
         { id: "examens", label: "Import & Révision", icon: FileText },
         { id: "validation", label: "Workflow de Validation", icon: CheckCircle },
-        { id: "enseignant-view", label: "Vue Enseignant", icon: Eye }
+        { id: "enseignant-view", label: "Vue Enseignant", icon: Eye },
+        { id: "tokens-enseignants", label: "Liens Enseignants", icon: UserPlus }
       ]
     },
     {
       id: "planning",
       label: "Planning & Attribution",
       icon: Calendar,
+      type: "single"
+    },
+    {
+      id: "pre-assignations",
+      label: "Pré-assignations",
+      icon: UserPlus,
       type: "single"
     },
     {
