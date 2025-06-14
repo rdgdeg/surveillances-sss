@@ -3,11 +3,13 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Shield, Database, UserCheck, Eye, Trash2, Home } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Footer } from "@/components/Footer";
+import UCLouvainHeader from "@/components/UCLouvainHeader";
 
 const Privacy = () => {
   return (
     <div className="min-h-screen flex flex-col">
       <div className="flex-1">
+        <UCLouvainHeader />
         <div className="max-w-4xl mx-auto p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
