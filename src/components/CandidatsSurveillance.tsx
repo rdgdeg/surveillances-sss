@@ -63,23 +63,32 @@ export const CandidatsSurveillance = () => {
       if (error) throw error;
 
       // Pour chaque candidat, on recompte les dispos à partir de la table disponibilites
-      // (en matchant via email => surveillant => disponibilites)
       const candidatsWithCount = await Promise.all(
         (data || []).map(async (candidat) => {
           // Chercher le surveillant lié à l'email (même celui qui aurait été créé par le public)
-          const { data: surveillant } = await supabase
+          const { data: surveillant, error: surveillantErr } = await supabase
             .from('surveillants')
-            .select('id')
-            .eq('email', candidat.email)
+            .select('id, email')
+            .eq('email', candidat.email?.trim())
             .maybeSingle();
+
+          if (surveillantErr) {
+            console.log('Erreur de recherche surveillant', surveillantErr);
+          }
           let count = 0;
           if (surveillant) {
-            const { count: dispoCount } = await supabase
+            const { count: dispoCount, error: dispoErr } = await supabase
               .from('disponibilites')
               .select('id', { count: 'exact', head: true })
               .eq('surveillant_id', surveillant.id)
               .eq('session_id', candidat.session_id);
+            if (dispoErr) {
+              console.log('Erreur de recherche disponibilites', dispoErr);
+            }
             count = dispoCount ?? 0;
+          } else {
+            // Log surveillant non trouvé pour debug (nom, email ?)
+            console.log(`Aucun surveillant trouvé pour: ${candidat.prenom} ${candidat.nom} <${candidat.email}>`);
           }
           return { ...candidat, disponibilites_count: count };
         })
@@ -91,16 +100,19 @@ export const CandidatsSurveillance = () => {
 
   // 2. Charger les créneaux de disponibilités réels du candidat sélectionné
   const { data: disponibilites } = useQuery({
-    queryKey: ['candidat-disponibilites', selectedCandidat?.id],
+    queryKey: ['candidat-disponibilites', selectedCandidat?.id, selectedCandidat?.email, selectedCandidat?.session_id],
     queryFn: async (): Promise<DisponibiliteDetail[]> => {
       if (!selectedCandidat?.id) return [];
-      // Trouver le surveillant id lié à ce candidat (par email)
+      // Chercher le surveillant lié à l'email (parfois fails si espace/casse)
       const { data: surveillant } = await supabase
         .from('surveillants')
-        .select('id')
-        .eq('email', selectedCandidat.email)
+        .select('id, email')
+        .eq('email', selectedCandidat.email?.trim())
         .maybeSingle();
-      if (!surveillant) return [];
+      if (!surveillant) {
+        console.log(`Surveillant non trouvé (detail) pour ${selectedCandidat.prenom} ${selectedCandidat.nom} <${selectedCandidat.email}>`);
+        return [];
+      }
       const { data, error } = await supabase
         .from('disponibilites')
         .select(`
@@ -111,7 +123,10 @@ export const CandidatsSurveillance = () => {
         .eq('session_id', selectedCandidat.session_id)
         .eq('est_disponible', true);
 
-      if (error) throw error;
+      if (error) {
+        console.log('Erreur chargement disponibilites depuis disponibilites', error);
+        throw error;
+      }
 
       return (data || []).map((row: any) => ({
         id: row.id,
@@ -124,7 +139,7 @@ export const CandidatsSurveillance = () => {
         nom_examen_obligatoire: row.nom_examen_obligatoire || undefined
       }));
     },
-    enabled: !!selectedCandidat?.id
+    enabled: !!selectedCandidat?.id && !!selectedCandidat?.session_id && !!selectedCandidat?.email
   });
 
   // 3. Charger les demandes de modification info associées à ce candidat
