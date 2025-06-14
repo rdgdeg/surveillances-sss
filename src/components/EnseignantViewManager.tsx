@@ -8,23 +8,27 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Eye, Users, Calendar, Clock, MapPin } from "lucide-react";
+import { Search, Eye, Users, Calendar, Clock, MapPin, Filter } from "lucide-react";
 import { groupExamens, ExamenGroupe } from "@/utils/examenReviewUtils";
+
+// Nouveau : Select (filtre)
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const EnseignantViewManager = () => {
   const { data: activeSession } = useActiveSession();
   const [searchTerm, setSearchTerm] = useState('');
+  // Ajout du filtre de statut (ALL/VALIDE)
+  const [statutFilter, setStatutFilter] = useState<'ALL' | 'VALIDE'>('VALIDE');
 
-  const { data: examensValides, isLoading } = useQuery({
-    queryKey: ['examens-valides', activeSession?.id],
+  // Requête pour TOUS les examens actifs
+  const { data: allExamens, isLoading } = useQuery({
+    queryKey: ['examens-tous', activeSession?.id],
     queryFn: async () => {
       if (!activeSession?.id) return [];
-
       const { data, error } = await supabase
         .from('examens')
         .select('*')
         .eq('session_id', activeSession.id)
-        .eq('statut_validation', 'VALIDE')
         .eq('is_active', true)
         .order('date_examen', { ascending: true })
         .order('heure_debut', { ascending: true });
@@ -35,28 +39,40 @@ export const EnseignantViewManager = () => {
     enabled: !!activeSession?.id
   });
 
+  // Requête contraintes auditoires inchangée
   const { data: contraintesAuditoires } = useQuery({
     queryKey: ['contraintes-auditoires'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contraintes_auditoires')
         .select('auditoire, nombre_surveillants_requis');
-
       if (error) throw error;
       return data || [];
     }
   });
 
-  const examensGroupes = useMemo(() => {
-    if (!examensValides || !contraintesAuditoires) return [];
-    return groupExamens(examensValides, contraintesAuditoires);
-  }, [examensValides, contraintesAuditoires]);
+  // Deux filtres : statut filteré (VALIDE) ou non
+  const examensFiltres = useMemo(() => {
+    if (!allExamens) return [];
+    return statutFilter === 'VALIDE'
+      ? allExamens.filter((e: any) => e.statut_validation === 'VALIDE')
+      : allExamens;
+  }, [allExamens, statutFilter]);
+  // Comptes pour l’UX
+  const totalExamens = allExamens?.length || 0;
+  const totalValidés = allExamens?.filter((e: any) => e.statut_validation === 'VALIDE').length || 0;
 
+  // Grouper selon contraintes auditoires (comme avant)
+  const examensGroupes = useMemo(() => {
+    if (!examensFiltres || !contraintesAuditoires) return [];
+    return groupExamens(examensFiltres, contraintesAuditoires);
+  }, [examensFiltres, contraintesAuditoires]);
+
+  // Filtre recherche utilisateur
   const filteredExamens = useMemo(() => {
     if (!searchTerm.trim()) return examensGroupes;
-    
     const searchLower = searchTerm.toLowerCase();
-    return examensGroupes.filter(groupe => 
+    return examensGroupes.filter(groupe =>
       groupe.code_examen?.toLowerCase().includes(searchLower) ||
       groupe.matiere.toLowerCase().includes(searchLower) ||
       groupe.auditoire_unifie.toLowerCase().includes(searchLower)
@@ -71,10 +87,7 @@ export const EnseignantViewManager = () => {
       day: 'numeric'
     });
   };
-
-  const formatTime = (timeStr: string) => {
-    return timeStr.slice(0, 5);
-  };
+  const formatTime = (timeStr: string) => timeStr.slice(0, 5);
 
   if (!activeSession) {
     return (
@@ -87,7 +100,6 @@ export const EnseignantViewManager = () => {
       </Card>
     );
   }
-
   if (isLoading) {
     return (
       <Card>
@@ -104,29 +116,69 @@ export const EnseignantViewManager = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Eye className="h-5 w-5" />
-            <span>Vue Enseignant - Examens Validés</span>
+            <span>Vue Enseignant - Examens</span>
           </CardTitle>
           <CardDescription>
-            Consultez tous les examens validés et leurs besoins en surveillance confirmés
+            Consultez tous les examens de la session et leurs besoins en surveillance
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Search className="h-4 w-4 text-gray-500" />
-            <Input
-              placeholder="Rechercher par code d'examen, matière ou auditoire..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1"
-            />
+          {/* Filtres */}
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex items-center space-x-2 flex-1 min-w-[280px]">
+              <Search className="h-4 w-4 text-gray-500" />
+              <Input
+                placeholder="Rechercher par code d'examen, matière ou auditoire..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1"
+              />
+            </div>
+            <div>
+              <Select value={statutFilter} onValueChange={(val) => setStatutFilter(val as 'ALL' | 'VALIDE')}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Afficher..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="VALIDE">
+                    Examens validés uniquement
+                  </SelectItem>
+                  <SelectItem value="ALL">
+                    Tous les examens actifs
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-
+          {/* Statistiques & info */}
+          <div className="flex flex-wrap gap-4 items-center">
+            <span className="text-sm text-gray-600">
+              {totalValidés} examen{totalValidés > 1 ? 's' : ''} validé{totalValidés > 1 ? 's' : ''}
+              {' / '}
+              {totalExamens} au total dans la session
+            </span>
+            {statutFilter === "VALIDE" && (
+              <span className="text-xs text-orange-600">
+                Seuls les examens validés sont affichés. Passez sur "Tous les examens" pour tout voir.
+              </span>
+            )}
+            {statutFilter === "ALL" && (
+              <span className="text-xs text-blue-600">
+                Tous les examens actifs de la session sont affichés, y compris ceux non validés.
+              </span>
+            )}
+          </div>
+          {/* Aucun examen ? */}
           {filteredExamens.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              {searchTerm ? 'Aucun examen trouvé pour cette recherche.' : 'Aucun examen validé trouvé.'}
+              {searchTerm
+                ? 'Aucun examen trouvé pour cette recherche.'
+                : statutFilter === 'VALIDE'
+                  ? 'Aucun examen validé trouvé. Changez le filtre pour afficher tous les examens.'
+                  : 'Aucun examen trouvé pour cette session.'}
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -141,7 +193,6 @@ export const EnseignantViewManager = () => {
                 <TableBody>
                   {filteredExamens.map((groupe) => {
                     const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
-                    
                     return (
                       <TableRow key={groupeKey}>
                         <TableCell className="font-medium">
@@ -186,8 +237,16 @@ export const EnseignantViewManager = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="default" className="bg-green-100 text-green-800">
-                            Validé
+                          <Badge variant="default"
+                            className={
+                              groupe.examens.every((e: any) => e.statut_validation === 'VALIDE')
+                                ? "bg-green-100 text-green-800"
+                                : "bg-gray-100 text-gray-800"
+                            }
+                          >
+                            {groupe.examens.every((e: any) => e.statut_validation === 'VALIDE')
+                              ? "Validé"
+                              : "À valider"}
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -197,7 +256,7 @@ export const EnseignantViewManager = () => {
               </Table>
             </div>
           )}
-
+          {/* Résumé */}
           {filteredExamens.length > 0 && (
             <div className="flex justify-between items-center text-sm text-gray-600">
               <span>
