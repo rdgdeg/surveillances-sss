@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Users, CheckCircle, XCircle, Eye, Mail, Phone } from "lucide-react";
+import { Users, CheckCircle, XCircle, Eye, Mail, Phone, BookOpen } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -24,49 +24,121 @@ interface CandidatSurveillance {
   disponibilites_count?: number;
 }
 
+// Pour afficher les dispos par surveillant (en se basant sur email)
+interface DisponibiliteDetail {
+  id: string;
+  date_examen: string;
+  heure_debut: string;
+  heure_fin: string;
+  matiere: string;
+  salle: string;
+  commentaire_surveillance_obligatoire?: string;
+  nom_examen_obligatoire?: string;
+}
+
+// Pour afficher les demandes de modif
+interface DemandeModification {
+  id: string;
+  commentaire: string | null;
+  statut: string | null;
+  created_at: string;
+}
+
 export const CandidatsSurveillance = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
   const [selectedCandidat, setSelectedCandidat] = useState<CandidatSurveillance | null>(null);
 
+  // 1. Charger tous les candidats pour la session
   const { data: candidats, isLoading } = useQuery({
     queryKey: ['candidats-surveillance', activeSession?.id],
     queryFn: async (): Promise<CandidatSurveillance[]> => {
       if (!activeSession?.id) return [];
-
       const { data, error } = await supabase
         .from('candidats_surveillance')
-        .select(`
-          *,
-          candidats_disponibilites(count)
-        `)
+        .select('*')
         .eq('session_id', activeSession.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      
-      return (data || []).map(candidat => ({
-        ...candidat,
-        disponibilites_count: candidat.candidats_disponibilites?.[0]?.count || 0
-      }));
+
+      // Pour chaque candidat, on recompte les dispos à partir de la table disponibilites
+      // (en matchant via email => surveillant => disponibilites)
+      const candidatsWithCount = await Promise.all(
+        (data || []).map(async (candidat) => {
+          // Chercher le surveillant lié à l'email (même celui qui aurait été créé par le public)
+          const { data: surveillant } = await supabase
+            .from('surveillants')
+            .select('id')
+            .eq('email', candidat.email)
+            .maybeSingle();
+          let count = 0;
+          if (surveillant) {
+            const { count: dispoCount } = await supabase
+              .from('disponibilites')
+              .select('id', { count: 'exact', head: true })
+              .eq('surveillant_id', surveillant.id)
+              .eq('session_id', candidat.session_id);
+            count = dispoCount ?? 0;
+          }
+          return { ...candidat, disponibilites_count: count };
+        })
+      );
+      return candidatsWithCount;
     },
     enabled: !!activeSession?.id
   });
 
+  // 2. Charger les créneaux de disponibilités réels du candidat sélectionné
   const { data: disponibilites } = useQuery({
     queryKey: ['candidat-disponibilites', selectedCandidat?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<DisponibiliteDetail[]> => {
       if (!selectedCandidat?.id) return [];
-
+      // Trouver le surveillant id lié à ce candidat (par email)
+      const { data: surveillant } = await supabase
+        .from('surveillants')
+        .select('id')
+        .eq('email', selectedCandidat.email)
+        .maybeSingle();
+      if (!surveillant) return [];
       const { data, error } = await supabase
-        .from('candidats_disponibilites')
+        .from('disponibilites')
         .select(`
           *,
           examens(date_examen, heure_debut, heure_fin, matiere, salle)
         `)
-        .eq('candidat_id', selectedCandidat.id)
+        .eq('surveillant_id', surveillant.id)
+        .eq('session_id', selectedCandidat.session_id)
         .eq('est_disponible', true);
 
+      if (error) throw error;
+
+      return (data || []).map((row: any) => ({
+        id: row.id,
+        date_examen: row.examens?.date_examen,
+        heure_debut: row.examens?.heure_debut,
+        heure_fin: row.examens?.heure_fin,
+        matiere: row.examens?.matiere,
+        salle: row.examens?.salle,
+        commentaire_surveillance_obligatoire: row.commentaire_surveillance_obligatoire || undefined,
+        nom_examen_obligatoire: row.nom_examen_obligatoire || undefined
+      }));
+    },
+    enabled: !!selectedCandidat?.id
+  });
+
+  // 3. Charger les demandes de modification info associées à ce candidat
+  const { data: demandesModification } = useQuery({
+    queryKey: ['demandes-modification', selectedCandidat?.id],
+    queryFn: async (): Promise<DemandeModification[]> => {
+      if (!selectedCandidat?.id) return [];
+      // La table "demandes_modification_info" fait ref soit sur le surveillant, soit sur le candidat.
+      // On va chercher via candidat_id
+      const { data, error } = await supabase
+        .from('demandes_modification_info')
+        .select('*')
+        .eq('candidat_id', selectedCandidat.id)
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -201,7 +273,7 @@ export const CandidatsSurveillance = () => {
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="secondary">
-                          {candidat.disponibilites_count || 0} créneaux
+                          {candidat.disponibilites_count || 0} créneau{(candidat.disponibilites_count || 0) > 1 ? "x" : ""}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">
@@ -245,20 +317,57 @@ export const CandidatsSurveillance = () => {
                               </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4">
-                              {disponibilites?.map((dispo) => (
-                                <div key={dispo.id} className="flex items-center justify-between p-3 border rounded">
-                                  <div>
-                                    <div className="font-medium">{dispo.examens?.date_examen}</div>
-                                    <div className="text-sm text-muted-foreground">
-                                      {dispo.examens?.heure_debut} - {dispo.examens?.heure_fin}
-                                    </div>
+                              <div>
+                                <h4 className="text-base font-medium mb-2 flex items-center gap-2">
+                                  <BookOpen className="h-4 w-4" />
+                                  Disponibilités
+                                </h4>
+                                {disponibilites?.length ? (
+                                  <div className="space-y-2">
+                                    {disponibilites.map((dispo) => (
+                                      <div key={dispo.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 border rounded">
+                                        <div>
+                                          <div className="font-medium">{dispo.date_examen}</div>
+                                          <div className="text-sm text-muted-foreground">
+                                            {dispo.heure_debut} - {dispo.heure_fin}
+                                          </div>
+                                          <div className="text-xs mt-1">{dispo.matiere}</div>
+                                          <div className="text-xs text-muted-foreground">{dispo.salle}</div>
+                                          {dispo.nom_examen_obligatoire && (
+                                            <div className="text-xs text-primary font-semibold">Surveillance obligatoire: {dispo.nom_examen_obligatoire}</div>
+                                          )}
+                                          {dispo.commentaire_surveillance_obligatoire && (
+                                            <div className="text-xs text-primary">Commentaire: {dispo.commentaire_surveillance_obligatoire}</div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
-                                  <div className="text-right">
-                                    <div className="text-sm">{dispo.examens?.matiere}</div>
-                                    <div className="text-xs text-muted-foreground">{dispo.examens?.salle}</div>
+                                ) : (
+                                  <div className="text-muted-foreground text-sm">Aucune disponibilité enregistrée pour ce candidat.</div>
+                                )}
+                              </div>
+                              <div>
+                                <h4 className="text-base font-medium mb-2 flex items-center gap-2">
+                                  <BookOpen className="h-4 w-4" />
+                                  Demandes de modification info
+                                </h4>
+                                {demandesModification?.length ? (
+                                  <div className="space-y-2">
+                                    {demandesModification.map((demande) => (
+                                      <div key={demande.id} className="p-3 border rounded">
+                                        <div className="flex justify-between items-center">
+                                          <span className="text-xs text-muted-foreground">{new Date(demande.created_at).toLocaleString('fr-FR')}</span>
+                                          <Badge variant="outline">{demande.statut}</Badge>
+                                        </div>
+                                        <div className="mt-2 text-sm">{demande.commentaire || "(Pas de commentaire)"}</div>
+                                      </div>
+                                    ))}
                                   </div>
-                                </div>
-                              ))}
+                                ) : (
+                                  <div className="text-muted-foreground text-sm">Aucune demande de modification trouvée pour ce candidat.</div>
+                                )}
+                              </div>
                             </div>
                           </DialogContent>
                         </Dialog>
@@ -274,3 +383,4 @@ export const CandidatsSurveillance = () => {
     </div>
   );
 };
+
