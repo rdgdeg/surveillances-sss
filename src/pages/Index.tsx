@@ -32,7 +32,7 @@ const Index = () => {
             <div className="flex items-center space-x-4">
               <Link to="/admin">
                 <Button variant="outline" className="flex items-center space-x-2 border-uclouvain-cyan text-uclouvain-cyan hover:bg-uclouvain-cyan hover:text-uclouvain-blue transition-colors">
-                  <Settings className="h-4 w-4" />
+                  <ClipboardList className="h-4 w-4" />
                   <span>Administration</span>
                 </Button>
               </Link>
@@ -57,62 +57,62 @@ const Index = () => {
           <EnseignantExamenForm />
         </div>
 
-        {/* Cards Grid : now only 3 cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+        {/* Cards Grid = Alignement */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           {/* Enseignants */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="text-center">
-              <div className="mx-auto bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                <GraduationCap className="h-6 w-6 text-green-600" />
+          <Card className="flex flex-col items-center justify-center h-full min-h-[340px] px-2 py-6 shadow-sm border">
+            <CardHeader className="flex flex-col items-center justify-center text-center p-0 mb-3">
+              <div className="mx-auto bg-green-100 w-14 h-14 rounded-full flex items-center justify-center mb-4">
+                <GraduationCap className="h-7 w-7 text-green-600" />
               </div>
-              <CardTitle className="text-xl">Enseignants</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-2">Enseignants</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center text-center w-full flex-1 p-0">
+              <CardDescription className="text-base text-gray-700 mb-5">
                 Confirmez les examens dont vous êtes responsable et indiquez les assistants qui participeront à la surveillance.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <Link to="/enseignant">
-                <Button className="w-full bg-green-600 hover:bg-green-700 font-semibold">
-                  Gérer mes examens &amp; assistants
+              <Link to="/enseignant" className="w-full flex justify-center">
+                <Button className="w-[90%] max-w-xs bg-green-600 hover:bg-green-700 text-lg font-semibold rounded-lg h-12">
+                  Gérer mes examens & assistants
                 </Button>
               </Link>
             </CardContent>
           </Card>
 
-          {/* Surveillants (fusion attributions et disponibilités) */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="text-center">
-              <div className="mx-auto bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                <Users className="h-6 w-6 text-blue-600" />
+          {/* Surveillants */}
+          <Card className="flex flex-col items-center justify-center h-full min-h-[340px] px-2 py-6 shadow-sm border">
+            <CardHeader className="flex flex-col items-center justify-center text-center p-0 mb-3">
+              <div className="mx-auto bg-blue-100 w-14 h-14 rounded-full flex items-center justify-center mb-4">
+                <Users className="h-7 w-7 text-blue-600" />
               </div>
-              <CardTitle className="text-xl">Surveillants</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-2">Surveillants</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center text-center w-full flex-1 p-0">
+              <CardDescription className="text-base text-gray-700 mb-5">
                 Consultez vos attributions de surveillance et renseignez directement vos disponibilités.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <Link to="/surveillant">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700 font-semibold">
-                  Mes attributions &amp; disponibilités
+              <Link to="/surveillant" className="w-full flex justify-center">
+                <Button className="w-[90%] max-w-xs bg-blue-600 hover:bg-blue-700 text-lg font-semibold rounded-lg h-12">
+                  Mes attributions & disponibilités
                 </Button>
               </Link>
             </CardContent>
           </Card>
 
           {/* Administration */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader className="text-center">
-              <div className="mx-auto bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                <ClipboardList className="h-6 w-6 text-gray-600" />
+          <Card className="flex flex-col items-center justify-center h-full min-h-[340px] px-2 py-6 shadow-sm border">
+            <CardHeader className="flex flex-col items-center justify-center text-center p-0 mb-3">
+              <div className="mx-auto bg-gray-100 w-14 h-14 rounded-full flex items-center justify-center mb-4">
+                <ClipboardList className="h-7 w-7 text-gray-600" />
               </div>
-              <CardTitle className="text-xl">Administration</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-2">Administration</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center text-center w-full flex-1 p-0">
+              <CardDescription className="text-base text-gray-700 mb-5">
                 Validez, supervisez et attribuez les surveillances, gérez les utilisateurs et assistances.
               </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center">
-              <Link to="/admin">
-                <Button variant="outline" className="w-full font-semibold">
+              <Link to="/admin" className="w-full flex justify-center">
+                <Button variant="outline" className="w-[90%] max-w-xs text-lg font-semibold rounded-lg h-12 border-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-blue-grey hover:text-uclouvain-blue transition-colors">
                   Accéder à l’administration
                 </Button>
               </Link>
@@ -120,7 +120,7 @@ const Index = () => {
           </Card>
         </div>
 
-        {/* Features section can stay or be reduced if needed */}
+        {/* Features section gardée inchangée */}
         <div className="bg-white rounded-lg shadow-sm p-8">
           <h3 className="text-2xl font-bold text-center mb-8">Fonctionnalités principales</h3>
           <div className="grid md:grid-cols-3 gap-8">
