@@ -264,10 +264,10 @@ export const CollecteSurveillants = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nom || !formData.prenom || !formData.email || !formData.statut) {
+    if (!formData.nom || !formData.prenom || !formData.email || !formData.statut || !formData.telephone) {
       toast({
         title: "Champs requis",
-        description: "Veuillez remplir tous les champs obligatoires.",
+        description: "Veuillez remplir tous les champs obligatoires, dont le téléphone.",
         variant: "destructive"
       });
       return;
@@ -445,14 +445,21 @@ export const CollecteSurveillants = () => {
                   onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                   required
                 />
+                <p className="text-xs text-uclouvain-blue mt-1">
+                  Pour les membres UCLouvain : veillez à bien indiquer votre adresse UCLouvain (@uclouvain.be), elle sert à vous connecter sur toute la plateforme.
+                </p>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="telephone">Téléphone</Label>
+                <Label htmlFor="telephone">Téléphone *</Label>
                 <Input
                   id="telephone"
                   value={formData.telephone}
                   onChange={(e) => setFormData(prev => ({ ...prev, telephone: e.target.value }))}
+                  required
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Votre numéro de téléphone restera confidentiel et ne sera jamais communiqué, il ne servira qu’en cas d’urgence organisationnelle.
+                </p>
               </div>
             </div>
             <div className="space-y-2">
@@ -497,7 +504,7 @@ export const CollecteSurveillants = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-8">
-              {/* Fix: groupCreneauxByWeek(uniqueCreneaux) */}
+              {/* Groupement par semaine - créneaux */}
               {groupCreneauxByWeek(uniqueCreneaux).map((semaine, semIdx) => (
                 <div key={semaine.title}>
                   <h3 className="font-bold text-uclouvain-blue mb-2">{semaine.title}</h3>
@@ -537,6 +544,13 @@ export const CollecteSurveillants = () => {
                   </div>
                 </div>
               ))}
+            </div>
+            {/* Note admin modification créneaux */}
+            <div className="mt-8">
+              <p className="text-xs text-center text-gray-500">
+                ⚙️ Cette liste de créneaux est générée automatiquement à partir des examens validés.<br/>
+                <span className="font-medium">Pour modifier la liste des créneaux, veuillez passer par l’interface d’administration.</span>
+              </p>
             </div>
           </CardContent>
         </Card>
