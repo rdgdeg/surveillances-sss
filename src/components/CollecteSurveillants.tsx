@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,6 +124,9 @@ export const CollecteSurveillants = () => {
   });
 
   const [submitted, setSubmitted] = useState(false);
+  const [notAllowed, setNotAllowed] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [surveillantId, setSurveillantId] = useState<string|null>(null);
 
   // Récupérer la session active pour afficher les créneaux
   const { data: activeSession } = useQuery({
@@ -134,11 +137,40 @@ export const CollecteSurveillants = () => {
         .select('*')
         .eq('is_active', true)
         .single();
-      
       if (error && error.code !== 'PGRST116') throw error;
       return data;
     }
   });
+
+  // Ajouter un effet pour vérifier l'email
+  useEffect(() => {
+    // On vérifie l'email au blur pour ne pas requêter à chaque frappe
+    if (!formData.email || !activeSession) return;
+    let isCancelled = false;
+    (async () => {
+      setIsChecking(true);
+      // On recherche quelqu’un dans surveillants avec exact email
+      const { data, error } = await supabase
+        .from('surveillants')
+        .select('id, nom, prenom')
+        .eq('email', formData.email.trim())
+        .maybeSingle();
+      if (!isCancelled) {
+        if (!data) {
+          setNotAllowed(true);
+          setSurveillantId(null);
+        } else {
+          setNotAllowed(false);
+          setSurveillantId(data.id);
+          if (formData.nom === '' && formData.prenom === '') {
+            setFormData(f => ({ ...f, nom: data.nom, prenom: data.prenom }));
+          }
+        }
+        setIsChecking(false);
+      }
+    })();
+    return () => { isCancelled = true; };
+  }, [formData.email, activeSession]);
 
   const { data: examens } = useQuery({
     queryKey: ['examens-public', activeSession?.id],
@@ -185,55 +217,50 @@ export const CollecteSurveillants = () => {
     uniqueCreneaux = Array.from(creneauMap.values());
   }
 
+  // Disponible: on n’autorise l’envoi que si surveillantId trouvé
   const submitMutation = useMutation({
-    mutationFn: async (candidatData: typeof formData) => {
-      // Insérer le candidat
-      const { data: candidat, error: candidatError } = await supabase
-        .from('candidats_surveillance')
-        .insert({
-          nom: candidatData.nom,
-          prenom: candidatData.prenom,
-          email: candidatData.email,
-          telephone: candidatData.telephone,
-          statut: candidatData.statut,
-          statut_autre: candidatData.statut === 'Autre' ? candidatData.statut_autre : null,
-          session_id: activeSession?.id
-        })
-        .select()
-        .single();
-
-      if (candidatError) throw candidatError;
-
-      // Insérer les disponibilités
-      const disponibilites = Object.entries(candidatData.disponibilites)
-        .filter(([_, isAvailable]) => isAvailable)
-        .map(([examenId]) => ({
-          candidat_id: candidat.id,
-          examen_id: examenId,
-          est_disponible: true
-        }));
-
-      if (disponibilites.length > 0) {
-        const { error: dispError } = await supabase
-          .from('candidats_disponibilites')
-          .insert(disponibilites);
-
-        if (dispError) throw dispError;
-      }
-
-      return candidat;
+    mutationFn: async (dispoData: typeof formData) => {
+      // Sauvegarder les dispos dans "disponibilites"
+      if (!surveillantId || !activeSession?.id) throw new Error("Vous n'êtes pas autorisé.");
+      // Supprimer les dispo précédentes pour cette session/surveillant
+      await supabase
+        .from('disponibilites')
+        .delete()
+        .eq('surveillant_id', surveillantId)
+        .eq('session_id', activeSession.id);
+      // Préparation des nouvelles
+      const dispoList = Object.entries(dispoData.disponibilites)
+        .filter(([_, ok]) => ok)
+        .map(([examenId, _]) => {
+          const slot = examens?.find(e => e.id === examenId);
+          if (!slot) return null;
+          return {
+            surveillant_id: surveillantId,
+            session_id: activeSession.id,
+            date_examen: slot.date_examen,
+            heure_debut: slot.heure_debut,
+            heure_fin: slot.heure_fin,
+            est_disponible: true,
+          };
+        }).filter(Boolean);
+      if (dispoList.length === 0) throw new Error("Veuillez sélectionner au moins un créneau.");
+      const { error } = await supabase
+        .from('disponibilites')
+        .insert(dispoList);
+      if (error) throw error;
+      return true;
     },
     onSuccess: () => {
       setSubmitted(true);
       toast({
         title: "Disponibilités enregistrées",
-        description: "Vos disponibilités ont été enregistrées avec succès.",
+        description: "Merci ! Vos disponibilités ont été enregistrées avec succès.",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Erreur",
-        description: error.message || "Impossible d'enregistrer vos disponibilités.",
+        description: error.message || "Erreur lors de l'enregistrement.",
         variant: "destructive"
       });
     }
@@ -264,10 +291,18 @@ export const CollecteSurveillants = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.nom || !formData.prenom || !formData.email || !formData.statut || !formData.telephone) {
+    if (!surveillantId) {
       toast({
-        title: "Champs requis",
-        description: "Veuillez remplir tous les champs obligatoires, dont le téléphone.",
+        title: "Non autorisé",
+        description: "Votre email n'est pas reconnu. Contactez l'administrateur.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!formData.email) {
+      toast({
+        title: "Email requis",
+        description: "Veuillez entrer votre adresse email.",
         variant: "destructive"
       });
       return;
@@ -313,6 +348,26 @@ export const CollecteSurveillants = () => {
             <CardTitle className="text-uclouvain-blue">Disponibilités enregistrées !</CardTitle>
             <CardDescription>
               Merci pour votre candidature. Vos disponibilités ont été transmises au service des surveillances.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  if (notAllowed) {
+    return (
+      <div className="max-w-lg mx-auto my-8 p-6">
+        <Card className="border-uclouvain-blue">
+          <CardHeader>
+            <CardTitle className="text-uclouvain-blue">Email non autorisé</CardTitle>
+            <CardDescription>
+              <p>
+                L’adresse email renseignée n’est pas autorisée à remplir ce formulaire.
+                <br/>
+                Merci de contacter l’organisation si vous pensez qu’il s’agit d’une erreur.<br/>
+                <span className="text-gray-500 text-xs">Seules les personnes déjà pré-enregistrées comme surveillants ont accès.</span>
+              </p>
             </CardDescription>
           </CardHeader>
         </Card>
@@ -406,35 +461,15 @@ export const CollecteSurveillants = () => {
       </Card>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Informations personnelles */}
+        {/* Informations personnelles (readonly si trouvés) */}
         <Card className="border-uclouvain-blue/20">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-uclouvain-blue">
               <UserPlus className="h-5 w-5" />
-              <span>Informations personnelles</span>
+              <span>Vos informations</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nom">Nom *</Label>
-                <Input
-                  id="nom"
-                  value={formData.nom}
-                  onChange={(e) => setFormData(prev => ({ ...prev, nom: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prenom">Prénom *</Label>
-                <Input
-                  id="prenom"
-                  value={formData.prenom}
-                  onChange={(e) => setFormData(prev => ({ ...prev, prenom: e.target.value }))}
-                  required
-                />
-              </div>
-            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
@@ -442,53 +477,47 @@ export const CollecteSurveillants = () => {
                   id="email"
                   type="email"
                   value={formData.email}
-                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  onChange={e => setFormData(f => ({ ...f, email: e.target.value }))}
                   required
+                  className={isChecking ? "animate-pulse" : ""}
+                  autoFocus
+                  onBlur={() => {}}
                 />
                 <p className="text-xs text-uclouvain-blue mt-1">
-                  Pour les membres UCLouvain : veillez à bien indiquer votre adresse UCLouvain (@uclouvain.be), elle sert à vous connecter sur toute la plateforme.
+                  Vous devez utiliser l’adresse enregistrée dans l’organisation.
                 </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nom">Nom</Label>
+                <Input
+                  id="nom"
+                  value={formData.nom}
+                  readOnly
+                  disabled
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="prenom">Prénom</Label>
+                <Input
+                  id="prenom"
+                  value={formData.prenom}
+                  readOnly
+                  disabled
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="telephone">Téléphone *</Label>
                 <Input
                   id="telephone"
                   value={formData.telephone}
-                  onChange={(e) => setFormData(prev => ({ ...prev, telephone: e.target.value }))}
+                  onChange={e => setFormData(f => ({ ...f, telephone: e.target.value }))}
                   required
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Votre numéro de téléphone restera confidentiel et ne sera jamais communiqué, il ne servira qu’en cas d’urgence organisationnelle.
+                  Votre numéro de téléphone restera confidentiel et ne sera utilisé qu’en cas d’urgence organisationnelle.
                 </p>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="statut">Statut *</Label>
-              <Select value={formData.statut} onValueChange={(value) => setFormData(prev => ({ ...prev, statut: value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionnez votre statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Assistant">Assistant</SelectItem>
-                  <SelectItem value="Doctorant">Doctorant</SelectItem>
-                  <SelectItem value="PAT">PAT</SelectItem>
-                  <SelectItem value="PAT FASB">PAT FASB</SelectItem>
-                  <SelectItem value="Jobiste">Jobiste</SelectItem>
-                  <SelectItem value="Autre">Autre</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {formData.statut === 'Autre' && (
-              <div className="space-y-2">
-                <Label htmlFor="statut_autre">Précisez votre statut</Label>
-                <Textarea
-                  id="statut_autre"
-                  value={formData.statut_autre}
-                  onChange={(e) => setFormData(prev => ({ ...prev, statut_autre: e.target.value }))}
-                  placeholder="Veuillez préciser votre statut..."
-                />
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -559,10 +588,10 @@ export const CollecteSurveillants = () => {
           <Button 
             type="submit" 
             size="lg" 
-            disabled={submitMutation.isPending}
+            disabled={submitMutation.isPending || !surveillantId}
             className="px-8 bg-uclouvain-blue hover:bg-uclouvain-blue/90 text-white"
           >
-            {submitMutation.isPending ? "Envoi en cours..." : "Envoyer mes disponibilités"}
+            {submitMutation.isPending ? "Envoi en cours..." : "Enregistrer mes disponibilités"}
           </Button>
         </div>
       </form>
