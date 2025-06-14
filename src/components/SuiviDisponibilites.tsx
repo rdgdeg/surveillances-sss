@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { ClipboardCheck, Users, CheckCircle, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface SurveillantDisponibilite {
   id: string;
@@ -28,6 +28,28 @@ export const SuiviDisponibilites = () => {
     completion_moyenne: 0
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [totalCreneaux, setTotalCreneaux] = useState<number>(0);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  // Nouvelle récupération du nombre de créneaux pour la session
+  useEffect(() => {
+    const fetchTotalCreneaux = async () => {
+      if (!activeSession?.id) return;
+      // Un créneau = un examen (simplification/ajuste si besoin)
+      const { data, error } = await supabase
+        .from('examens')
+        .select('id')
+        .eq('session_id', activeSession.id);
+
+      if (error) {
+        console.error("Erreur récupération examens pour session", error);
+        setTotalCreneaux(0);
+        return;
+      }
+      setTotalCreneaux((data || []).length);
+    };
+    fetchTotalCreneaux();
+  }, [activeSession?.id]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -47,23 +69,18 @@ export const SuiviDisponibilites = () => {
 
         if (surveillantsError) throw surveillantsError;
 
-        // Pour chaque surveillant, calculer ses statistiques de disponibilité
+        // Utiliser le total global de créneaux pour la session
         const surveillantsWithStats = await Promise.all(
           (surveillantsData || []).map(async (item) => {
             const surveillant = item.surveillants;
-            
-            // Compter le nombre total de créneaux pour cette session
-            const { count: totalCreneaux } = await supabase
-              .from('creneaux_surveillance')
-              .select('*', { count: 'exact' })
-              .eq('examen_id', activeSession.id);
 
-            // Compter le nombre de créneaux pour lesquels ce surveillant a répondu
+            // Compter le nombre de créneaux pour lesquels ce surveillant a répondu 
             const { count: creneauxRepondus } = await supabase
               .from('disponibilites')
               .select('*', { count: 'exact' })
               .eq('surveillant_id', surveillant.id)
-              .eq('session_id', activeSession.id);
+              .eq('session_id', activeSession.id)
+              .eq('est_disponible', true);
 
             // Récupérer la dernière réponse
             const { data: derniereReponse } = await supabase
@@ -75,7 +92,11 @@ export const SuiviDisponibilites = () => {
               .limit(1)
               .single();
 
-            const pourcentage = totalCreneaux ? Math.round((creneauxRepondus || 0) / totalCreneaux * 100) : 0;
+            const totalPourSurveillant = totalCreneaux; // si tous doivent répondre à tout
+
+            const pourcentage = totalPourSurveillant > 0
+              ? Math.round(((creneauxRepondus || 0) / totalPourSurveillant) * 100)
+              : 0;
 
             return {
               id: surveillant.id,
@@ -83,7 +104,7 @@ export const SuiviDisponibilites = () => {
               prenom: surveillant.prenom,
               email: surveillant.email,
               type: surveillant.type,
-              total_creneaux: totalCreneaux || 0,
+              total_creneaux: totalPourSurveillant,
               creneaux_repondus: creneauxRepondus || 0,
               pourcentage_completion: pourcentage,
               derniere_reponse: derniereReponse?.updated_at || null
@@ -96,7 +117,7 @@ export const SuiviDisponibilites = () => {
         // Calculer les statistiques globales
         const totalSurveillants = surveillantsWithStats.length;
         const ontRepondu = surveillantsWithStats.filter(s => s.pourcentage_completion > 0).length;
-        const completionMoyenne = surveillantsWithStats.reduce((sum, s) => sum + s.pourcentage_completion, 0) / totalSurveillants;
+        const completionMoyenne = surveillantsWithStats.reduce((sum, s) => sum + s.pourcentage_completion, 0) / (totalSurveillants || 1);
 
         setStats({
           total_surveillants: totalSurveillants,
@@ -112,7 +133,28 @@ export const SuiviDisponibilites = () => {
     };
 
     loadData();
-  }, [activeSession?.id]);
+  }, [activeSession?.id, totalCreneaux]);
+
+  // DEBUG ADMIN - bouton remise à zéro des dispos de la session
+  const handleResetDisponibilites = async () => {
+    if (!activeSession?.id) return;
+    if (!confirm("Remise à zéro des disponibilités pour toute la session ?")) return;
+    setResetLoading(true);
+    const { error } = await supabase
+      .from('disponibilites')
+      .delete()
+      .eq('session_id', activeSession.id);
+    if (error) {
+      alert("Erreur purge disponibilités: " + error.message);
+      console.error(error);
+    } else {
+      alert("Disponibilités supprimées pour la session !");
+      // forcer refresh
+      setIsLoading(true);
+      setTimeout(() => setIsLoading(false), 800);
+    }
+    setResetLoading(false);
+  };
 
   if (!activeSession) {
     return (
@@ -138,6 +180,15 @@ export const SuiviDisponibilites = () => {
 
   return (
     <div className="space-y-6">
+      {/* Bouton Debug (admin): remise à zéro des disponibilités */}
+      <div className="flex justify-end mb-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleResetDisponibilites}
+          disabled={resetLoading}
+        >Remise à zéro des disponibilités (session)</Button>
+      </div>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -146,6 +197,8 @@ export const SuiviDisponibilites = () => {
           </CardTitle>
           <CardDescription>
             Progression de la collecte des disponibilités par surveillant
+            <br />
+            <span className="font-semibold text-blue-700">Créneaux total attendus (session): {totalCreneaux}</span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -194,7 +247,7 @@ export const SuiviDisponibilites = () => {
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    {surveillant.creneaux_repondus} / {surveillant.total_creneaux} créneaux
+                    <span>{surveillant.creneaux_repondus} / {surveillant.total_creneaux} créneaux</span>
                     {surveillant.derniere_reponse && (
                       <span className="ml-2">
                         • Dernière réponse: {new Date(surveillant.derniere_reponse).toLocaleDateString()}
