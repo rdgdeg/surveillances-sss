@@ -33,6 +33,7 @@ export const ExamenReviewManager = () => {
     updateExamenMutation,
     validateExamensMutation,
     applquerContraintesAuditoiresMutation,
+    deleteExamensMutation,
     activeSession
   } = useExamenReview();
 
@@ -176,6 +177,25 @@ export const ExamenReviewManager = () => {
     });
   };
 
+  const handleDeleteGroupe = (groupe: ExamenGroupe) => {
+    if (window.confirm("Supprimer ce groupe/examen importé ? Cette opération est définitive.")) {
+      deleteExamensMutation.mutate([groupe]);
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    const groupesToDelete = filteredExamens.filter(groupe => {
+      const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
+      return selectedGroupes.has(groupeKey);
+    });
+    if (
+      groupesToDelete.length > 0 &&
+      window.confirm(`Supprimer ${groupesToDelete.length} groupes/examens sélectionnés ? Opération définitive.`)
+    ) {
+      deleteExamensMutation.mutate(groupesToDelete);
+    }
+  };
+
   const getFieldValue = (groupe: ExamenGroupe, field: keyof ExamenGroupe) => {
     const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
     return editingExamens[groupeKey]?.[field] ?? groupe[field];
@@ -205,6 +225,18 @@ export const ExamenReviewManager = () => {
 
   return (
     <div className="space-y-6">
+      {/* Bandeau de process visuel */}
+      <div className="bg-slate-50 border-l-4 border-blue-600 p-3 rounded flex flex-wrap gap-4 items-center mb-4 text-sm font-medium">
+        <span className="text-blue-800">1️⃣ Importer</span> 
+        <span className="text-blue-800">→</span>
+        <span className="text-yellow-700">2️⃣ Corriger / Attribuer faculté</span> 
+        <span className="text-blue-800">ou</span>
+        <span className="text-red-700">Supprimer</span>
+        <span className="text-blue-800">→</span>
+        <span className="text-green-700">3️⃣ Valider</span>
+        <span className="text-blue-800">→</span>
+        <span className="text-purple-700">4️⃣ Exploiter (vues avancées)</span>
+      </div>
       {/* Sticky filter + progression */}
       <StickyFilterHeader
         filteredCount={filteredExamens.length}
@@ -284,6 +316,7 @@ export const ExamenReviewManager = () => {
                 isApplyingConstraints={applquerContraintesAuditoiresMutation.isPending}
                 isValidating={validateExamensMutation.isPending}
                 hasConstraints={!!contraintesAuditoires}
+                onDeleteSelected={handleDeleteSelected}
               />
 
               <ExamenReviewFilters
@@ -316,6 +349,7 @@ export const ExamenReviewManager = () => {
                 isValidating={validateExamensMutation.isPending}
                 getFieldValue={getFieldValue}
                 getContrainteUnifiee={getContrainteUnifiee}
+                onDeleteGroupe={handleDeleteGroupe}
               />
 
               {filteredExamens && filteredExamens.length > 0 && (

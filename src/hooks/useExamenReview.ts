@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -202,6 +201,37 @@ export const useExamenReview = () => {
     }
   });
 
+  // Nouvelle mutation : suppression d’un ou plusieurs examens (par groupe ou sélection)
+  const deleteExamensMutation = useMutation({
+    mutationFn: async (groupes: ExamenGroupe[]) => {
+      for (const groupe of groupes) {
+        for (const examen of groupe.examens) {
+          const { error } = await supabase
+            .from('examens')
+            .delete()
+            .eq('id', examen.id);
+          if (error) throw error;
+        }
+      }
+    },
+    onSuccess: (_, groupes) => {
+      queryClient.invalidateQueries({ queryKey: ['examens-review'] });
+      toast({
+        title: "Examens supprimés",
+        description: `${groupes.length} groupe(s)/examen(s) ont bien été supprimés.`,
+        variant: "default"
+      });
+      setSelectedGroupes(new Set());
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de supprimer ces examens.",
+        variant: "destructive"
+      });
+    }
+  });
+
   return {
     examens,
     contraintesAuditoires,
@@ -214,6 +244,7 @@ export const useExamenReview = () => {
     validateExamensMutation,
     applquerContraintesAuditoiresMutation,
     toggleExamenActiveMutation,
+    deleteExamensMutation,
     activeSession
   };
 };
