@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { UserPlus, ExternalLink, BookOpen, HelpCircle, Users, Building2, Home } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
+import { format, parseISO, startOfWeek, endOfWeek, isSameWeek } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface ExamenSlot {
   id: string;
@@ -51,6 +53,47 @@ function formatExamSlotForDisplay(date_examen: string, heure_debut: string, heur
     debutSurv: startSurv,
     heure_fin
   };
+}
+
+// Grouper les créneaux par semaine (lundi-dimanche, puis on ignore samedi/dimanche à l'affichage)
+function groupCreneauxByWeek(creneaux: typeof uniqueCreneaux) {
+  const semaines: {
+    title: string;
+    range: { start: Date; end: Date };
+    creneaux: typeof uniqueCreneaux;
+  }[] = [];
+
+  creneaux.forEach((creneau) => {
+    const dateObj = parseISO(creneau.date_examen);
+    // semaine commence lundi
+    const weekStart = startOfWeek(dateObj, { weekStartsOn: 1, locale: fr });
+    const weekEnd = endOfWeek(dateObj, { weekStartsOn: 1, locale: fr });
+
+    // Section déjà existante ?
+    let semaine = semaines.find((s) =>
+      isSameWeek(dateObj, s.range.start, { weekStartsOn: 1 })
+    );
+    if (!semaine) {
+      semaine = {
+        title: `Semaine du ${format(weekStart, "dd-MM-yyyy", { locale: fr })} au ${format(weekEnd, "dd-MM-yyyy", { locale: fr })}`,
+        range: { start: weekStart, end: weekEnd },
+        creneaux: [],
+      };
+      semaines.push(semaine);
+    }
+    semaine.creneaux.push(creneau);
+  });
+
+  // Optionnel : on retire les créneaux samedi/dimanche de l'affichage
+  semaines.forEach(sem => {
+    sem.creneaux = sem.creneaux.filter(c => {
+      const jour = parseISO(c.date_examen).getDay();
+      return jour >= 1 && jour <= 5; // lundi-vendredi
+    });
+  });
+
+  // Retirer les semaines "vides" éventuellement (tous créneaux samedi/dimanche)
+  return semaines.filter(s => s.creneaux.length > 0);
 }
 
 export const CollecteSurveillants = () => {
@@ -432,40 +475,51 @@ export const CollecteSurveillants = () => {
             <CardTitle className="text-uclouvain-blue">Disponibilités</CardTitle>
             <CardDescription>
               Cochez les créneaux où vous êtes disponible pour surveiller&nbsp;: 
-              seules la date et l’horaire sont affichés (préparation comprise).
+              créneaux groupés par semaine, avec le jour de la semaine. <br/>
+              Seules la date et l’horaire (préparation comprise) sont affichés.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {uniqueCreneaux.map((creneau, idx) => {
-                const { formattedDate, debutSurv, heure_fin } = formatExamSlotForDisplay(
-                  creneau.date_examen,
-                  creneau.heure_debut,
-                  creneau.heure_fin
-                );
-                // On prend le premier id associé pour afficher la case (tous les ids seront gérés lors du check/décheck)
-                const anyChecked = creneau.examenIds.some(id => formData.disponibilites[id]);
-                return (
-                  <div
-                    key={`${creneau.date_examen}_${creneau.heure_debut}_${creneau.heure_fin}`}
-                    className="flex items-center space-x-3 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/5 transition-colors"
-                  >
-                    <Checkbox
-                      id={`creneau-${idx}`}
-                      checked={anyChecked}
-                      onCheckedChange={checked => handleCreneauChange(creneau.examenIds, !!checked)}
-                    />
-                    <Label htmlFor={`creneau-${idx}`} className="flex-1 cursor-pointer">
-                      <div className="font-medium text-uclouvain-blue flex items-center space-x-2">
-                        <span>{formattedDate}</span>
-                        <span className="text-sm text-muted-foreground">
-                          {debutSurv} - {heure_fin}
-                        </span>
-                      </div>
-                    </Label>
+            <div className="space-y-8">
+              {groupCreneauxByWeek(uniqueCreneaux).map((semaine, semIdx) => (
+                <div key={semaine.title}>
+                  <h3 className="font-bold text-uclouvain-blue mb-2">{semaine.title}</h3>
+                  <div className="space-y-4">
+                    {semaine.creneaux.map((creneau, idx) => {
+                      const dateObj = parseISO(creneau.date_examen);
+                      const jourSemaine = format(dateObj, "EEEE", { locale: fr });
+                      const jourNum = format(dateObj, "dd-MM-yyyy", { locale: fr });
+                      const { debutSurv, heure_fin } = formatExamSlotForDisplay(
+                        creneau.date_examen,
+                        creneau.heure_debut,
+                        creneau.heure_fin
+                      );
+                      const anyChecked = creneau.examenIds.some(id => formData.disponibilites[id]);
+                      return (
+                        <div
+                          key={`${creneau.date_examen}_${creneau.heure_debut}_${creneau.heure_fin}`}
+                          className="flex items-center space-x-3 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/5 transition-colors"
+                        >
+                          <Checkbox
+                            id={`creneau-${semIdx}-${idx}`}
+                            checked={anyChecked}
+                            onCheckedChange={checked => handleCreneauChange(creneau.examenIds, !!checked)}
+                          />
+                          <Label htmlFor={`creneau-${semIdx}-${idx}`} className="flex-1 cursor-pointer">
+                            <div className="font-medium text-uclouvain-blue flex items-center space-x-2">
+                              <span className="capitalize">{jourSemaine}</span>
+                              <span>{jourNum}</span>
+                              <span className="text-sm text-muted-foreground">
+                                {debutSurv} - {heure_fin}
+                              </span>
+                            </div>
+                          </Label>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
