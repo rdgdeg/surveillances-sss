@@ -22,6 +22,37 @@ interface ExamenSlot {
   salle: string;
 }
 
+// ⚡ Ajout fonction utilitaire pour formater la date et calculer l'heure début surveillance
+function formatExamSlotForDisplay(date_examen: string, heure_debut: string, heure_fin: string) {
+  // format date: jour-mois-année
+  const date = new Date(`${date_examen}T${heure_debut}`);
+  const jour = String(date.getDate()).padStart(2, "0");
+  const mois = String(date.getMonth() + 1).padStart(2, "0");
+  const annee = date.getFullYear();
+  const formattedDate = `${jour}-${mois}-${annee}`;
+
+  // calcul heure début surveillance (45 min avant heure_debut)
+  const [hdHour, hdMin] = heure_debut.split(":").map(Number);
+  const debutSurv = new Date(date);
+  debutSurv.setHours(hdHour);
+  debutSurv.setMinutes(hdMin - 45);
+  // Gère le cas où on soustrait 45min à, par exemple "08:30"
+  if (debutSurv.getMinutes() < 0) {
+    debutSurv.setHours(debutSurv.getHours() - 1);
+    debutSurv.setMinutes(debutSurv.getMinutes() + 60);
+  }
+  const dh = String(debutSurv.getHours()).padStart(2, "0");
+  const dm = String(debutSurv.getMinutes()).padStart(2, "0");
+  const startSurv = `${dh}:${dm}`;
+
+  // heure fin inchangée (affichée à droite)
+  return {
+    formattedDate,
+    debutSurv: startSurv,
+    heure_fin
+  };
+}
+
 export const CollecteSurveillants = () => {
   const [formData, setFormData] = useState({
     nom: '',
@@ -365,23 +396,34 @@ export const CollecteSurveillants = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {examens?.map((examen) => (
-                <div key={examen.id} className="flex items-center space-x-3 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/5 transition-colors">
-                  <Checkbox
-                    id={`examen-${examen.id}`}
-                    checked={formData.disponibilites[examen.id] || false}
-                    onCheckedChange={(checked) => handleDisponibiliteChange(examen.id, !!checked)}
-                  />
-                  <Label htmlFor={`examen-${examen.id}`} className="flex-1 cursor-pointer">
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                      <div className="font-medium text-uclouvain-blue">{examen.date_examen}</div>
-                      <div className="text-sm text-muted-foreground">{examen.heure_debut} - {examen.heure_fin}</div>
-                      <div className="text-uclouvain-blue">{examen.matiere}</div>
-                      <Badge variant="outline" className="border-uclouvain-cyan text-uclouvain-cyan">{examen.salle}</Badge>
-                    </div>
-                  </Label>
-                </div>
-              ))}
+              {examens?.map((examen) => {
+                const { formattedDate, debutSurv, heure_fin } = formatExamSlotForDisplay(
+                  examen.date_examen,
+                  examen.heure_debut,
+                  examen.heure_fin
+                );
+                return (
+                  <div key={examen.id} className="flex items-center space-x-3 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/5 transition-colors">
+                    <Checkbox
+                      id={`examen-${examen.id}`}
+                      checked={formData.disponibilites[examen.id] || false}
+                      onCheckedChange={(checked) => handleDisponibiliteChange(examen.id, !!checked)}
+                    />
+                    <Label htmlFor={`examen-${examen.id}`} className="flex-1 cursor-pointer">
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                        <div className="font-medium text-uclouvain-blue flex items-center space-x-2">
+                          <span>{formattedDate}</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {debutSurv} - {heure_fin}
+                        </div>
+                        <div className="text-uclouvain-blue">{examen.matiere}</div>
+                        <Badge variant="outline" className="border-uclouvain-cyan text-uclouvain-cyan">{examen.salle}</Badge>
+                      </div>
+                    </Label>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
