@@ -1,6 +1,8 @@
-import { Examen } from "@/integrations/supabase/types";
 
-export interface ExamenReview extends Examen {
+import { Tables } from "@/integrations/supabase/types";
+
+export interface ExamenReview extends Tables<'examens'> {
+  personnes_aidantes?: any[];
   [key: string]: any;
 }
 
@@ -85,4 +87,69 @@ export const groupExamens = (
       personnes_aidantes_total: personnesAidantesQuotaTotal
     };
   });
+};
+
+export const generateSearchTerms = (examensGroupes: ExamenGroupe[]): string[] => {
+  const terms = new Set<string>();
+  
+  examensGroupes.forEach(groupe => {
+    // Ajouter le code d'examen
+    if (groupe.code_examen) {
+      terms.add(groupe.code_examen.toLowerCase());
+    }
+    
+    // Ajouter la matière
+    if (groupe.matiere) {
+      terms.add(groupe.matiere.toLowerCase());
+    }
+    
+    // Ajouter l'auditoire
+    if (groupe.auditoire_unifie) {
+      terms.add(groupe.auditoire_unifie.toLowerCase());
+    }
+    
+    // Ajouter la date
+    if (groupe.date_examen) {
+      terms.add(groupe.date_examen);
+    }
+  });
+  
+  return Array.from(terms);
+};
+
+export const filterExamens = (examensGroupes: ExamenGroupe[], searchTerm: string): ExamenGroupe[] => {
+  if (!searchTerm.trim()) return examensGroupes;
+  
+  const term = searchTerm.toLowerCase();
+  
+  return examensGroupes.filter(groupe => 
+    groupe.code_examen?.toLowerCase().includes(term) ||
+    groupe.matiere?.toLowerCase().includes(term) ||
+    groupe.auditoire_unifie?.toLowerCase().includes(term) ||
+    groupe.date_examen?.includes(term)
+  );
+};
+
+export const calculateStats = (examens: ExamenGroupe[]) => {
+  const totalToAssign = examens.reduce((sum, groupe) => sum + groupe.surveillants_a_attribuer_total, 0);
+  const uniqueAuditoires = new Set(examens.map(groupe => groupe.auditoire_unifie)).size;
+  const uniqueDays = new Set(examens.map(groupe => groupe.date_examen)).size;
+  
+  return {
+    totalToAssign,
+    uniqueAuditoires,
+    uniqueDays
+  };
+};
+
+export const getContrainteUnifiee = (auditoire: string, contraintes: ContrainteAuditoire[]): number => {
+  if (auditoire === "Neerveld") {
+    const contraintesNeerveld = contraintes.filter(c => 
+      c.auditoire.match(/^Neerveld\s+[A-Z]$/i)
+    );
+    return contraintesNeerveld.reduce((sum, c) => sum + c.nombre_surveillants_requis, 0) || 1;
+  } else {
+    const contrainteExacte = contraintes.find(c => c.auditoire === auditoire);
+    return contrainteExacte ? contrainteExacte.nombre_surveillants_requis : 1;
+  }
 };
