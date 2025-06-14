@@ -55,12 +55,28 @@ function formatExamSlotForDisplay(date_examen: string, heure_debut: string, heur
   };
 }
 
-// Grouper les créneaux par semaine (lundi-dimanche, puis on ignore samedi/dimanche à l'affichage)
-function groupCreneauxByWeek(creneaux: typeof uniqueCreneaux) {
+// Utility function signatures update - remove typeof uniqueCreneaux, use generics or explicit types.
+/**
+ * Grouper les créneaux par semaine (lundi-dimanche, puis on ignore samedi/dimanche à l'affichage)
+ * @param creneaux array of unique slots (each slot object must have date_examen)
+ */
+function groupCreneauxByWeek(
+  creneaux: {
+    examenIds: string[];
+    date_examen: string;
+    heure_debut: string;
+    heure_fin: string;
+  }[]
+) {
   const semaines: {
     title: string;
     range: { start: Date; end: Date };
-    creneaux: typeof uniqueCreneaux;
+    creneaux: {
+      examenIds: string[];
+      date_examen: string;
+      heure_debut: string;
+      heure_fin: string;
+    }[];
   }[] = [];
 
   creneaux.forEach((creneau) => {
@@ -481,6 +497,7 @@ export const CollecteSurveillants = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-8">
+              {/* Fix: groupCreneauxByWeek(uniqueCreneaux) */}
               {groupCreneauxByWeek(uniqueCreneaux).map((semaine, semIdx) => (
                 <div key={semaine.title}>
                   <h3 className="font-bold text-uclouvain-blue mb-2">{semaine.title}</h3>
