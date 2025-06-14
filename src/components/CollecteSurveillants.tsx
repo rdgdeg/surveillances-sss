@@ -139,6 +139,8 @@ export const CollecteSurveillants = () => {
 
   const [submitted, setSubmitted] = useState(false);
   const [surveillantId, setSurveillantId] = useState<string|null>(null);
+  const [disposEnregistrees, setDisposEnregistrees] = useState(false); // <--- voir si dispo déjà envoyées
+  const [disposInitiales, setDisposInitiales] = useState<any>(null);   // pour restauration en modification
 
   // Récupérer la session active pour afficher les créneaux
   const { data: activeSession } = useQuery({
@@ -224,6 +226,47 @@ export const CollecteSurveillants = () => {
     }
     uniqueCreneaux = Array.from(creneauMap.values());
   }
+
+  // Pré-remplir les données précédentes si elles existent (en mode modification)
+  useEffect(() => {
+    if (!surveillantId || !activeSession?.id) return;
+    (async () => {
+      // On cherche s'il existe déjà des disponibilités pour cet utilisateur/session
+      const { data, error } = await supabase
+        .from('disponibilites')
+        .select('examen_id, commentaire_surveillance_obligatoire, nom_examen_obligatoire')
+        .eq('surveillant_id', surveillantId)
+        .eq('session_id', activeSession.id);
+      if (!error && data && data.length > 0) {
+        // On marque qu'il y avait des dispos...
+        setDisposEnregistrees(true);
+        // On génère un objet pour cochage et commentaires
+        const newDispos: Record<string, boolean> = {};
+        const newCommentaires: Record<string, string> = {};
+        const newNomsExamens: Record<string, string> = {};
+        data.forEach((row: any) => {
+          newDispos[row.examen_id] = true;
+          if (row.commentaire_surveillance_obligatoire)
+            newCommentaires[row.examen_id] = row.commentaire_surveillance_obligatoire;
+          if (row.nom_examen_obligatoire)
+            newNomsExamens[row.examen_id] = row.nom_examen_obligatoire;
+        });
+        setFormData(prev => ({
+          ...prev,
+          disponibilites: newDispos,
+          commentaires_surveillance: newCommentaires,
+          noms_examens_obligatoires: newNomsExamens
+        }));
+        // Stockage des données initiales pour restauration éventuelle
+        setDisposInitiales({
+          disponibilites: newDispos,
+          commentaires_surveillance: newCommentaires,
+          noms_examens_obligatoires: newNomsExamens
+        });
+      }
+    })();
+  // eslint-disable-next-line
+  }, [surveillantId, activeSession?.id]); // (on surveille surveillantId seulement au premier rendu)
 
   const submitMutation = useMutation({
     mutationFn: async (dispoData: typeof formData) => {
@@ -311,6 +354,13 @@ export const CollecteSurveillants = () => {
     },
     onSuccess: () => {
       setSubmitted(true);
+      setDisposEnregistrees(true);
+      // Sauvegarde les données de dispos pour une future modification
+      setDisposInitiales({
+        disponibilites: formData.disponibilites,
+        commentaires_surveillance: formData.commentaires_surveillance,
+        noms_examens_obligatoires: formData.noms_examens_obligatoires
+      });
       toast({
         title: "Disponibilités enregistrées",
         description: "Merci ! Vos disponibilités ont été enregistrées avec succès.",
@@ -389,6 +439,19 @@ export const CollecteSurveillants = () => {
     submitMutation.mutate(formData);
   };
 
+  // Permettre de réouvrir le formulaire pour modifier
+  const handleEditDispos = () => {
+    setSubmitted(false);
+    if (disposInitiales) {
+      setFormData(prev => ({
+        ...prev,
+        disponibilites: { ...disposInitiales.disponibilites },
+        commentaires_surveillance: { ...disposInitiales.commentaires_surveillance },
+        noms_examens_obligatoires: { ...disposInitiales.noms_examens_obligatoires }
+      }));
+    }
+  };
+
   if (!activeSession) {
     return (
       <div className="max-w-4xl mx-auto p-6">
@@ -406,7 +469,8 @@ export const CollecteSurveillants = () => {
     );
   }
 
-  if (submitted) {
+  // Si les dispos sont envoyées (confirmation), afficher recap + bouton modifier
+  if (submitted || disposEnregistrees) {
     return (
       <div className="max-w-4xl mx-auto p-6">
         <CollecteHeader title="Gestion des Surveillances d'Examen" />
@@ -416,6 +480,15 @@ export const CollecteSurveillants = () => {
             <CardDescription>
               Merci pour votre candidature. Vos disponibilités ont été transmises au service des surveillances.
             </CardDescription>
+            <div className="mt-4 flex justify-center">
+              <Button
+                variant="outline"
+                className="border-uclouvain-blue text-uclouvain-blue"
+                onClick={handleEditDispos}
+              >
+                Modifier mes disponibilités
+              </Button>
+            </div>
           </CardHeader>
         </Card>
       </div>
@@ -439,6 +512,7 @@ export const CollecteSurveillants = () => {
           formData={formData}
           setFormData={setFormData}
           activeSession={activeSession}
+          // On ajoute une prop pour ne jamais masquer le formulaire après une demande de modification info
         />
 
         <JobistePreferencesSection

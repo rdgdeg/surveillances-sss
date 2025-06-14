@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +27,7 @@ export function InformationsPersonnellesSection({
   const [surveillantTrouve, setSurveillantTrouve] = useState<any>(null);
   const [demandeModification, setDemandeModification] = useState(false);
   const [detailsModification, setDetailsModification] = useState("");
+  const [successModification, setSuccessModification] = useState(false);
 
   // Recherche du surveillant par email
   const { data: surveillantData, refetch: refetchSurveillant } = useQuery({
@@ -131,6 +131,14 @@ export function InformationsPersonnellesSection({
     demandeModificationMutation.mutate({});
   };
 
+  // Gérer succès de modification d'infos sans sortir du formulaire global
+  useEffect(() => {
+    if (demandeModificationMutation.isSuccess) {
+      setSuccessModification(true);
+      setTimeout(() => setSuccessModification(false), 3500);
+    }
+  }, [demandeModificationMutation.isSuccess]);
+
   return (
     <Card className="border-uclouvain-blue/20">
       <CardHeader>
@@ -226,6 +234,13 @@ export function InformationsPersonnellesSection({
           )}
         </div>
 
+        {/* Confirmation succès de demande de modification */}
+        {successModification && (
+          <div className="p-2 rounded bg-green-50 border border-green-300 text-green-700 text-sm transition-all">
+            Demande de modification d’informations envoyée à l'administration (vous pouvez continuer à remplir vos disponibilités).
+          </div>
+        )}
+
         {surveillantTrouve && (
           <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
             <div className="flex items-center justify-between mb-2">
@@ -281,6 +296,7 @@ export function InformationsPersonnellesSection({
                       disabled={demandeModificationMutation.isPending}
                       size="sm"
                       className="bg-uclouvain-blue hover:bg-uclouvain-blue/90"
+                      type="button" // <-- critique: ne pas soumettre le formulaire principal
                     >
                       <AlertCircle className="h-4 w-4 mr-1" />
                       Envoyer la demande
