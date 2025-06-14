@@ -142,12 +142,12 @@ export const EnseignantExamenForm = () => {
                 color="text-blue-700"
               />
               <BlocResume
-                nombre={calculerSurveillantsPedagogiques(selectedExamen)}
+                nombre={calculerSurveillantsPedagogiques()}
                 titre="Équipe pédagogique"
                 color="text-green-700"
               />
               <BlocResume
-                nombre={calculerSurveillantsNecessaires(selectedExamen)}
+                nombre={calculerSurveillantsNecessaires()}
                 titre="Surveillants à attribuer"
                 color="text-orange-600"
               />
