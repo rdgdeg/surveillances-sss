@@ -1,4 +1,3 @@
-
 import { Tables } from "@/integrations/supabase/types";
 
 export interface ExamenReview extends Tables<'examens'> {
@@ -25,6 +24,7 @@ export interface ExamenGroupe {
   surveillants_pre_assignes_total: number;
   surveillants_a_attribuer_total: number;
   personnes_aidantes_total: number;
+  faculte?: string | null; // Faculté majoritaire ou principale du groupe (optionnel)
 }
 
 export const groupExamens = (
@@ -52,14 +52,21 @@ export const groupExamens = (
   });
 
   return Object.values(grouped).map(groupe => {
+    // Attribuer une faculté majoritaire ou la première trouvée
+    let faculte: string | null | undefined = null;
+    for (let e of groupe.examens) {
+      if (e.faculte) {
+        faculte = e.faculte;
+        break;
+      }
+    }
+
     // Calculer les personnes aidantes qui comptent dans le quota
     const personnesAidantesQuotaTotal = groupe.examens.reduce((sum, examen) => {
       if (!examen.personnes_aidantes) return sum;
-      
       const aidantesComptant = examen.personnes_aidantes.filter((p: any) => 
         p.compte_dans_quota && p.present_sur_place
       ).length;
-      
       return sum + aidantesComptant;
     }, 0);
 
@@ -67,8 +74,6 @@ export const groupExamens = (
     const surveillants_enseignant_total = groupe.examens.reduce((sum, e) => sum + (e.surveillants_enseignant || 0), 0);
     const surveillants_amenes_total = groupe.examens.reduce((sum, e) => sum + (e.surveillants_amenes || 0), 0);
     const surveillants_pre_assignes_total = groupe.examens.reduce((sum, e) => sum + (e.surveillants_pre_assignes || 0), 0);
-    
-    // Calculer le nombre de surveillants à attribuer en tenant compte des personnes aidantes
     const surveillants_a_attribuer_total = Math.max(0, 
       nombre_surveillants_total - 
       surveillants_enseignant_total - 
@@ -84,7 +89,8 @@ export const groupExamens = (
       surveillants_amenes_total,
       surveillants_pre_assignes_total,
       surveillants_a_attribuer_total,
-      personnes_aidantes_total: personnesAidantesQuotaTotal
+      personnes_aidantes_total: personnesAidantesQuotaTotal,
+      faculte: faculte ?? null,
     };
   });
 };

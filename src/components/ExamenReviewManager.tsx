@@ -46,6 +46,9 @@ export const ExamenReviewManager = () => {
     return groupExamens(examens, contraintesAuditoires);
   }, [examens, contraintesAuditoires]);
 
+  // --- FIX: Compute allSearchTerms for suggestions ---
+  const allSearchTerms = useMemo(() => generateSearchTerms(examensGroupes), [examensGroupes]);
+
   // Nouveau: filtrage avancé
   const filteredByExtra = useMemo(() => {
     if (!extraFilter.pattern) return examensGroupes;
@@ -63,6 +66,9 @@ export const ExamenReviewManager = () => {
     if (facultyFilter === "ALL") return filteredByExtra;
     return filteredByExtra.filter(groupe => (facultyFilter === "NO_FAC" ? !groupe.faculte : groupe.faculte === facultyFilter));
   }, [filteredByExtra, facultyFilter]);
+
+  // --- FIX: Compute stats for filteredExamens ---
+  const stats = useMemo(() => calculateStats(filteredExamens), [filteredExamens]);
 
   // Mise à jour des suggestions de recherche
   const updateSearchSuggestions = (value: string) => {
