@@ -18,6 +18,8 @@ import {
   ExamenGroupe 
 } from "@/utils/examenReviewUtils";
 import { ExamensAdvancedFilter } from "./ExamensAdvancedFilter";
+import { StickyFilterHeader } from "@/components/StickyFilterHeader";
+import { ExamensSansFaculteAlert } from "@/components/ExamensSansFaculteAlert";
 
 export const ExamenReviewManager = () => {
   const {
@@ -69,6 +71,17 @@ export const ExamenReviewManager = () => {
 
   // --- FIX: Compute stats for filteredExamens ---
   const stats = useMemo(() => calculateStats(filteredExamens), [filteredExamens]);
+
+  // Count for exams without faculty (to show alert + badge)
+  const missingFacCount = filteredExamens.filter(e => !e.faculte || e.faculte.trim() === "").length;
+  const percentAssigned = filteredExamens.length === 0
+    ? 100
+    : Math.round(
+        ((filteredExamens.length - missingFacCount) / filteredExamens.length) * 100
+      );
+
+  // Sticky filter - Open/Close state
+  const [openSticky, setOpenSticky] = useState(true);
 
   // Mise à jour des suggestions de recherche
   const updateSearchSuggestions = (value: string) => {
@@ -192,13 +205,24 @@ export const ExamenReviewManager = () => {
 
   return (
     <div className="space-y-6">
-      {/* Étape assignation des facultés et filtrage */}
-      <ExamensAdvancedFilter
-        examens={examensGroupes}
-        onBulkAssignFaculty={handleBulkAssignFaculty}
-        setFilter={(pattern, type) => setExtraFilter({ pattern, type })}
-        facultyOptions={["MEDE", "FASB", "FSM", "FSP", "INCONNU"]}
-      />
+      {/* Sticky filter + progression */}
+      <StickyFilterHeader
+        filteredCount={filteredExamens.length}
+        missingFacCount={missingFacCount}
+        totalCount={examensGroupes.length}
+        percentAssigned={percentAssigned}
+        isOpen={openSticky}
+        onToggle={() => setOpenSticky((v) => !v)}
+      >
+        <ExamensAdvancedFilter
+          examens={examensGroupes}
+          onBulkAssignFaculty={handleBulkAssignFaculty}
+          setFilter={(pattern, type) => setExtraFilter({ pattern, type })}
+          facultyOptions={["MEDE", "FASB", "FSM", "FSP", "INCONNU"]}
+        />
+      </StickyFilterHeader>
+      {/* Alert visible si examens sans faculté */}
+      <ExamensSansFaculteAlert count={missingFacCount} />
       <div className="flex items-center gap-2 mb-4">
         <span>Filtrer par faculté :</span>
         <select

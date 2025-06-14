@@ -1,16 +1,18 @@
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ExamenGroupe } from "@/utils/examenReviewUtils";
+import { toast } from "@/hooks/use-toast";
 
 interface ExamensAdvancedFilterProps {
   examens: ExamenGroupe[];
   onBulkAssignFaculty: (groupeKeys: string[], faculty: string) => void;
   setFilter: (pattern: string, type: "contain" | "prefix" | "suffix") => void;
   facultyOptions?: string[];
+  onAssigned?: (missingFacCount: number, total: number) => void;
 }
 
 export const ExamensAdvancedFilter = ({
@@ -18,32 +20,37 @@ export const ExamensAdvancedFilter = ({
   onBulkAssignFaculty,
   setFilter,
   facultyOptions = ["MEDE", "FASB", "FSM", "FSP", "INCONNU"],
+  onAssigned
 }: ExamensAdvancedFilterProps) => {
   const [pattern, setPattern] = useState('');
   const [filterType, setFilterType] = useState<"contain" | "prefix" | "suffix">("contain");
   const [bulkFaculty, setBulkFaculty] = useState('');
   const [selectedGroupeKeys, setSelectedGroupeKeys] = useState<string[]>([]);
 
-  // Filter groupes selon pattern & type choisi
-  const filteredGroupes = examens.filter((groupe) => {
+  // Groupes filtrés par pattern
+  const filteredGroupes = useMemo(() => examens.filter((groupe) => {
     if (!pattern) return false;
-    if (filterType === "prefix") {
-      return groupe.code_examen?.toLowerCase().startsWith(pattern.toLowerCase());
-    } else if (filterType === "suffix") {
-      return groupe.code_examen?.toLowerCase().endsWith(pattern.toLowerCase());
-    } else {
-      return groupe.code_examen?.toLowerCase().includes(pattern.toLowerCase());
-    }
-  });
+    if (filterType === "prefix") return groupe.code_examen?.toLowerCase().startsWith(pattern.toLowerCase());
+    if (filterType === "suffix") return groupe.code_examen?.toLowerCase().endsWith(pattern.toLowerCase());
+    return groupe.code_examen?.toLowerCase().includes(pattern.toLowerCase());
+  }), [examens, pattern, filterType]);
+
+  // Stats :
+  const missingFacCount = useMemo(() =>
+    examens.filter(e => !e.faculte || e.faculte.trim() === "").length,
+    [examens]
+  );
+  const total = examens.length;
+  const percentAssigned = total === 0 ? 100 : Math.round(((total - missingFacCount) / total) * 100);
+
+  // Notify parent if asked
+  if (onAssigned) onAssigned(missingFacCount, total);
 
   const handleSelectAll = (checked: boolean) => {
-    if (!checked) {
-      setSelectedGroupeKeys([]);
-    } else {
-      setSelectedGroupeKeys(filteredGroupes.map(
-        (g) => `${g.code_examen}-${g.date_examen}-${g.heure_debut}-${g.auditoire_unifie}`
-      ));
-    }
+    if (!checked) setSelectedGroupeKeys([]);
+    else setSelectedGroupeKeys(filteredGroupes.map(
+      (g) => `${g.code_examen}-${g.date_examen}-${g.heure_debut}-${g.auditoire_unifie}`
+    ));
   };
 
   const handleBulkAssign = () => {
@@ -51,15 +58,32 @@ export const ExamensAdvancedFilter = ({
       onBulkAssignFaculty(selectedGroupeKeys, bulkFaculty);
       setBulkFaculty('');
       setSelectedGroupeKeys([]);
+      toast({
+        title: "Faculté assignée",
+        description: `La faculté "${bulkFaculty}" a été assignée à ${selectedGroupeKeys.length} groupe(s).`,
+      });
+    }
+  };
+
+  // Assigner INCONNU à tous les groupes sans fac
+  const handleAssignInconnu = () => {
+    const noFacKeys = examens.filter(e => !e.faculte || e.faculte.trim() === "")
+      .map(g => `${g.code_examen}-${g.date_examen}-${g.heure_debut}-${g.auditoire_unifie}`);
+    if (noFacKeys.length) {
+      onBulkAssignFaculty(noFacKeys, "INCONNU");
+      toast({
+        title: "Faculté INCONNU assignée",
+        description: `INCONNU attribué à ${noFacKeys.length} groupe(s) sans faculté.`,
+      });
     }
   };
 
   return (
-    <div className="space-y-3 py-4">
+    <>
       <div className="flex flex-wrap gap-2 items-end">
         <Input
           value={pattern}
-          placeholder="Filtrer par pattern de code examen"
+          placeholder="Pattern code examen"
           onChange={e => setPattern(e.target.value)}
           className="w-52"
         />
@@ -73,10 +97,11 @@ export const ExamensAdvancedFilter = ({
             <SelectItem value="suffix">Finit par</SelectItem>
           </SelectContent>
         </Select>
-        <Button 
-          variant="outline"
-          onClick={() => setFilter(pattern, filterType)}
-        >Voir</Button>
+        <Button variant="outline" onClick={() => setFilter(pattern, filterType)}>Voir</Button>
+        <Button variant="ghost" className="text-xs" onClick={handleAssignInconnu} disabled={missingFacCount === 0}>
+          Assigner INCONNU aux groupes sans faculté
+        </Button>
+        <Badge variant="outline" className="ml-2">{percentAssigned}% assignés</Badge>
       </div>
       {pattern && (
         <div className="p-3 rounded bg-gray-50 border">
@@ -130,6 +155,7 @@ export const ExamensAdvancedFilter = ({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
+
