@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +10,7 @@ import { Search, Calendar, Clock, MapPin, Users, Calculator, Home, Shield } from
 import { useState } from "react";
 import { Footer } from "@/components/Footer";
 import { Link } from "react-router-dom";
+import { HomeButton } from "@/components/HomeButton";
 
 interface SurveillanceData {
   id: string;
@@ -131,6 +131,7 @@ const Surveillant = () => {
                   Mes Disponibilités
                 </Link>
               </Button>
+              <HomeButton />
               <Button variant="outline" asChild>
                 <Link to="/">
                   <Home className="h-4 w-4 mr-2" />

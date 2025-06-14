@@ -1,6 +1,6 @@
-
 import { CollecteSurveillants } from "@/components/CollecteSurveillants";
 import { Footer } from "@/components/Footer";
+import { HomeButton } from "@/components/HomeButton";
 
 const PublicForm = () => {
   return (

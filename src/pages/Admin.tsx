@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { DashboardOverview } from "@/components/DashboardOverview";
@@ -9,6 +10,7 @@ import { NewPlanningView } from "@/components/NewPlanningView";
 import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
 import { CandidaturesManager } from "@/components/CandidaturesManager";
 import { CollecteDisponibilites } from "@/components/CollecteDisponibilites";
+import { SuiviDisponibilites } from "@/components/SuiviDisponibilites";
 import SurveillanceHistory from "@/components/SurveillanceHistory";
 import { EnseignantViewManager } from "@/components/EnseignantViewManager";
 import { PreAssignmentManager } from "@/components/PreAssignmentManager";
@@ -22,7 +24,8 @@ type ActiveTab =
   | "surveillants" 
   | "contraintes" 
   | "candidatures" 
-  | "disponibilites" 
+  | "disponibilites"
+  | "suivi-disponibilites"
   | "historique"
   | "donnees-sensibles"
   | "enseignant-view"

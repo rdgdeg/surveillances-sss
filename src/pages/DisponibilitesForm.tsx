@@ -1,6 +1,6 @@
-
 import { CollecteDisponibilites } from "@/components/CollecteDisponibilites";
 import { Footer } from "@/components/Footer";
+import { HomeButton } from "@/components/HomeButton";
 
 const DisponibilitesForm = () => {
   return (
