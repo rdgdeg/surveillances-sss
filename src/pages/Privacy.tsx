@@ -1,9 +1,10 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Shield, Database, UserCheck, Eye, Trash2, Home } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Footer } from "@/components/Footer";
-import UCLouvainHeader from "@/components/UCLouvainHeader";
+import { UCLouvainHeader } from "@/components/UCLouvainHeader";
 
 const Privacy = () => {
   return (
@@ -185,5 +186,4 @@ const Privacy = () => {
     </div>
   );
 };
-
 export default Privacy;
