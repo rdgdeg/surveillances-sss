@@ -130,10 +130,16 @@ export type Database = {
       candidats_surveillance: {
         Row: {
           created_at: string
+          demande_modification_info: boolean | null
+          details_modification_demandee: string | null
           email: string
+          etp: number | null
+          faculte: string | null
           id: string
           nom: string
+          preferences_jobiste: Json | null
           prenom: string
+          quota_surveillance: number | null
           session_id: string | null
           statut: string
           statut_autre: string | null
@@ -143,10 +149,16 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          demande_modification_info?: boolean | null
+          details_modification_demandee?: string | null
           email: string
+          etp?: number | null
+          faculte?: string | null
           id?: string
           nom: string
+          preferences_jobiste?: Json | null
           prenom: string
+          quota_surveillance?: number | null
           session_id?: string | null
           statut: string
           statut_autre?: string | null
@@ -156,10 +168,16 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          demande_modification_info?: boolean | null
+          details_modification_demandee?: string | null
           email?: string
+          etp?: number | null
+          faculte?: string | null
           id?: string
           nom?: string
+          preferences_jobiste?: Json | null
           prenom?: string
+          quota_surveillance?: number | null
           session_id?: string | null
           statut?: string
           statut_autre?: string | null
@@ -290,36 +308,103 @@ export type Database = {
           },
         ]
       }
+      demandes_modification_info: {
+        Row: {
+          anciennes_donnees: Json | null
+          candidat_id: string | null
+          commentaire: string | null
+          created_at: string
+          id: string
+          nouvelles_donnees: Json | null
+          statut: string | null
+          surveillant_id: string | null
+          traite_par: string | null
+          updated_at: string
+        }
+        Insert: {
+          anciennes_donnees?: Json | null
+          candidat_id?: string | null
+          commentaire?: string | null
+          created_at?: string
+          id?: string
+          nouvelles_donnees?: Json | null
+          statut?: string | null
+          surveillant_id?: string | null
+          traite_par?: string | null
+          updated_at?: string
+        }
+        Update: {
+          anciennes_donnees?: Json | null
+          candidat_id?: string | null
+          commentaire?: string | null
+          created_at?: string
+          id?: string
+          nouvelles_donnees?: Json | null
+          statut?: string | null
+          surveillant_id?: string | null
+          traite_par?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demandes_modification_info_candidat_id_fkey"
+            columns: ["candidat_id"]
+            isOneToOne: false
+            referencedRelation: "candidats_surveillance"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "demandes_modification_info_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["surveillant_id"]
+          },
+          {
+            foreignKeyName: "demandes_modification_info_surveillant_id_fkey"
+            columns: ["surveillant_id"]
+            isOneToOne: false
+            referencedRelation: "surveillants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       disponibilites: {
         Row: {
+          commentaire_surveillance_obligatoire: string | null
           created_at: string
           date_examen: string
           est_disponible: boolean
           heure_debut: string
           heure_fin: string
           id: string
+          nom_examen_obligatoire: string | null
           session_id: string
           surveillant_id: string
           updated_at: string
         }
         Insert: {
+          commentaire_surveillance_obligatoire?: string | null
           created_at?: string
           date_examen: string
           est_disponible?: boolean
           heure_debut: string
           heure_fin: string
           id?: string
+          nom_examen_obligatoire?: string | null
           session_id: string
           surveillant_id: string
           updated_at?: string
         }
         Update: {
+          commentaire_surveillance_obligatoire?: string | null
           created_at?: string
           date_examen?: string
           est_disponible?: boolean
           heure_debut?: string
           heure_fin?: string
           id?: string
+          nom_examen_obligatoire?: string | null
           session_id?: string
           surveillant_id?: string
           updated_at?: string

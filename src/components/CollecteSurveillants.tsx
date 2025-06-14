@@ -3,17 +3,17 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { UserPlus, ExternalLink, BookOpen, HelpCircle, Users, Building2, Home } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { BookOpen, ExternalLink, HelpCircle, Users, Building2, Home, AlertTriangle, TrendingUp } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import { format, parseISO, startOfWeek, endOfWeek, isSameWeek } from "date-fns";
 import { fr } from "date-fns/locale";
+import { InformationsPersonnellesSection } from "./InformationsPersonnellesSection";
+import { JobistePreferencesSection } from "./JobistePreferencesSection";
+import { CommentaireSurveillanceSection } from "./CommentaireSurveillanceSection";
 
 interface ExamenSlot {
   id: string;
@@ -120,12 +120,20 @@ export const CollecteSurveillants = () => {
     telephone: '',
     statut: '',
     statut_autre: '',
-    disponibilites: {} as Record<string, boolean>
+    faculte: '',
+    etp: null,
+    quota_surveillance: null,
+    disponibilites: {} as Record<string, boolean>,
+    commentaires_surveillance: {} as Record<string, string>,
+    noms_examens_obligatoires: {} as Record<string, string>,
+    preferences_jobiste: {
+      souhaite_maximum: false,
+      plusieurs_par_jour: false,
+      commentaires: ''
+    }
   });
 
   const [submitted, setSubmitted] = useState(false);
-  const [notAllowed, setNotAllowed] = useState(false);
-  const [isChecking, setIsChecking] = useState(false);
   const [surveillantId, setSurveillantId] = useState<string|null>(null);
 
   // Récupérer la session active pour afficher les créneaux
@@ -148,7 +156,6 @@ export const CollecteSurveillants = () => {
     if (!formData.email || !activeSession) return;
     let isCancelled = false;
     (async () => {
-      setIsChecking(true);
       // On recherche quelqu’un dans surveillants avec exact email
       const { data, error } = await supabase
         .from('surveillants')
@@ -157,16 +164,13 @@ export const CollecteSurveillants = () => {
         .maybeSingle();
       if (!isCancelled) {
         if (!data) {
-          setNotAllowed(true);
           setSurveillantId(null);
         } else {
-          setNotAllowed(false);
           setSurveillantId(data.id);
           if (formData.nom === '' && formData.prenom === '') {
             setFormData(f => ({ ...f, nom: data.nom, prenom: data.prenom }));
           }
         }
-        setIsChecking(false);
       }
     })();
     return () => { isCancelled = true; };
@@ -217,18 +221,18 @@ export const CollecteSurveillants = () => {
     uniqueCreneaux = Array.from(creneauMap.values());
   }
 
-  // Disponible: on n’autorise l’envoi que si surveillantId trouvé
   const submitMutation = useMutation({
     mutationFn: async (dispoData: typeof formData) => {
-      // Sauvegarder les dispos dans "disponibilites"
       if (!surveillantId || !activeSession?.id) throw new Error("Vous n'êtes pas autorisé.");
-      // Supprimer les dispo précédentes pour cette session/surveillant
+      
+      // Supprimer les disponibilités précédentes
       await supabase
         .from('disponibilites')
         .delete()
         .eq('surveillant_id', surveillantId)
         .eq('session_id', activeSession.id);
-      // Préparation des nouvelles
+      
+      // Préparer les nouvelles disponibilités avec commentaires
       const dispoList = Object.entries(dispoData.disponibilites)
         .filter(([_, ok]) => ok)
         .map(([examenId, _]) => {
@@ -241,13 +245,53 @@ export const CollecteSurveillants = () => {
             heure_debut: slot.heure_debut,
             heure_fin: slot.heure_fin,
             est_disponible: true,
+            commentaire_surveillance_obligatoire: dispoData.commentaires_surveillance[examenId] || null,
+            nom_examen_obligatoire: dispoData.noms_examens_obligatoires[examenId] || null
           };
         }).filter(Boolean);
+      
       if (dispoList.length === 0) throw new Error("Veuillez sélectionner au moins un créneau.");
+      
+      // Insérer les disponibilités
       const { error } = await supabase
         .from('disponibilites')
         .insert(dispoList);
       if (error) throw error;
+
+      // Enregistrer/mettre à jour les informations du candidat
+      const candidatData = {
+        nom: dispoData.nom,
+        prenom: dispoData.prenom,
+        email: dispoData.email,
+        telephone: dispoData.telephone,
+        statut: dispoData.statut,
+        statut_autre: dispoData.statut_autre,
+        faculte: dispoData.faculte,
+        etp: dispoData.etp,
+        quota_surveillance: dispoData.quota_surveillance,
+        preferences_jobiste: dispoData.statut === 'Jobiste' ? dispoData.preferences_jobiste : null,
+        session_id: activeSession.id
+      };
+
+      // Vérifier si le candidat existe déjà
+      const { data: existingCandidat } = await supabase
+        .from('candidats_surveillance')
+        .select('id')
+        .eq('email', dispoData.email)
+        .eq('session_id', activeSession.id)
+        .maybeSingle();
+
+      if (existingCandidat) {
+        await supabase
+          .from('candidats_surveillance')
+          .update(candidatData)
+          .eq('id', existingCandidat.id);
+      } else {
+        await supabase
+          .from('candidats_surveillance')
+          .insert(candidatData);
+      }
+
       return true;
     },
     onSuccess: () => {
@@ -289,6 +333,26 @@ export const CollecteSurveillants = () => {
     });
   };
 
+  const handleCommentaireChange = (examenId: string, commentaire: string) => {
+    setFormData(prev => ({
+      ...prev,
+      commentaires_surveillance: {
+        ...prev.commentaires_surveillance,
+        [examenId]: commentaire
+      }
+    }));
+  };
+
+  const handleNomExamenChange = (examenId: string, nomExamen: string) => {
+    setFormData(prev => ({
+      ...prev,
+      noms_examens_obligatoires: {
+        ...prev.noms_examens_obligatoires,
+        [examenId]: nomExamen
+      }
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!surveillantId) {
@@ -299,10 +363,10 @@ export const CollecteSurveillants = () => {
       });
       return;
     }
-    if (!formData.email) {
+    if (!formData.email || !formData.telephone) {
       toast({
-        title: "Email requis",
-        description: "Veuillez entrer votre adresse email.",
+        title: "Champs requis",
+        description: "Veuillez remplir tous les champs obligatoires.",
         variant: "destructive"
       });
       return;
@@ -355,26 +419,6 @@ export const CollecteSurveillants = () => {
     );
   }
 
-  if (notAllowed) {
-    return (
-      <div className="max-w-lg mx-auto my-8 p-6">
-        <Card className="border-uclouvain-blue">
-          <CardHeader>
-            <CardTitle className="text-uclouvain-blue">Email non autorisé</CardTitle>
-            <CardDescription>
-              <p>
-                L’adresse email renseignée n’est pas autorisée à remplir ce formulaire.
-                <br/>
-                Merci de contacter l’organisation si vous pensez qu’il s’agit d’une erreur.<br/>
-                <span className="text-gray-500 text-xs">Seules les personnes déjà pré-enregistrées comme surveillants ont accès.</span>
-              </p>
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       {/* Navigation Button */}
@@ -402,6 +446,25 @@ export const CollecteSurveillants = () => {
           Session {activeSession.name} - Candidature pour la surveillance d'examens
         </p>
       </div>
+
+      {/* Notes explicatives */}
+      <Card className="border-blue-200 bg-blue-50">
+        <CardContent className="pt-6">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+            <div className="space-y-2">
+              <p className="text-blue-800 font-medium">Important :</p>
+              <ul className="text-blue-700 text-sm space-y-1 list-disc list-inside">
+                <li>Si vous avez déjà une surveillance obligatoire pendant un créneau, cochez la case correspondante et renseignez le nom de l'examen.</li>
+                <li>
+                  <TrendingUp className="h-4 w-4 inline mr-1" />
+                  Maximisez le nombre de créneaux sélectionnés pour augmenter vos chances d'être retenu.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Liens vers les consignes */}
       <Card className="border-uclouvain-blue/20">
@@ -461,79 +524,31 @@ export const CollecteSurveillants = () => {
       </Card>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Informations personnelles (readonly si trouvés) */}
-        <Card className="border-uclouvain-blue/20">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-uclouvain-blue">
-              <UserPlus className="h-5 w-5" />
-              <span>Vos informations</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={e => setFormData(f => ({ ...f, email: e.target.value }))}
-                  required
-                  className={isChecking ? "animate-pulse" : ""}
-                  autoFocus
-                  onBlur={() => {}}
-                />
-                <p className="text-xs text-uclouvain-blue mt-1">
-                  Vous devez utiliser l’adresse enregistrée dans l’organisation.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="nom">Nom</Label>
-                <Input
-                  id="nom"
-                  value={formData.nom}
-                  readOnly
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="prenom">Prénom</Label>
-                <Input
-                  id="prenom"
-                  value={formData.prenom}
-                  readOnly
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="telephone">Téléphone *</Label>
-                <Input
-                  id="telephone"
-                  value={formData.telephone}
-                  onChange={e => setFormData(f => ({ ...f, telephone: e.target.value }))}
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Votre numéro de téléphone restera confidentiel et ne sera utilisé qu’en cas d’urgence organisationnelle.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <InformationsPersonnellesSection
+          formData={formData}
+          setFormData={setFormData}
+          activeSession={activeSession}
+        />
 
-        {/* Disponibilités */}
+        <JobistePreferencesSection
+          statut={formData.statut}
+          preferences={formData.preferences_jobiste}
+          onPreferencesChange={(preferences) => 
+            setFormData(prev => ({ ...prev, preferences_jobiste: preferences }))
+          }
+        />
+
+        {/* Disponibilités avec commentaires */}
         <Card className="border-uclouvain-blue/20">
           <CardHeader>
             <CardTitle className="text-uclouvain-blue">Disponibilités</CardTitle>
             <CardDescription>
-              Cochez les créneaux où vous êtes disponible pour surveiller&nbsp;: 
-              créneaux groupés par semaine, avec le jour de la semaine. <br/>
-              Seules la date et l’horaire (préparation comprise) sont affichés.
+              Cochez les créneaux où vous êtes disponible pour surveiller. 
+              Les horaires incluent le temps de préparation (45 minutes avant chaque examen).
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-8">
-              {/* Groupement par semaine - créneaux */}
               {groupCreneauxByWeek(uniqueCreneaux).map((semaine, semIdx) => (
                 <div key={semaine.title}>
                   <h3 className="font-bold text-uclouvain-blue mb-2">{semaine.title}</h3>
@@ -548,38 +563,45 @@ export const CollecteSurveillants = () => {
                         creneau.heure_fin
                       );
                       const anyChecked = creneau.examenIds.some(id => formData.disponibilites[id]);
+                      
                       return (
                         <div
                           key={`${creneau.date_examen}_${creneau.heure_debut}_${creneau.heure_fin}`}
-                          className="flex items-center space-x-3 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/5 transition-colors"
+                          className="border border-uclouvain-blue/20 rounded-lg p-4 space-y-3"
                         >
-                          <Checkbox
-                            id={`creneau-${semIdx}-${idx}`}
-                            checked={anyChecked}
-                            onCheckedChange={checked => handleCreneauChange(creneau.examenIds, !!checked)}
-                          />
-                          <Label htmlFor={`creneau-${semIdx}-${idx}`} className="flex-1 cursor-pointer">
-                            <div className="font-medium text-uclouvain-blue flex items-center space-x-2">
-                              <span className="capitalize">{jourSemaine}</span>
-                              <span>{jourNum}</span>
-                              <span className="text-sm text-muted-foreground">
-                                {debutSurv} - {heure_fin}
-                              </span>
-                            </div>
-                          </Label>
+                          <div className="flex items-center space-x-3">
+                            <Checkbox
+                              id={`creneau-${semIdx}-${idx}`}
+                              checked={anyChecked}
+                              onCheckedChange={checked => handleCreneauChange(creneau.examenIds, !!checked)}
+                            />
+                            <Label htmlFor={`creneau-${semIdx}-${idx}`} className="flex-1 cursor-pointer">
+                              <div className="font-medium text-uclouvain-blue flex items-center space-x-2">
+                                <span className="capitalize">{jourSemaine}</span>
+                                <span>{jourNum}</span>
+                                <span className="text-sm text-muted-foreground">
+                                  {debutSurv} - {heure_fin}
+                                </span>
+                              </div>
+                            </Label>
+                          </div>
+                          
+                          {anyChecked && creneau.examenIds.map(examenId => (
+                            <CommentaireSurveillanceSection
+                              key={examenId}
+                              creneauId={examenId}
+                              commentaire={formData.commentaires_surveillance[examenId] || ""}
+                              nomExamen={formData.noms_examens_obligatoires[examenId] || ""}
+                              onCommentaireChange={handleCommentaireChange}
+                              onNomExamenChange={handleNomExamenChange}
+                            />
+                          ))}
                         </div>
                       );
                     })}
                   </div>
                 </div>
               ))}
-            </div>
-            {/* Note admin modification créneaux */}
-            <div className="mt-8">
-              <p className="text-xs text-center text-gray-500">
-                ⚙️ Cette liste de créneaux est générée automatiquement à partir des examens validés.<br/>
-                <span className="font-medium">Pour modifier la liste des créneaux, veuillez passer par l’interface d’administration.</span>
-              </p>
             </div>
           </CardContent>
         </Card>
