@@ -1,4 +1,3 @@
-
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 
@@ -16,7 +15,7 @@ export function CollecteExplications() {
               </li>
               <li>
                 <TrendingUp className="h-4 w-4 inline mr-1" />
-                En tant que surveillant, il est de votre obligation professionnelle de sélectionner le maximum de créneaux possibles. Cela n'est pas optionnel : tous les surveillants doivent déclarer un maximum de disponibilités.
+                Pour une meilleure organisation des examens, veuillez sélectionner le maximum de créneaux où vous êtes disponible. Cela facilite la gestion et la planification pour tous.
               </li>
             </ul>
           </div>
