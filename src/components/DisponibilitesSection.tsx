@@ -5,6 +5,7 @@ import { fr } from "date-fns/locale";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { CommentaireSurveillanceSection } from "./CommentaireSurveillanceSection";
+import React from "react";
 
 function formatExamSlotForDisplay(date_examen: string, heure_debut: string, heure_fin: string) {
   const date = new Date(`${date_examen}T${heure_debut}`);
@@ -98,6 +99,23 @@ export function DisponibilitesSection({
   handleCommentaireChange: (examenId: string, commentaire: string) => void,
   handleNomExamenChange: (examenId: string, nomExamen: string) => void,
 }) {
+
+  // Helper: Pour un groupe de IDs de créneau, vérifier s'il y a des commentaires: 
+  const getCommentaireValue = (ids: string[], dict: Record<string, string>) => {
+    for (const id of ids) {
+      if (dict[id]) return dict[id];
+    }
+    return "";
+  };
+
+  // Si une info est modifiée, on applique à TOUS les ids du creneau (propager à tous examens du creneau)
+  const handleCommentaireCreneau = (creneauIds: string[], commentaire: string) => {
+    creneauIds.forEach(id => handleCommentaireChange(id, commentaire));
+  };
+  const handleNomExamenCreneau = (creneauIds: string[], nomExamen: string) => {
+    creneauIds.forEach(id => handleNomExamenChange(id, nomExamen));
+  };
+
   return (
     <Card className="border-uclouvain-blue/20">
       <CardHeader>
@@ -123,7 +141,10 @@ export function DisponibilitesSection({
                     creneau.heure_fin
                   );
                   const anyChecked = creneau.examenIds.some(id => formData.disponibilites[id]);
-                  
+                  // L'état partagé (par créneau): s'il y a un commentaire/nmExamen pour un des ids de ce créneau, on le récupère (ou "" sinon)
+                  const commentaireValue = getCommentaireValue(creneau.examenIds, formData.commentaires_surveillance);
+                  const nomExamenValue = getCommentaireValue(creneau.examenIds, formData.noms_examens_obligatoires);
+
                   return (
                     <div
                       key={`${creneau.date_examen}_${creneau.heure_debut}_${creneau.heure_fin}`}
@@ -145,16 +166,20 @@ export function DisponibilitesSection({
                           </div>
                         </Label>
                       </div>
-                      {anyChecked && creneau.examenIds.map(examenId => (
+                      {anyChecked && (
                         <CommentaireSurveillanceSection
-                          key={examenId}
-                          creneauId={examenId}
-                          commentaire={formData.commentaires_surveillance[examenId] || ""}
-                          nomExamen={formData.noms_examens_obligatoires[examenId] || ""}
-                          onCommentaireChange={handleCommentaireChange}
-                          onNomExamenChange={handleNomExamenChange}
+                          key={creneau.examenIds.join("_")}
+                          creneauId={creneau.examenIds.join("_")}
+                          commentaire={commentaireValue}
+                          nomExamen={nomExamenValue}
+                          onCommentaireChange={(_, commentaire) =>
+                            handleCommentaireCreneau(creneau.examenIds, commentaire)
+                          }
+                          onNomExamenChange={(_, nomExamen) =>
+                            handleNomExamenCreneau(creneau.examenIds, nomExamen)
+                          }
                         />
-                      ))}
+                      )}
                     </div>
                   );
                 })}
