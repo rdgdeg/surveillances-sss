@@ -57,66 +57,72 @@ const Index = () => {
           <EnseignantExamenForm />
         </div>
 
-        {/* Cards Grid = Alignement */}
+        {/* Cards Grid alignés */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           {/* Enseignants */}
-          <Card className="flex flex-col items-center justify-center h-full min-h-[340px] px-2 py-6 shadow-sm border">
-            <CardHeader className="flex flex-col items-center justify-center text-center p-0 mb-3">
-              <div className="mx-auto bg-green-100 w-14 h-14 rounded-full flex items-center justify-center mb-4">
-                <GraduationCap className="h-7 w-7 text-green-600" />
+          <Card className="flex flex-col justify-between items-center h-full min-h-[380px] px-6 py-8 shadow-sm border text-center">
+            <div className="flex flex-col items-center w-full flex-1">
+              <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mb-5">
+                <GraduationCap className="h-8 w-8 text-green-600" />
               </div>
-              <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-2">Enseignants</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center text-center w-full flex-1 p-0">
-              <CardDescription className="text-base text-gray-700 mb-5">
+              <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-3 mt-1">
+                Enseignants
+              </CardTitle>
+              <CardDescription className="text-base text-gray-700 mb-8">
                 Confirmez les examens dont vous êtes responsable et indiquez les assistants qui participeront à la surveillance.
               </CardDescription>
+            </div>
+            <div className="flex justify-center w-full">
               <Link to="/enseignant" className="w-full flex justify-center">
-                <Button className="w-[90%] max-w-xs bg-green-600 hover:bg-green-700 text-lg font-semibold rounded-lg h-12">
+                <Button className="w-[90%] max-w-xs bg-green-600 hover:bg-green-700 text-lg font-semibold rounded-lg h-12 mt-2">
                   Gérer mes examens & assistants
                 </Button>
               </Link>
-            </CardContent>
+            </div>
           </Card>
 
           {/* Surveillants */}
-          <Card className="flex flex-col items-center justify-center h-full min-h-[340px] px-2 py-6 shadow-sm border">
-            <CardHeader className="flex flex-col items-center justify-center text-center p-0 mb-3">
-              <div className="mx-auto bg-blue-100 w-14 h-14 rounded-full flex items-center justify-center mb-4">
-                <Users className="h-7 w-7 text-blue-600" />
+          <Card className="flex flex-col justify-between items-center h-full min-h-[380px] px-6 py-8 shadow-sm border text-center">
+            <div className="flex flex-col items-center w-full flex-1">
+              <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mb-5">
+                <Users className="h-8 w-8 text-blue-600" />
               </div>
-              <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-2">Surveillants</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center text-center w-full flex-1 p-0">
-              <CardDescription className="text-base text-gray-700 mb-5">
+              <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-3 mt-1">
+                Surveillants
+              </CardTitle>
+              <CardDescription className="text-base text-gray-700 mb-8">
                 Consultez vos attributions de surveillance et renseignez directement vos disponibilités.
               </CardDescription>
+            </div>
+            <div className="flex justify-center w-full">
               <Link to="/surveillant" className="w-full flex justify-center">
-                <Button className="w-[90%] max-w-xs bg-blue-600 hover:bg-blue-700 text-lg font-semibold rounded-lg h-12">
+                <Button className="w-[90%] max-w-xs bg-blue-600 hover:bg-blue-700 text-lg font-semibold rounded-lg h-12 mt-2">
                   Mes attributions & disponibilités
                 </Button>
               </Link>
-            </CardContent>
+            </div>
           </Card>
 
           {/* Administration */}
-          <Card className="flex flex-col items-center justify-center h-full min-h-[340px] px-2 py-6 shadow-sm border">
-            <CardHeader className="flex flex-col items-center justify-center text-center p-0 mb-3">
-              <div className="mx-auto bg-gray-100 w-14 h-14 rounded-full flex items-center justify-center mb-4">
-                <ClipboardList className="h-7 w-7 text-gray-600" />
+          <Card className="flex flex-col justify-between items-center h-full min-h-[380px] px-6 py-8 shadow-sm border text-center">
+            <div className="flex flex-col items-center w-full flex-1">
+              <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mb-5">
+                <ClipboardList className="h-8 w-8 text-gray-600" />
               </div>
-              <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-2">Administration</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center justify-center text-center w-full flex-1 p-0">
-              <CardDescription className="text-base text-gray-700 mb-5">
+              <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-3 mt-1">
+                Administration
+              </CardTitle>
+              <CardDescription className="text-base text-gray-700 mb-8">
                 Validez, supervisez et attribuez les surveillances, gérez les utilisateurs et assistances.
               </CardDescription>
+            </div>
+            <div className="flex justify-center w-full">
               <Link to="/admin" className="w-full flex justify-center">
-                <Button variant="outline" className="w-[90%] max-w-xs text-lg font-semibold rounded-lg h-12 border-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-blue-grey hover:text-uclouvain-blue transition-colors">
+                <Button variant="outline" className="w-[90%] max-w-xs text-lg font-semibold rounded-lg h-12 mt-2 border-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-blue-grey hover:text-uclouvain-blue transition-colors">
                   Accéder à l’administration
                 </Button>
               </Link>
-            </CardContent>
+            </div>
           </Card>
         </div>
 
