@@ -16,7 +16,7 @@ export function CollecteExplications() {
               </li>
               <li>
                 <TrendingUp className="h-4 w-4 inline mr-1" />
-                Maximisez le nombre de créneaux sélectionnés pour augmenter vos chances d'être retenu.
+                En tant que surveillant, il est de votre obligation professionnelle de sélectionner le maximum de créneaux possibles. Cela n'est pas optionnel : tous les surveillants doivent déclarer un maximum de disponibilités.
               </li>
             </ul>
           </div>
