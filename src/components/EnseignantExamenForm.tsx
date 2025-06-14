@@ -15,6 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar as ShadcnCalendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
+import { RechercheExamenSection } from "./RechercheExamenSection";
+import { ExamenRecap } from "./ExamenRecap";
+import { EquipePedagogiqueForm } from "./EquipePedagogiqueForm";
 
 export const EnseignantExamenForm = () => {
   // --- ALL HOOKS MUST BE HERE AT THE TOP LEVEL ---
@@ -261,7 +264,9 @@ export const EnseignantExamenForm = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Search className="h-5 w-5" />
+            <span>
+              <span className="inline-block align-middle">{/* icon slot */}</span>
+            </span>
             <span>Rechercher votre examen</span>
           </CardTitle>
           <CardDescription>
@@ -269,161 +274,30 @@ export const EnseignantExamenForm = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center md:space-x-2 space-y-2 md:space-y-0">
-            <Input
-              placeholder="Code d'examen..."
-              value={searchCode}
-              onChange={(e) => setSearchCode(e.target.value)}
-              className="flex-1"
-            />
-            <Button onClick={() => setSelectedExamen(examenTrouve)} disabled={!examenTrouve}>
-              Rechercher
-            </Button>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="flex items-center">
-                  <ListFilter className="h-4 w-4 mr-2" />
-                  Filtres
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-64">
-                <div className="space-y-4">
-                  <div>
-                    <Label>Faculté</Label>
-                    <Select value={faculteFilter} onValueChange={setFaculteFilter}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Toutes les facultés" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Toutes</SelectItem>
-                        {faculteList.map((fac) => (
-                          <SelectItem value={fac} key={fac}>
-                            {fac}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Date</Label>
-                    <ShadcnCalendar
-                      mode="single"
-                      selected={dateFilter}
-                      onSelect={setDateFilter}
-                      className="pointer-events-auto"
-                    />
-                    {dateFilter && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDateFilter(null)}
-                        className="mt-1"
-                      >
-                        Effacer la date
-                      </Button>
-                    )}
-                  </div>
-                  {(faculteFilter || dateFilter) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setFaculteFilter("");
-                        setDateFilter(null);
-                      }}
-                      className="w-full"
-                    >
-                      Réinitialiser les filtres
-                    </Button>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-          
-          {searchCode && !examenTrouve && (
-            <p className="text-sm text-red-600">Aucun examen trouvé avec ce code.</p>
-          )}
-
-          {/* Liste des examens disponibles filtree */}
-          <div className="py-2">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Matière</TableHead>
-                  <TableHead>Faculté</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Salle</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredExamens.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center text-muted-foreground">Aucun examen correspondant</TableCell>
-                  </TableRow>
-                ) : (
-                  filteredExamens.map((ex: any) => (
-                    <TableRow key={ex.id} className={selectedExamen && ex.id === selectedExamen.id ? "bg-blue-100/50" : ""}>
-                      <TableCell className="font-mono">{ex.code_examen}</TableCell>
-                      <TableCell>{ex.matiere}</TableCell>
-                      <TableCell>{ex.faculte}</TableCell>
-                      <TableCell>{formatDate(ex.date_examen)}</TableCell>
-                      <TableCell>{ex.salle}</TableCell>
-                      <TableCell>
-                        <Button 
-                          size="sm"
-                          variant={selectedExamen && ex.id === selectedExamen.id ? "secondary" : "outline"}
-                          onClick={() => setSelectedExamen(ex)}
-                        >
-                          {selectedExamen && ex.id === selectedExamen.id ? "Sélectionné" : "Choisir"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-            <div className="text-sm text-gray-600 mt-2">
-              {filteredExamens.length} examen{filteredExamens.length > 1 ? "s" : ""} affiché{filteredExamens.length > 1 ? "s" : ""}
-            </div>
-          </div>
+          <RechercheExamenSection
+            searchCode={searchCode}
+            setSearchCode={setSearchCode}
+            examenTrouve={examenTrouve}
+            setSelectedExamen={setSelectedExamen}
+            filteredExamens={filteredExamens}
+            faculteFilter={faculteFilter}
+            setFaculteFilter={setFaculteFilter}
+            dateFilter={dateFilter}
+            setDateFilter={setDateFilter}
+            faculteList={faculteList}
+            selectedExamen={selectedExamen}
+          />
         </CardContent>
       </Card>
 
       {selectedExamen && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div>
-                <span className="text-xl font-bold">{selectedExamen.code_examen}</span>
-                <span className="ml-3">{selectedExamen.matiere}</span>
-              </div>
-              <Badge variant={selectedExamen.besoins_confirmes_par_enseignant ? "default" : "secondary"}>
-                {selectedExamen.besoins_confirmes_par_enseignant ? "Confirmé" : "En attente"}
-              </Badge>
+            <CardTitle>
+              <ExamenRecap selectedExamen={selectedExamen} formatDate={formatDate} />
             </CardTitle>
-            <CardDescription>
-              <div className="space-y-1">
-                <div className="flex items-center space-x-1">
-                  <Calendar className="h-3 w-3" />
-                  <span>{formatDate(selectedExamen.date_examen)}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <Clock className="h-3 w-3" />
-                  <span>{selectedExamen.heure_debut} - {selectedExamen.heure_fin}</span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <MapPin className="h-3 w-3" />
-                  <span>{selectedExamen.salle}</span>
-                </div>
-              </div>
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-
-            {/* Bloc résumé aligné horizontal */}
             <div className="flex justify-between items-stretch bg-gray-50 rounded-xl px-2 py-2 mb-2">
               <BlocResume
                 nombre={selectedExamen.nombre_surveillants}
@@ -441,140 +315,16 @@ export const EnseignantExamenForm = () => {
                 color="text-orange-600"
               />
             </div>
-
-            {/* --- Nouveauté: Encodage équipe pédagogique --- */}
-            <div>
-              <h4 className="font-medium mb-3">
-                Combien de personnes apportez-vous dans votre équipe pédagogique ?
-              </h4>
-              <div className="w-52">
-                <Input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={nombrePersonnes}
-                  onChange={e => setNombrePersonnes(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="mb-6"
-                />
-              </div>
-              {Array.from({ length: nombrePersonnes }).map((_, idx) => (
-                <div key={idx} className="grid grid-cols-2 gap-4 bg-white rounded-lg mb-2 pb-2 border border-gray-100 px-2">
-                  <div>
-                    <Label>Nom *</Label>
-                    <Input
-                      value={personnesEquipe[idx]?.nom || ""}
-                      onChange={e => {
-                        const v = e.target.value;
-                        setPersonnesEquipe(arr => arr.map((pers, i) =>
-                          i === idx ? { ...pers, nom: v } : pers
-                        ));
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <Label>Prénom *</Label>
-                    <Input
-                      value={personnesEquipe[idx]?.prenom || ""}
-                      onChange={e => {
-                        const v = e.target.value;
-                        setPersonnesEquipe(arr => arr.map((pers, i) =>
-                          i === idx ? { ...pers, prenom: v } : pers
-                        ));
-                      }}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label>Email</Label>
-                    <Input
-                      type="email"
-                      value={personnesEquipe[idx]?.email || ""}
-                      onChange={e => {
-                        const v = e.target.value;
-                        setPersonnesEquipe(arr => arr.map((pers, i) =>
-                          i === idx ? { ...pers, email: v } : pers
-                        ));
-                      }}
-                    />
-                  </div>
-                  <div className="col-span-2 flex flex-wrap gap-6 py-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={!!personnesEquipe[idx]?.est_assistant}
-                        onCheckedChange={checked =>
-                          setPersonnesEquipe(arr => arr.map((pers, i) =>
-                            i === idx ? { ...pers, est_assistant: !!checked } : pers
-                          ))
-                        }
-                      />
-                      <Label>Assistant SSS</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        checked={!!personnesEquipe[idx]?.present_sur_place}
-                        onCheckedChange={checked =>
-                          setPersonnesEquipe(arr => arr.map((pers, i) =>
-                            i === idx ? { ...pers, present_sur_place: !!checked, compte_dans_quota: !!checked } : pers
-                          ))
-                        }
-                      />
-                      <Label>Sera présent sur place et assurera la surveillance</Label>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <Button
-                onClick={handleAjouterPersonnes}
-                className="w-full bg-uclouvain-blue hover:bg-blue-900"
-                disabled={ajouterPersonneMutation.isPending}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter
-              </Button>
-            </div>
-
-            {selectedExamen.personnes_aidantes && selectedExamen.personnes_aidantes.length > 0 && (
-              <div>
-                <h4 className="font-medium mb-3">Équipe pédagogique</h4>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nom</TableHead>
-                      <TableHead>Prénom</TableHead>
-                      <TableHead>Statut</TableHead>
-                      <TableHead>Quota</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedExamen.personnes_aidantes.map((personne: any) => (
-                      <TableRow key={personne.id}>
-                        <TableCell>{personne.nom}</TableCell>
-                        <TableCell>{personne.prenom}</TableCell>
-                        <TableCell>
-                          <div className="space-x-1">
-                            {personne.est_assistant && <Badge variant="secondary">Assistant</Badge>}
-                            {!personne.present_sur_place && <Badge variant="outline">Absent</Badge>}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {personne.compte_dans_quota && personne.present_sur_place ? "✓" : "✗"}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => supprimerPersonneMutation.mutate(personne.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-
+            <EquipePedagogiqueForm
+              selectedExamen={selectedExamen}
+              ajouterPersonneMutation={ajouterPersonneMutation}
+              supprimerPersonneMutation={supprimerPersonneMutation}
+              personnesEquipe={personnesEquipe}
+              setPersonnesEquipe={setPersonnesEquipe}
+              nombrePersonnes={nombrePersonnes}
+              setNombrePersonnes={setNombrePersonnes}
+              handleAjouterPersonnes={handleAjouterPersonnes}
+            />
             <div className="flex justify-end space-x-2">
               <Button
                 onClick={() => confirmerExamenMutation.mutate(selectedExamen.id)}
