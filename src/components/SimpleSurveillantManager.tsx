@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +35,8 @@ export const SimpleSurveillantManager = () => {
   const [editData, setEditData] = useState<Record<string, Partial<Surveillant>>>({});
   const [sortField, setSortField] = useState<SortField>('nom');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+  const [selectedSurveillants, setSelectedSurveillants] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -74,6 +75,37 @@ export const SimpleSurveillantManager = () => {
       toast({
         title: "Erreur",
         description: error.message || "Impossible de mettre à jour le surveillant.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Mutation pour MAJ en lot du statut
+  const bulkUpdateStatusMutation = useMutation({
+    mutationFn: async ({
+      ids,
+      statut
+    }: { ids: string[]; statut: 'actif' | 'inactif' }) => {
+      const { error } = await supabase
+        .from('surveillants')
+        .update({ statut })
+        .in('id', ids);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['surveillants-simple'] });
+      toast({
+        title: "Mise à jour réussie",
+        description: "Statut des surveillants mis à jour.",
+      });
+      setSelectedSurveillants(new Set());
+      setSelectAll(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de mettre à jour les surveillants.",
         variant: "destructive"
       });
     }
@@ -178,6 +210,26 @@ export const SimpleSurveillantManager = () => {
     { value: "inactif", label: "Inactif" }
   ];
 
+  const handleSelectAll = (checked: boolean) => {
+    setSelectAll(checked);
+    if (checked) {
+      if (filteredAndSortedSurvaillants.length > 0) {
+        setSelectedSurveillants(new Set(filteredAndSortedSurvaillants.map(s => s.id)));
+      }
+    } else {
+      setSelectedSurveillants(new Set());
+    }
+  };
+  const handleSelectSurveillant = (id: string, checked: boolean) => {
+    const copy = new Set(selectedSurveillants);
+    if (checked) copy.add(id);
+    else {
+      copy.delete(id);
+      setSelectAll(false);
+    }
+    setSelectedSurveillants(copy);
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -206,6 +258,54 @@ export const SimpleSurveillantManager = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+
+          {/* Actions en masse */}
+          {selectedSurveillants.size > 0 && (
+            <div className="flex items-center justify-between bg-blue-50 px-4 py-2 mb-2 rounded">
+              <span className="text-blue-800">
+                {selectedSurveillants.size} surveillant(s) sélectionné(s)
+              </span>
+              <div className="flex space-x-2">
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={() =>
+                    bulkUpdateStatusMutation.mutate({
+                      ids: Array.from(selectedSurveillants),
+                      statut: 'actif'
+                    })
+                  }
+                  disabled={bulkUpdateStatusMutation.isPending}
+                >
+                  Activer
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    bulkUpdateStatusMutation.mutate({
+                      ids: Array.from(selectedSurveillants),
+                      statut: 'inactif'
+                    })
+                  }
+                  disabled={bulkUpdateStatusMutation.isPending}
+                >
+                  Désactiver
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedSurveillants(new Set());
+                    setSelectAll(false);
+                  }}
+                >
+                  Annuler la sélection
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Recherche */}
           <div className="flex items-center space-x-2">
             <Search className="h-4 w-4 text-gray-400" />
@@ -222,6 +322,14 @@ export const SimpleSurveillantManager = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <input
+                      type="checkbox"
+                      checked={selectAll}
+                      onChange={e => handleSelectAll(e.target.checked)}
+                      aria-label="Tout sélectionner"
+                    />
+                  </TableHead>
                   <TableHead>
                     <Button variant="ghost" onClick={() => handleSort('nom')} className="h-auto p-0">
                       Nom <ArrowUpDown className="ml-1 h-3 w-3" />
@@ -263,9 +371,16 @@ export const SimpleSurveillantManager = () => {
               <TableBody>
                 {filteredAndSortedSurvaillants.map((surveillant) => {
                   const isEditing = editingRows.has(surveillant.id);
-                  
                   return (
-                    <TableRow key={surveillant.id}>
+                    <TableRow key={surveillant.id} className={selectedSurveillants.has(surveillant.id) ? "bg-blue-50" : ""}>
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selectedSurveillants.has(surveillant.id)}
+                          onChange={e => handleSelectSurveillant(surveillant.id, e.target.checked)}
+                          aria-label={`Sélectionner ${surveillant.nom} ${surveillant.prenom}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         {isEditing ? (
                           <EditableCell
