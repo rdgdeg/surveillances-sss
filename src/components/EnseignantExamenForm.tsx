@@ -17,6 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format } from "date-fns";
 
 export const EnseignantExamenForm = () => {
+  // --- ALL HOOKS MUST BE HERE AT THE TOP LEVEL ---
+
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
   const [searchCode, setSearchCode] = useState("");
@@ -32,6 +34,11 @@ export const EnseignantExamenForm = () => {
   // Nouveaux filtres
   const [faculteFilter, setFaculteFilter] = useState<string>("");
   const [dateFilter, setDateFilter] = useState<Date | null>(null);
+
+  const [nombrePersonnes, setNombrePersonnes] = useState(1); // Par défaut 1 personne à ajouter
+  const [personnesEquipe, setPersonnesEquipe] = useState([
+    { nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true }
+  ]);
 
   const { data: examensValides } = useQuery({
     queryKey: ['examens-enseignant', activeSession?.id],
@@ -203,11 +210,6 @@ export const EnseignantExamenForm = () => {
       </Card>
     );
   }
-
-  const [nombrePersonnes, setNombrePersonnes] = useState(1); // Par défaut 1 personne à ajouter
-  const [personnesEquipe, setPersonnesEquipe] = useState([
-    { nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true }
-  ]);
 
   // Lorsque le nombre change, ajuster la taille du tableau personnesEquipe
   useEffect(() => {
