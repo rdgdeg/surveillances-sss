@@ -10,180 +10,34 @@ import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
-interface CandidatSurveillance {
-  id: string;
-  nom: string;
-  prenom: string;
-  email: string;
-  telephone?: string;
-  statut: string;
-  statut_autre?: string;
-  traite: boolean;
-  created_at: string;
-  disponibilites_count?: number;
-  session_id?: string; // <-- Fix: Add session_id to match DB and usage
-}
-
-// Pour afficher les dispos par surveillant (en se basant sur email)
-interface DisponibiliteDetail {
-  id: string;
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-  matiere: string;
-  salle: string;
-  commentaire_surveillance_obligatoire?: string;
-  nom_examen_obligatoire?: string;
-}
-
-// Pour afficher les demandes de modif
-interface DemandeModification {
-  id: string;
-  commentaire: string | null;
-  statut: string | null;
-  created_at: string;
-}
+import { useCandidatsSurveillance } from "@/hooks/candidatsSurveillance/useCandidatsSurveillance";
+import { useCandidatDisponibilites } from "@/hooks/candidatsSurveillance/useCandidatDisponibilites";
+import { useDemandesModification } from "@/hooks/candidatsSurveillance/useDemandesModification";
+import { useUpdateTraiteCandidat } from "@/hooks/candidatsSurveillance/useUpdateTraiteCandidat";
 
 export const CandidatsSurveillance = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
-  const [selectedCandidat, setSelectedCandidat] = useState<CandidatSurveillance | null>(null);
+  const [selectedCandidat, setSelectedCandidat] = useState<any>(null);
 
   // 1. Charger tous les candidats pour la session
-  const { data: candidats, isLoading } = useQuery({
-    queryKey: ['candidats-surveillance', activeSession?.id],
-    queryFn: async (): Promise<CandidatSurveillance[]> => {
-      if (!activeSession?.id) return [];
-      const { data, error } = await supabase
-        .from('candidats_surveillance')
-        .select('*')
-        .eq('session_id', activeSession.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Pour chaque candidat, on recompte les dispos à partir de la table disponibilites
-      const candidatsWithCount = await Promise.all(
-        (data || []).map(async (candidat) => {
-          // Chercher le surveillant lié à l'email (même celui qui aurait été créé par le public)
-          const { data: surveillant, error: surveillantErr } = await supabase
-            .from('surveillants')
-            .select('id, email')
-            .eq('email', candidat.email?.trim())
-            .maybeSingle();
-
-          if (surveillantErr) {
-            console.log('Erreur de recherche surveillant', surveillantErr);
-          }
-          let count = 0;
-          if (surveillant) {
-            const { count: dispoCount, error: dispoErr } = await supabase
-              .from('disponibilites')
-              .select('id', { count: 'exact', head: true })
-              .eq('surveillant_id', surveillant.id)
-              .eq('session_id', candidat.session_id);
-            if (dispoErr) {
-              console.log('Erreur de recherche disponibilites', dispoErr);
-            }
-            count = dispoCount ?? 0;
-          } else {
-            // Log surveillant non trouvé pour debug (nom, email ?)
-            console.log(`Aucun surveillant trouvé pour: ${candidat.prenom} ${candidat.nom} <${candidat.email}>`);
-          }
-          return { ...candidat, disponibilites_count: count };
-        })
-      );
-      return candidatsWithCount;
-    },
-    enabled: !!activeSession?.id
-  });
+  const { data: candidats, isLoading } = useCandidatsSurveillance(activeSession?.id);
 
   // 2. Charger les créneaux de disponibilités réels du candidat sélectionné
-  const { data: disponibilites } = useQuery({
-    queryKey: ['candidat-disponibilites', selectedCandidat?.id, selectedCandidat?.email, selectedCandidat?.session_id],
-    queryFn: async (): Promise<DisponibiliteDetail[]> => {
-      if (!selectedCandidat?.id) return [];
-      // Chercher le surveillant lié à l'email (parfois fails si espace/casse)
-      const { data: surveillant } = await supabase
-        .from('surveillants')
-        .select('id, email')
-        .eq('email', selectedCandidat.email?.trim())
-        .maybeSingle();
-      if (!surveillant) {
-        console.log(`Surveillant non trouvé (detail) pour ${selectedCandidat.prenom} ${selectedCandidat.nom} <${selectedCandidat.email}>`);
-        return [];
-      }
-      const { data, error } = await supabase
-        .from('disponibilites')
-        .select(`
-          *,
-          examens(date_examen, heure_debut, heure_fin, matiere, salle)
-        `)
-        .eq('surveillant_id', surveillant.id)
-        .eq('session_id', selectedCandidat.session_id)
-        .eq('est_disponible', true);
-
-      if (error) {
-        console.log('Erreur chargement disponibilites depuis disponibilites', error);
-        throw error;
-      }
-
-      return (data || []).map((row: any) => ({
-        id: row.id,
-        date_examen: row.examens?.date_examen,
-        heure_debut: row.examens?.heure_debut,
-        heure_fin: row.examens?.heure_fin,
-        matiere: row.examens?.matiere,
-        salle: row.examens?.salle,
-        commentaire_surveillance_obligatoire: row.commentaire_surveillance_obligatoire || undefined,
-        nom_examen_obligatoire: row.nom_examen_obligatoire || undefined
-      }));
-    },
-    enabled: !!selectedCandidat?.id && !!selectedCandidat?.session_id && !!selectedCandidat?.email
+  const { data: disponibilites } = useCandidatDisponibilites({
+    candidat: selectedCandidat
+      ? {
+          id: selectedCandidat.id,
+          email: selectedCandidat.email,
+          session_id: selectedCandidat.session_id,
+        }
+      : null,
   });
 
   // 3. Charger les demandes de modification info associées à ce candidat
-  const { data: demandesModification } = useQuery({
-    queryKey: ['demandes-modification', selectedCandidat?.id],
-    queryFn: async (): Promise<DemandeModification[]> => {
-      if (!selectedCandidat?.id) return [];
-      // La table "demandes_modification_info" fait ref soit sur le surveillant, soit sur le candidat.
-      // On va chercher via candidat_id
-      const { data, error } = await supabase
-        .from('demandes_modification_info')
-        .select('*')
-        .eq('candidat_id', selectedCandidat.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!selectedCandidat?.id
-  });
+  const { data: demandesModification } = useDemandesModification(selectedCandidat?.id);
 
-  const updateTraiteMutation = useMutation({
-    mutationFn: async ({ candidatId, traite }: { candidatId: string; traite: boolean }) => {
-      const { error } = await supabase
-        .from('candidats_surveillance')
-        .update({ traite })
-        .eq('id', candidatId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['candidats-surveillance'] });
-      toast({
-        title: "Succès",
-        description: "Statut mis à jour.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible de mettre à jour le statut.",
-        variant: "destructive"
-      });
-    }
-  });
+  const updateTraiteMutation = useUpdateTraiteCandidat();
 
   if (!activeSession) {
     return (
