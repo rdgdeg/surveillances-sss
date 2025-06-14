@@ -1,4 +1,3 @@
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
@@ -22,6 +21,7 @@ interface CandidatSurveillance {
   traite: boolean;
   created_at: string;
   disponibilites_count?: number;
+  session_id?: string; // <-- Fix: Add session_id to match DB and usage
 }
 
 // Pour afficher les dispos par surveillant (en se basant sur email)
@@ -383,4 +383,3 @@ export const CandidatsSurveillance = () => {
     </div>
   );
 };
-
