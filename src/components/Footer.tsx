@@ -7,14 +7,18 @@ export const Footer = () => {
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-start space-y-6 md:space-y-0">
           <div className="flex items-center space-x-4">
+            {/* Logo UCLouvain officiel */}
             <img 
               src="/lovable-uploads/f6a7054d-ce38-4ede-84cf-87b92a350bea.png" 
               alt="UCLouvain" 
               className="h-10 w-auto"
             />
             <div>
-              <h3 className="font-semibold text-white">Université catholique de Louvain</h3>
-              <p className="text-uclouvain-cyan text-sm">Secteur des Sciences de la Santé</p>
+              <h3 className="font-semibold text-white">UCLouvain</h3>
+              <p className="text-uclouvain-cyan text-sm">Université catholique de Louvain</p>
+              <p className="text-uclouvain-cyan/80 text-xs leading-tight">
+                Secteur des Sciences de la Santé
+              </p>
             </div>
           </div>
           
