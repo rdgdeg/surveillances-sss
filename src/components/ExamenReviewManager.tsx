@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +17,7 @@ import {
   getContrainteUnifiee,
   ExamenGroupe 
 } from "@/utils/examenReviewUtils";
+import { ExamensAdvancedFilter } from "./ExamensAdvancedFilter";
 
 export const ExamenReviewManager = () => {
   const {
@@ -37,6 +37,8 @@ export const ExamenReviewManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [extraFilter, setExtraFilter] = useState<{pattern?: string; type?: "prefix"|"suffix"|"contain"}>({});
+  const [facultyFilter, setFacultyFilter] = useState<string>("ALL");
 
   // Grouper et fusionner les examens par code/date/heure + auditoire unifié
   const examensGroupes = useMemo(() => {
@@ -44,20 +46,23 @@ export const ExamenReviewManager = () => {
     return groupExamens(examens, contraintesAuditoires);
   }, [examens, contraintesAuditoires]);
 
-  // Suggestions pour l'autocomplétion
-  const allSearchTerms = useMemo(() => {
-    return generateSearchTerms(examensGroupes);
-  }, [examensGroupes]);
+  // Nouveau: filtrage avancé
+  const filteredByExtra = useMemo(() => {
+    if (!extraFilter.pattern) return examensGroupes;
+    const pat = extraFilter.pattern.toLowerCase() || "";
+    return examensGroupes.filter(groupe => {
+      if (!groupe.code_examen) return false;
+      if (extraFilter.type === "prefix") return groupe.code_examen.toLowerCase().startsWith(pat);
+      if (extraFilter.type === "suffix") return groupe.code_examen.toLowerCase().endsWith(pat);
+      return groupe.code_examen.toLowerCase().includes(pat);
+    });
+  }, [examensGroupes, extraFilter]);
 
-  // Examens filtrés
+  // Nouveau: filtrage faculté
   const filteredExamens = useMemo(() => {
-    return filterExamens(examensGroupes, searchTerm);
-  }, [examensGroupes, searchTerm]);
-
-  // Statistiques
-  const stats = useMemo(() => {
-    return calculateStats(filteredExamens);
-  }, [filteredExamens]);
+    if (facultyFilter === "ALL") return filteredByExtra;
+    return filteredByExtra.filter(groupe => (facultyFilter === "NO_FAC" ? !groupe.faculte : groupe.faculte === facultyFilter));
+  }, [filteredByExtra, facultyFilter]);
 
   // Mise à jour des suggestions de recherche
   const updateSearchSuggestions = (value: string) => {
@@ -142,6 +147,16 @@ export const ExamenReviewManager = () => {
     }
   };
 
+  const handleBulkAssignFaculty = (groupeKeys: string[], faculty: string) => {
+    setEditingExamens(prev => {
+      const updates = { ...prev };
+      groupeKeys.forEach(key => {
+        updates[key] = { ...updates[key], faculte: faculty };
+      });
+      return updates;
+    });
+  };
+
   const getFieldValue = (groupe: ExamenGroupe, field: keyof ExamenGroupe) => {
     const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
     return editingExamens[groupeKey]?.[field] ?? groupe[field];
@@ -171,6 +186,32 @@ export const ExamenReviewManager = () => {
 
   return (
     <div className="space-y-6">
+      {/* Étape assignation des facultés et filtrage */}
+      <ExamensAdvancedFilter
+        examens={examensGroupes}
+        onBulkAssignFaculty={handleBulkAssignFaculty}
+        setFilter={(pattern, type) => setExtraFilter({ pattern, type })}
+        facultyOptions={["MEDE", "FASB", "FSM", "FSP", "INCONNU"]}
+      />
+      <div className="flex items-center gap-2 mb-4">
+        <span>Filtrer par faculté :</span>
+        <select
+          className="border px-2 py-1 rounded"
+          value={facultyFilter}
+          onChange={e => setFacultyFilter(e.target.value)}
+        >
+          <option value="ALL">Toutes</option>
+          <option value="NO_FAC">Sans faculté</option>
+          <option value="MEDE">MEDE</option>
+          <option value="FSM">FSM</option>
+          <option value="FASB">FASB</option>
+          <option value="FSP">FSP</option>
+          <option value="INCONNU">INCONNU</option>
+        </select>
+        <span className="text-xs text-gray-500">
+          (Astuce : filtrez "sans faculté" pour vérifier que tous les examens sont assignés)
+        </span>
+      </div>
       <Tabs defaultValue="import" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="import" className="flex items-center space-x-2">

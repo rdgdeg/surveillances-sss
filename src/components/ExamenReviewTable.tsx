@@ -1,4 +1,3 @@
-
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -60,6 +59,7 @@ export const ExamenReviewTable = ({
             <TableHead>Code/Matière</TableHead>
             <TableHead>Date/Heure</TableHead>
             <TableHead>Auditoire</TableHead>
+            <TableHead>Faculté</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead>Base</TableHead>
             <TableHead>Enseig.</TableHead>
@@ -109,6 +109,19 @@ export const ExamenReviewTable = ({
                   <div className="text-xs text-gray-500 mt-1">
                     Salles: {groupe.examens.map(e => e.salle).join(', ')}
                   </div>
+                </TableCell>
+                <TableCell>
+                  <input
+                    className={`text-sm border rounded px-1 py-0.5 w-24 ${!groupe.faculte ? "border-red-400 bg-red-50" : "border-gray-200"}`}
+                    value={groupe.faculte ?? ""}
+                    placeholder="..."
+                    onChange={e =>
+                      onFieldChange(groupeKey, "faculte", e.target.value)
+                    }
+                  />
+                  {!groupe.faculte && (
+                    <div className="text-red-600 text-xs">Faculté ?</div>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge className="bg-gray-100 text-gray-800">
