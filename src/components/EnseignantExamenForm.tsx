@@ -202,33 +202,19 @@ export const EnseignantExamenForm = () => {
     });
   };
 
-  if (!activeSession) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-center text-gray-500">
-            Aucune session active trouvée.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   // Lorsque le nombre change, ajuster la taille du tableau personnesEquipe
   useEffect(() => {
-    setPersonnesEquipe(arr => {
-      const diff = nombrePersonnes - arr.length;
-      if (diff > 0) {
-        return [
-          ...arr,
-          ...Array(diff).fill({ nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true })
-        ];
-      } else if (diff < 0) {
-        return arr.slice(0, nombrePersonnes);
-      } else {
-        return arr;
-      }
-    });
+    const diff = nombrePersonnes - personnesEquipe.length;
+    if (diff > 0) {
+      setPersonnesEquipe([
+        ...personnesEquipe,
+        ...Array(diff).fill({ nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true })
+      ]);
+    } else if (diff < 0) {
+      setPersonnesEquipe(personnesEquipe.slice(0, nombrePersonnes));
+    }
+    // pas de else : sinon rien à faire si égal
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nombrePersonnes]);
 
   // Nouvelle fonction pour ajouter plusieurs personnes d'un coup
@@ -258,6 +244,19 @@ export const EnseignantExamenForm = () => {
       <div className="text-base text-gray-600">{titre}</div>
     </div>
   );
+
+  // HERE: Place conditional returns after hooks are defined
+  if (!activeSession) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-center text-gray-500">
+            Aucune session active trouvée.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
