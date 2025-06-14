@@ -1,10 +1,11 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Users, Calendar, AlertTriangle, CheckCircle, TrendingUp, Calculator } from "lucide-react";
+import { ExamensCompletsModal } from "./ExamensCompletsModal";
+import { useState } from "react";
 
 interface DashboardStats {
   totalSurveillantsRequis: number;
@@ -18,9 +19,12 @@ interface DashboardStats {
 }
 
 export const DashboardOverview = () => {
+  const [examensCompletsOpen, setExamensCompletsOpen] = useState(false);
+  const [examensCompletsList, setExamensCompletsList] = useState<any[]>([]);
+
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboard-stats'],
-    queryFn: async (): Promise<DashboardStats> => {
+    queryFn: async (): Promise<any> => {
       // Get active session
       const { data: activeSession } = await supabase
         .from('sessions')
@@ -35,13 +39,25 @@ export const DashboardOverview = () => {
       // Get total surveillants required
       const { data: examens } = await supabase
         .from('examens')
-        .select('surveillants_a_attribuer')
+        .select('id, matiere, date_examen, heure_debut, heure_fin, salle, surveillants_a_attribuer')
         .eq('session_id', activeSession.id);
 
-      const totalSurveillantsRequis = examens?.reduce((sum, exam) => 
+      const totalSurveillantsRequis = examens?.reduce((sum, exam) =>
         sum + (exam.surveillants_a_attribuer || 0), 0) || 0;
 
-      // Get theoretical capacity from quotas
+      // Get attributions for all examens
+      const { data: attributions } = await supabase
+        .from('attributions')
+        .select('examen_id')
+        .eq('session_id', activeSession.id);
+
+      // Compte examens complets (attributions >= surveillants requis)
+      const attributionsByExam = attributions?.reduce((acc, attr) => {
+        acc[attr.examen_id] = (acc[attr.examen_id] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      // Correction couverture/théorique (coverage = capacité/needs*100)
       const { data: quotas } = await supabase
         .from('surveillant_sessions')
         .select('quota')
@@ -50,30 +66,25 @@ export const DashboardOverview = () => {
 
       const capaciteTheorique = quotas?.reduce((sum, q) => sum + q.quota, 0) || 0;
 
-      // Get exam completion stats
-      const { data: examensStats } = await supabase
-        .from('examens')
-        .select('id, surveillants_a_attribuer')
-        .eq('session_id', activeSession.id);
+      // Correction du taux de couverture (coverage = capaciteTheorique / totalSurveillantsRequis * 100)
+      const tauxCouverture = totalSurveillantsRequis > 0
+        ? (capaciteTheorique / totalSurveillantsRequis) * 100
+        : 0;
 
-      const examensTotal = examensStats?.length || 0;
-
-      // Count exams with enough attributions
-      const { data: attributions } = await supabase
-        .from('attributions')
-        .select('examen_id')
-        .eq('session_id', activeSession.id);
-
-      const attributionsByExam = attributions?.reduce((acc, attr) => {
-        acc[attr.examen_id] = (acc[attr.examen_id] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>) || {};
-
-      const examensComplets = examensStats?.filter(exam => 
+      // Pourcentage examens complets + la liste détaillée
+      const examensComplets = (examens || []).filter(exam =>
         (attributionsByExam[exam.id] || 0) >= (exam.surveillants_a_attribuer || 0)
-      ).length || 0;
+        && (exam.surveillants_a_attribuer || 0) > 0
+      ).map(exam => ({
+        ...exam,
+        attributions_count: attributionsByExam[exam.id] || 0
+      }));
 
-      // Count active surveillants
+      const examensTotal = examens?.length || 0;
+
+      // Progression attributions
+      const progressionAttributions = examensTotal > 0 ? (examensComplets.length / examensTotal) * 100 : 0;
+
       const { data: surveillantsActifs } = await supabase
         .from('surveillant_sessions')
         .select('id')
@@ -83,15 +94,22 @@ export const DashboardOverview = () => {
       return {
         totalSurveillantsRequis,
         capaciteTheorique,
-        tauxCouverture: capaciteTheorique > 0 ? (totalSurveillantsRequis / capaciteTheorique) * 100 : 0,
+        tauxCouverture,
         examensTotal,
-        examensComplets,
-        progressionAttributions: examensTotal > 0 ? (examensComplets / examensTotal) * 100 : 0,
+        examensComplets: examensComplets.length,
+        progressionAttributions,
         surveillantsActifs: surveillantsActifs?.length || 0,
-        sessionActive: activeSession.name
+        sessionActive: activeSession.name,
+        examensCompletsList: examensComplets
       };
     }
   });
+
+  // Pour ouvrir la modal examens complets
+  const handleOpenExamensComplets = () => {
+    if (stats?.examensCompletsList) setExamensCompletsList(stats.examensCompletsList);
+    setExamensCompletsOpen(true);
+  };
 
   if (isLoading) {
     return (
@@ -134,6 +152,13 @@ export const DashboardOverview = () => {
 
   return (
     <div className="space-y-6">
+      {/* Examens Complets Modal */}
+      <ExamensCompletsModal
+        open={examensCompletsOpen}
+        onOpenChange={setExamensCompletsOpen}
+        examens={examensCompletsList}
+      />
+
       {/* Session active */}
       <Card>
         <CardHeader>
@@ -147,6 +172,7 @@ export const DashboardOverview = () => {
       {/* KPIs principaux */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
+          {/* Surveillants Requis (non-cliquable pour l'instant) */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Surveillants Requis
@@ -160,8 +186,8 @@ export const DashboardOverview = () => {
             </p>
           </CardContent>
         </Card>
-
         <Card>
+          {/* Capacité Théorique */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Capacité Théorique
@@ -175,8 +201,8 @@ export const DashboardOverview = () => {
             </p>
           </CardContent>
         </Card>
-
         <Card>
+          {/* Taux de Couverture */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Taux de Couverture
@@ -192,8 +218,12 @@ export const DashboardOverview = () => {
             </div>
           </CardContent>
         </Card>
-
-        <Card>
+        <Card
+          className="cursor-pointer hover:bg-muted/30 transition"
+          onClick={handleOpenExamensComplets}
+          title="Voir la liste des examens complets"
+        >
+          {/* Examens Complets cliquable */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Examens Complets
