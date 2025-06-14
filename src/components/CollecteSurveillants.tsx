@@ -228,16 +228,16 @@ export const CollecteSurveillants = () => {
   const submitMutation = useMutation({
     mutationFn: async (dispoData: typeof formData) => {
       if (!surveillantId || !activeSession?.id) throw new Error("Vous n'êtes pas autorisé.");
-      
+
       // Supprimer les disponibilités précédentes
       await supabase
         .from('disponibilites')
         .delete()
         .eq('surveillant_id', surveillantId)
         .eq('session_id', activeSession.id);
-      
+
       // Préparer les nouvelles disponibilités avec commentaires
-      const dispoList = Object.entries(dispoData.disponibilites)
+      let dispoList = Object.entries(dispoData.disponibilites)
         .filter(([_, ok]) => ok)
         .map(([examenId, _]) => {
           const slot = examens?.find(e => e.id === examenId);
@@ -253,10 +253,21 @@ export const CollecteSurveillants = () => {
             nom_examen_obligatoire: dispoData.noms_examens_obligatoires[examenId] || null
           };
         }).filter(Boolean);
-      
+
+      // Correction: retirer les créneaux dupliqués (dedup)
+      const seen = new Set();
+      dispoList = dispoList.filter(d => {
+        const key = d && `${d.surveillant_id}_${d.session_id}_${d.date_examen}_${d.heure_debut}_${d.heure_fin}`;
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+
       if (dispoList.length === 0) throw new Error("Veuillez sélectionner au moins un créneau.");
-      
-      // Insérer les disponibilités
+
+      // Insérer les disponibilités (uniquement dédupliquées)
       const { error } = await supabase
         .from('disponibilites')
         .insert(dispoList);
