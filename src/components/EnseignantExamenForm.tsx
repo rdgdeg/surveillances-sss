@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,9 +8,13 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Search, Users, Calendar, Clock, MapPin, Trash2 } from "lucide-react";
+import { Plus, Save, Search, Users, Calendar, Clock, MapPin, Trash2, ListFilter } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar as ShadcnCalendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
 
 export const EnseignantExamenForm = () => {
   const { data: activeSession } = useActiveSession();
@@ -26,12 +29,14 @@ export const EnseignantExamenForm = () => {
     compte_dans_quota: true,
     present_sur_place: true
   });
+  // Nouveaux filtres
+  const [faculteFilter, setFaculteFilter] = useState<string>("");
+  const [dateFilter, setDateFilter] = useState<Date | null>(null);
 
   const { data: examensValides } = useQuery({
     queryKey: ['examens-enseignant', activeSession?.id],
     queryFn: async () => {
       if (!activeSession?.id) return [];
-
       const { data, error } = await supabase
         .from('examens')
         .select(`
@@ -43,12 +48,30 @@ export const EnseignantExamenForm = () => {
         .eq('is_active', true)
         .order('date_examen')
         .order('heure_debut');
-
       if (error) throw error;
       return data || [];
     },
     enabled: !!activeSession?.id
   });
+
+  // Liste unique des facultés disponibles
+  const faculteList = useMemo(() => {
+    if (!examensValides) return [];
+    const uniques = Array.from(new Set(examensValides.map((e: any) => e.faculte).filter(Boolean)));
+    return uniques;
+  }, [examensValides]);
+
+  // Filtrage de la liste
+  const filteredExamens = useMemo(() => {
+    if (!examensValides) return [];
+
+    return examensValides.filter((ex: any) => {
+      if (faculteFilter && ex.faculte !== faculteFilter) return false;
+      if (dateFilter && ex.date_examen !== format(dateFilter, "yyyy-MM-dd")) return false;
+      // Ne filtre pas sur code ici (on propose toute la liste)
+      return true;
+    });
+  }, [examensValides, faculteFilter, dateFilter]);
 
   const ajouterPersonneMutation = useMutation({
     mutationFn: async ({ examenId, personne }: { examenId: string; personne: any }) => {
@@ -58,7 +81,6 @@ export const EnseignantExamenForm = () => {
           examen_id: examenId,
           ...personne
         });
-
       if (error) throw error;
     },
     onSuccess: () => {
@@ -91,7 +113,6 @@ export const EnseignantExamenForm = () => {
         .from('personnes_aidantes')
         .delete()
         .eq('id', personneId);
-
       if (error) throw error;
     },
     onSuccess: () => {
@@ -112,7 +133,6 @@ export const EnseignantExamenForm = () => {
           date_confirmation_enseignant: new Date().toISOString()
         })
         .eq('id', examenId);
-
       if (error) throw error;
     },
     onSuccess: () => {
@@ -124,9 +144,10 @@ export const EnseignantExamenForm = () => {
     }
   });
 
-  const examenTrouve = examensValides?.find(e => 
-    e.code_examen?.toLowerCase().includes(searchCode.toLowerCase())
-  );
+  const examenTrouve = useMemo(() => (
+    examensValides?.find(e =>
+      e.code_examen?.toLowerCase().includes(searchCode.toLowerCase()))
+  ), [examensValides, searchCode]);
 
   useEffect(() => {
     if (examenTrouve && searchCode) {
@@ -143,7 +164,6 @@ export const EnseignantExamenForm = () => {
       });
       return;
     }
-
     ajouterPersonneMutation.mutate({
       examenId: selectedExamen.id,
       personne: newPersonne
@@ -152,8 +172,7 @@ export const EnseignantExamenForm = () => {
 
   const calculerSurveillantsPedagogiques = (examen: any) => {
     if (!examen.personnes_aidantes) return 0;
-    
-    return examen.personnes_aidantes.filter((p: any) => 
+    return examen.personnes_aidantes.filter((p: any) =>
       p.compte_dans_quota && p.present_sur_place
     ).length;
   };
@@ -194,11 +213,11 @@ export const EnseignantExamenForm = () => {
             <span>Rechercher votre examen</span>
           </CardTitle>
           <CardDescription>
-            Entrez le code de votre examen pour renseigner vos besoins de surveillance
+            Entrez le code de votre examen ou sélectionnez-le ci-dessous pour renseigner vos besoins de surveillance
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex space-x-2">
+          <div className="flex flex-col md:flex-row md:items-center md:space-x-2 space-y-2 md:space-y-0">
             <Input
               placeholder="Code d'examen..."
               value={searchCode}
@@ -208,14 +227,120 @@ export const EnseignantExamenForm = () => {
             <Button onClick={() => setSelectedExamen(examenTrouve)} disabled={!examenTrouve}>
               Rechercher
             </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="flex items-center">
+                  <ListFilter className="h-4 w-4 mr-2" />
+                  Filtres
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-64">
+                <div className="space-y-4">
+                  <div>
+                    <Label>Faculté</Label>
+                    <Select value={faculteFilter} onValueChange={setFaculteFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Toutes les facultés" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Toutes</SelectItem>
+                        {faculteList.map((fac) => (
+                          <SelectItem value={fac} key={fac}>
+                            {fac}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Date</Label>
+                    <ShadcnCalendar
+                      mode="single"
+                      selected={dateFilter}
+                      onSelect={setDateFilter}
+                      className="pointer-events-auto"
+                    />
+                    {dateFilter && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDateFilter(null)}
+                        className="mt-1"
+                      >
+                        Effacer la date
+                      </Button>
+                    )}
+                  </div>
+                  {(faculteFilter || dateFilter) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFaculteFilter("");
+                        setDateFilter(null);
+                      }}
+                      className="w-full"
+                    >
+                      Réinitialiser les filtres
+                    </Button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           
           {searchCode && !examenTrouve && (
             <p className="text-sm text-red-600">Aucun examen trouvé avec ce code.</p>
           )}
+
+          {/* Liste des examens disponibles filtree */}
+          <div className="py-2">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Matière</TableHead>
+                  <TableHead>Faculté</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Salle</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredExamens.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">Aucun examen correspondant</TableCell>
+                  </TableRow>
+                ) : (
+                  filteredExamens.map((ex: any) => (
+                    <TableRow key={ex.id} className={selectedExamen && ex.id === selectedExamen.id ? "bg-blue-100/50" : ""}>
+                      <TableCell className="font-mono">{ex.code_examen}</TableCell>
+                      <TableCell>{ex.matiere}</TableCell>
+                      <TableCell>{ex.faculte}</TableCell>
+                      <TableCell>{formatDate(ex.date_examen)}</TableCell>
+                      <TableCell>{ex.salle}</TableCell>
+                      <TableCell>
+                        <Button 
+                          size="sm"
+                          variant={selectedExamen && ex.id === selectedExamen.id ? "secondary" : "outline"}
+                          onClick={() => setSelectedExamen(ex)}
+                        >
+                          {selectedExamen && ex.id === selectedExamen.id ? "Sélectionné" : "Choisir"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+            <div className="text-sm text-gray-600 mt-2">
+              {filteredExamens.length} examen{filteredExamens.length > 1 ? "s" : ""} affiché{filteredExamens.length > 1 ? "s" : ""}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
+      {/* Le formulaire détaillé s'affiche si un examen a été sélectionné */}
       {selectedExamen && (
         <Card>
           <CardHeader>
