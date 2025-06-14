@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,22 +28,17 @@ export function EquipePedagogiqueForm({
   setNombrePersonnes,
   handleAjouterPersonnes
 }: EquipePedagogiqueFormProps) {
-  // Optionally: move the logic of growing/shrinking personnesEquipe to here for full decoupling
-
   useEffect(() => {
-    setPersonnesEquipe((arr) => {
-      const diff = nombrePersonnes - arr.length;
-      if (diff > 0) {
-        return [
-          ...arr,
-          ...Array(diff).fill({ nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true })
-        ];
-      } else if (diff < 0) {
-        return arr.slice(0, nombrePersonnes);
-      } else {
-        return arr;
-      }
-    });
+    const diff = nombrePersonnes - personnesEquipe.length;
+    if (diff > 0) {
+      setPersonnesEquipe([
+        ...personnesEquipe,
+        ...Array(diff).fill({ nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true })
+      ]);
+    } else if (diff < 0) {
+      setPersonnesEquipe(personnesEquipe.slice(0, nombrePersonnes));
+    }
+    // pas de else : sinon rien à faire si égal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nombrePersonnes]);
 
@@ -70,9 +65,10 @@ export function EquipePedagogiqueForm({
               value={personnesEquipe[idx]?.nom || ""}
               onChange={e => {
                 const v = e.target.value;
-                setPersonnesEquipe(arr => arr.map((pers, i) =>
-                  i === idx ? { ...pers, nom: v } : pers
-                ));
+                const copy = personnesEquipe.slice();
+                if (!copy[idx]) copy[idx] = {};
+                copy[idx] = { ...copy[idx], nom: v };
+                setPersonnesEquipe(copy);
               }}
             />
           </div>
@@ -82,9 +78,10 @@ export function EquipePedagogiqueForm({
               value={personnesEquipe[idx]?.prenom || ""}
               onChange={e => {
                 const v = e.target.value;
-                setPersonnesEquipe(arr => arr.map((pers, i) =>
-                  i === idx ? { ...pers, prenom: v } : pers
-                ));
+                const copy = personnesEquipe.slice();
+                if (!copy[idx]) copy[idx] = {};
+                copy[idx] = { ...copy[idx], prenom: v };
+                setPersonnesEquipe(copy);
               }}
             />
           </div>
@@ -95,9 +92,10 @@ export function EquipePedagogiqueForm({
               value={personnesEquipe[idx]?.email || ""}
               onChange={e => {
                 const v = e.target.value;
-                setPersonnesEquipe(arr => arr.map((pers, i) =>
-                  i === idx ? { ...pers, email: v } : pers
-                ));
+                const copy = personnesEquipe.slice();
+                if (!copy[idx]) copy[idx] = {};
+                copy[idx] = { ...copy[idx], email: v };
+                setPersonnesEquipe(copy);
               }}
             />
           </div>
@@ -105,22 +103,24 @@ export function EquipePedagogiqueForm({
             <div className="flex items-center space-x-2">
               <Checkbox
                 checked={!!personnesEquipe[idx]?.est_assistant}
-                onCheckedChange={checked =>
-                  setPersonnesEquipe(arr => arr.map((pers, i) =>
-                    i === idx ? { ...pers, est_assistant: !!checked } : pers
-                  ))
-                }
+                onCheckedChange={checked => {
+                  const copy = personnesEquipe.slice();
+                  if (!copy[idx]) copy[idx] = {};
+                  copy[idx] = { ...copy[idx], est_assistant: !!checked };
+                  setPersonnesEquipe(copy);
+                }}
               />
               <Label>Assistant SSS</Label>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox
                 checked={!!personnesEquipe[idx]?.present_sur_place}
-                onCheckedChange={checked =>
-                  setPersonnesEquipe(arr => arr.map((pers, i) =>
-                    i === idx ? { ...pers, present_sur_place: !!checked, compte_dans_quota: !!checked } : pers
-                  ))
-                }
+                onCheckedChange={checked => {
+                  const copy = personnesEquipe.slice();
+                  if (!copy[idx]) copy[idx] = {};
+                  copy[idx] = { ...copy[idx], present_sur_place: !!checked, compte_dans_quota: !!checked };
+                  setPersonnesEquipe(copy);
+                }}
               />
               <Label>Sera présent sur place et assurera la surveillance</Label>
             </div>
