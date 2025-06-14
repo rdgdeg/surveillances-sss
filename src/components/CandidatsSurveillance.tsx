@@ -82,6 +82,15 @@ export const CandidatsSurveillance = () => {
     );
   }
 
+  // Ajout d’un classement similaire au suivi des dispos
+  const sortedCandidats = (candidats || []).map((c) => {
+    // Calcul du pourcentage de complétion par candidat
+    const total = totalCreneaux || 0;
+    const repondu = c.disponibilites_count || 0;
+    const completion = total > 0 ? Math.round((repondu / total) * 100) : 0;
+    return { ...c, completion };
+  }).sort((a, b) => b.completion - a.completion);
+
   return (
     <div className="space-y-6">
       <Card>
@@ -92,6 +101,8 @@ export const CandidatsSurveillance = () => {
           </CardTitle>
           <CardDescription>
             Gestion des candidatures pour la surveillance d'examens - Session {activeSession.name}
+            <br/>
+            <span className="font-semibold text-blue-700">Classement par remplissage des créneaux (Top)</span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -118,11 +129,12 @@ export const CandidatsSurveillance = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {/* Ajout d'une colonne pour debug : creneaux attendus */}
+                  <TableHead>Classement #</TableHead>
                   <TableHead>Candidat</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead className="text-center">Disponibilités</TableHead>
+                  <TableHead className="text-center">Progression</TableHead>
                   <TableHead className="text-center">Traité</TableHead>
                   <TableHead>Date candidature</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
@@ -130,15 +142,21 @@ export const CandidatsSurveillance = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {candidats?.length === 0 ? (
+                {sortedCandidats.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground">
                       Aucune candidature pour cette session
                     </TableCell>
                   </TableRow>
                 ) : (
-                  candidats?.map((candidat) => (
+                  sortedCandidats.map((candidat, idx) => (
                     <TableRow key={candidat.id}>
+                      <TableCell>
+                        <span className="font-bold text-lg">{idx + 1}</span>
+                        {idx === 0 && <span className="ml-1">🥇</span>}
+                        {idx === 1 && <span className="ml-1">🥈</span>}
+                        {idx === 2 && <span className="ml-1">🥉</span>}
+                      </TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">{candidat.prenom} {candidat.nom}</div>
@@ -167,6 +185,12 @@ export const CandidatsSurveillance = () => {
                         <Badge variant="secondary">
                           {candidat.disponibilites_count || 0} créneau{(candidat.disponibilites_count || 0) > 1 ? "x" : ""}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center space-x-2">
+                          <Progress value={candidat.completion} className="flex-1" />
+                          <span className="text-sm font-medium min-w-[60px]">{candidat.completion}%</span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <Button

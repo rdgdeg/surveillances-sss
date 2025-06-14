@@ -433,6 +433,51 @@ export type Database = {
           },
         ]
       }
+      disponibilites_archive: {
+        Row: {
+          archivé_le: string
+          commentaire_surveillance_obligatoire: string | null
+          created_at: string
+          date_examen: string
+          est_disponible: boolean
+          heure_debut: string
+          heure_fin: string
+          id: string
+          nom_examen_obligatoire: string | null
+          session_id: string
+          surveillant_id: string
+          updated_at: string
+        }
+        Insert: {
+          archivé_le?: string
+          commentaire_surveillance_obligatoire?: string | null
+          created_at: string
+          date_examen: string
+          est_disponible: boolean
+          heure_debut: string
+          heure_fin: string
+          id: string
+          nom_examen_obligatoire?: string | null
+          session_id: string
+          surveillant_id: string
+          updated_at: string
+        }
+        Update: {
+          archivé_le?: string
+          commentaire_surveillance_obligatoire?: string | null
+          created_at?: string
+          date_examen?: string
+          est_disponible?: boolean
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          nom_examen_obligatoire?: string | null
+          session_id?: string
+          surveillant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       examens: {
         Row: {
           auditoire_original: string | null

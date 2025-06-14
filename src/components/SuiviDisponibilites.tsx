@@ -135,24 +135,56 @@ export const SuiviDisponibilites = () => {
     loadData();
   }, [activeSession?.id, totalCreneaux]);
 
-  // DEBUG ADMIN - bouton remise à zéro des dispos de la session
+  // Nouvelle fonction : archivage puis purge des disponibilités
   const handleResetDisponibilites = async () => {
     if (!activeSession?.id) return;
-    if (!confirm("Remise à zéro des disponibilités pour toute la session ?")) return;
+    if (!confirm("Remise à zéro des disponibilités pour toute la session ? (celles-ci seront archivées avant suppression)")) return;
     setResetLoading(true);
+
+    // 1. Récupérer toutes les dispos de la session
+    const { data: toArchive, error: fetchError } = await supabase
+      .from('disponibilites')
+      .select('*')
+      .eq('session_id', activeSession.id);
+
+    if (fetchError) {
+      alert("Erreur récupération pour archivage: " + fetchError.message);
+      setResetLoading(false);
+      return;
+    }
+
+    // 2. Archiver toutes les lignes si présent
+    if (toArchive && toArchive.length > 0) {
+      // Préparer pour insertion en bloc (copier tous les champs)
+      const archives = toArchive.map((d: any) => ({
+        ...d,
+        archivé_le: new Date().toISOString(),
+      }));
+      const { error: archiveError } = await supabase
+        .from('disponibilites_archive')
+        .insert(archives);
+
+      if (archiveError) {
+        alert("Erreur archivage des disponibilités: " + archiveError.message);
+        setResetLoading(false);
+        return;
+      }
+    }
+
+    // 3. Purger
     const { error } = await supabase
       .from('disponibilites')
       .delete()
       .eq('session_id', activeSession.id);
+
     if (error) {
       alert("Erreur purge disponibilités: " + error.message);
-      console.error(error);
-    } else {
-      alert("Disponibilités supprimées pour la session !");
-      // forcer refresh
-      setIsLoading(true);
-      setTimeout(() => setIsLoading(false), 800);
+      setResetLoading(false);
+      return;
     }
+    alert("Disponibilités archivées et supprimées pour la session !");
+    setIsLoading(true);
+    setTimeout(() => setIsLoading(false), 800);
     setResetLoading(false);
   };
 
