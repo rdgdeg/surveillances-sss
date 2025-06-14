@@ -31,20 +31,18 @@ export const SuiviDisponibilites = () => {
   const [totalCreneaux, setTotalCreneaux] = useState<number>(0);
   const [resetLoading, setResetLoading] = useState(false);
 
-  // Récupérer le nombre de créneaux dans creneaux_surveillance
+  // Récupérer le nombre de créneaux dans creneaux_surveillance avec le même critère que CollecteDisponibilites
   useEffect(() => {
     const fetchTotalCreneaux = async () => {
       if (!activeSession?.id) return;
-      const { data, error } = await supabase
-        .from('creneaux_surveillance')
-        .select('id')
-        .eq('examen_id', null); // Correction plus bas
 
-      // Nouvelle requête : on récupère tous les créneaux liés à la session via examens
+      // Étape 1 : On récupère les examens actifs et validés
       const { data: examens, error: errExam } = await supabase
         .from('examens')
         .select('id')
-        .eq('session_id', activeSession.id);
+        .eq('session_id', activeSession.id)
+        .eq('is_active', true)
+        .eq('statut_validation', 'VALIDE');
 
       if (errExam) {
         setTotalCreneaux(0);
@@ -57,6 +55,7 @@ export const SuiviDisponibilites = () => {
         return;
       }
 
+      // Étape 2 : On compte les créneaux liés à ces examens
       const { data: creneauxData, error: creneauxErr } = await supabase
         .from('creneaux_surveillance')
         .select('id')
