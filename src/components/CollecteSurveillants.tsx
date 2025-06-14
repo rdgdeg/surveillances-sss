@@ -297,23 +297,23 @@ export const CollecteSurveillants = () => {
           };
         }).filter(Boolean);
 
-      // Correction: retirer les créneaux dupliqués (dedup)
-      const seen = new Set();
-      dispoList = dispoList.filter(d => {
+      // Déduplication renforcée : garder UNE entrée par (date_examen, heure_debut, heure_fin)
+      const uniqueDispoList: any[] = [];
+      const keys = new Set();
+      for (const d of dispoList) {
         const key = d && `${d.surveillant_id}_${d.session_id}_${d.date_examen}_${d.heure_debut}_${d.heure_fin}`;
-        if (seen.has(key)) {
-          return false;
+        if (!keys.has(key)) {
+          keys.add(key);
+          uniqueDispoList.push(d);
         }
-        seen.add(key);
-        return true;
-      });
+      }
 
-      if (dispoList.length === 0) throw new Error("Veuillez sélectionner au moins un créneau.");
+      if (uniqueDispoList.length === 0) throw new Error("Veuillez sélectionner au moins un créneau.");
 
-      // Insérer les disponibilités (uniquement dédupliquées)
+      // Insérer les disponibilités dédupliquées
       const { error } = await supabase
         .from('disponibilites')
-        .insert(dispoList);
+        .insert(uniqueDispoList);
       if (error) throw error;
 
       // Enregistrer/mettre à jour les informations du candidat
