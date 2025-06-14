@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { ClipboardCheck, Users, CheckCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SuiviStatsOverview } from "./SuiviStatsOverview";
+import { ListeDisponibilitesSurveillants } from "./ListeDisponibilitesSurveillants";
 
 interface SurveillantDisponibilite {
   id: string;
@@ -279,75 +281,16 @@ export const SuiviDisponibilites = () => {
           </CardTitle>
           <CardDescription>
             Progression de la collecte des disponibilités par surveillant
-            <br />
-            <span className="font-semibold text-blue-700">Créneaux total attendus (session): {totalCreneaux}</span>
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="flex items-center space-x-3 p-4 bg-blue-50 rounded-lg">
-              <Users className="h-8 w-8 text-blue-500" />
-              <div>
-                <p className="text-2xl font-bold text-blue-600">{stats.total_surveillants}</p>
-                <p className="text-sm text-blue-700">Surveillants actifs</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-3 p-4 bg-green-50 rounded-lg">
-              <CheckCircle className="h-8 w-8 text-green-500" />
-              <div>
-                <p className="text-2xl font-bold text-green-600">{stats.ont_repondu}</p>
-                <p className="text-sm text-green-700">Ont commencé à répondre</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-3 p-4 bg-orange-50 rounded-lg">
-              <Clock className="h-8 w-8 text-orange-500" />
-              <div>
-                <p className="text-2xl font-bold text-orange-600">{stats.completion_moyenne}%</p>
-                <p className="text-sm text-orange-700">Completion moyenne</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {surveillants.map((surveillant) => (
-              <div key={surveillant.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <span className="font-medium">{surveillant.nom} {surveillant.prenom}</span>
-                    <Badge variant="secondary">{surveillant.type}</Badge>
-                    {surveillant.pourcentage_completion === 100 && (
-                      <Badge variant="default" className="bg-green-500">Complet</Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 mb-2">{surveillant.email}</p>
-                  <div className="flex items-center space-x-2">
-                    <Progress value={surveillant.pourcentage_completion} className="flex-1" />
-                    <span className="text-sm font-medium min-w-[60px]">
-                      {surveillant.pourcentage_completion}%
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    <span>{surveillant.creneaux_repondus} / {surveillant.total_creneaux} créneaux</span>
-                    {surveillant.derniere_reponse && (
-                      <span className="ml-2">
-                        • Dernière réponse: {new Date(surveillant.derniere_reponse).toLocaleDateString()}
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {surveillants.length === 0 && (
-            <p className="text-center text-gray-500 py-8">
-              Aucun surveillant actif trouvé pour cette session.
-            </p>
-          )}
+          <SuiviStatsOverview stats={stats} totalCreneaux={totalCreneaux} />
+          <ListeDisponibilitesSurveillants surveillants={surveillants} />
         </CardContent>
       </Card>
     </div>
   );
 };
+
+// Export du type pour le sous-composant
+export type { SurveillantDisponibilite };
