@@ -1,3 +1,4 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Calendar, FileText, Settings, ClipboardList, GraduationCap } from "lucide-react";
@@ -48,8 +49,7 @@ const Index = () => {
             Bienvenue dans le système de surveillance
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Gérez efficacement l'attribution des surveillants pour vos examens, 
-            collectez les disponibilités et optimisez l'organisation de vos sessions d'examens.
+            Gérez efficacement l’attribution des surveillants ainsi que l’organisation et la validation de vos sessions d’examens (enseignants, surveillants, assistants).
           </p>
         </div>
 
@@ -68,12 +68,12 @@ const Index = () => {
               </div>
               <CardTitle className="text-xl">Enseignants</CardTitle>
               <CardDescription>
-                Confirmez vos besoins en surveillance et les personnes qui vous aident
+                Confirmez vos examens et déclarez les personnes qui vous assistent. Ajoutez vos assistants, puis validez pour chaque examen.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <Link to="/enseignant">
-                <Button className="w-full bg-green-600 hover:bg-green-700">
+                <Button className="w-full bg-green-600 hover:bg-green-700 font-semibold">
                   Confirmer mes examens
                 </Button>
               </Link>
@@ -88,13 +88,13 @@ const Index = () => {
               </div>
               <CardTitle className="text-xl">Surveillants</CardTitle>
               <CardDescription>
-                Renseignez vos disponibilités pour les sessions d'examens
+                Consultez vos créneaux de surveillance attribués et renseignez vos disponibilités pour la session.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <Link to="/surveillant">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                  Mes disponibilités
+                <Button className="w-full bg-blue-600 hover:bg-blue-700 font-semibold">
+                  Mes attributions &amp; disponibilités
                 </Button>
               </Link>
             </CardContent>
@@ -108,19 +108,19 @@ const Index = () => {
               </div>
               <CardTitle className="text-xl">Candidatures</CardTitle>
               <CardDescription>
-                Candidatez pour devenir surveillant d'examens
+                Candidatez pour devenir surveillant occasionnel d’examens.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <Link to="/collecte">
-                <Button className="w-full bg-purple-600 hover:bg-purple-700">
+                <Button className="w-full bg-purple-600 hover:bg-purple-700 font-semibold">
                   Candidater
                 </Button>
               </Link>
             </CardContent>
           </Card>
 
-          {/* Formulaire de disponibilités */}
+          {/* Disponibilités */}
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="text-center">
               <div className="mx-auto bg-orange-100 w-12 h-12 rounded-full flex items-center justify-center mb-4">
@@ -128,12 +128,12 @@ const Index = () => {
               </div>
               <CardTitle className="text-xl">Disponibilités</CardTitle>
               <CardDescription>
-                Formulaire de collecte des disponibilités
+                Formulaire dédié aux nouveaux surveillants pour signaler leurs disponibilités.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <Link to="/disponibilites">
-                <Button className="w-full bg-orange-600 hover:bg-orange-700">
+                <Button className="w-full bg-orange-600 hover:bg-orange-700 font-semibold">
                   Renseigner disponibilités
                 </Button>
               </Link>
@@ -148,13 +148,13 @@ const Index = () => {
               </div>
               <CardTitle className="text-xl">Administration</CardTitle>
               <CardDescription>
-                Gérez les examens, surveillants, et organisez les attributions automatiques
+                Gérez les examens, surveillants, assistants, et suivez l’organisation des surveillances.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center">
               <Link to="/admin">
-                <Button variant="outline" className="w-full">
-                  Accéder à l'administration
+                <Button variant="outline" className="w-full font-semibold">
+                  Accéder à l’administration
                 </Button>
               </Link>
             </CardContent>
@@ -171,25 +171,25 @@ const Index = () => {
               </div>
               <h4 className="font-semibold mb-2">Gestion des Surveillants</h4>
               <p className="text-gray-600 text-sm">
-                Gérez votre base de données de surveillants avec leurs qualifications et disponibilités
+                Gérez votre base de surveillants : attributions, statuts, disponibilités, historique.
               </p>
             </div>
             <div className="text-center">
               <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Calendar className="h-8 w-8 text-green-600" />
               </div>
-              <h4 className="font-semibold mb-2">Attribution Automatique</h4>
+              <h4 className="font-semibold mb-2">Workflow Enseignant</h4>
               <p className="text-gray-600 text-sm">
-                Algorithme intelligent d'attribution basé sur les contraintes et disponibilités
+                Validation des besoins en surveillants et ajout assistés pour chaque examen, suivi complet.
               </p>
             </div>
             <div className="text-center">
               <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <FileText className="h-8 w-8 text-purple-600" />
               </div>
-              <h4 className="font-semibold mb-2">Suivi en Temps Réel</h4>
+              <h4 className="font-semibold mb-2">Attribution &amp; Suivi</h4>
               <p className="text-gray-600 text-sm">
-                Tableaux de bord et rapports pour suivre l'avancement des attributions
+                Tableaux de bord dynamiques pour un suivi temps réel des attributions et du remplissage.
               </p>
             </div>
           </div>
