@@ -31,22 +31,42 @@ export const SuiviDisponibilites = () => {
   const [totalCreneaux, setTotalCreneaux] = useState<number>(0);
   const [resetLoading, setResetLoading] = useState(false);
 
-  // Nouvelle récupération du nombre de créneaux pour la session
+  // Récupérer le nombre de créneaux dans creneaux_surveillance
   useEffect(() => {
     const fetchTotalCreneaux = async () => {
       if (!activeSession?.id) return;
-      // Un créneau = un examen (simplification/ajuste si besoin)
       const { data, error } = await supabase
+        .from('creneaux_surveillance')
+        .select('id')
+        .eq('examen_id', null); // Correction plus bas
+
+      // Nouvelle requête : on récupère tous les créneaux liés à la session via examens
+      const { data: examens, error: errExam } = await supabase
         .from('examens')
         .select('id')
         .eq('session_id', activeSession.id);
 
-      if (error) {
-        console.error("Erreur récupération examens pour session", error);
+      if (errExam) {
         setTotalCreneaux(0);
         return;
       }
-      setTotalCreneaux((data || []).length);
+      const examenIds = (examens || []).map(e => e.id);
+
+      if (!examenIds.length) {
+        setTotalCreneaux(0);
+        return;
+      }
+
+      const { data: creneauxData, error: creneauxErr } = await supabase
+        .from('creneaux_surveillance')
+        .select('id')
+        .in('examen_id', examenIds);
+
+      if (creneauxErr) {
+        setTotalCreneaux(0);
+        return;
+      }
+      setTotalCreneaux((creneauxData || []).length);
     };
     fetchTotalCreneaux();
   }, [activeSession?.id]);
@@ -69,18 +89,51 @@ export const SuiviDisponibilites = () => {
 
         if (surveillantsError) throw surveillantsError;
 
-        // Utiliser le total global de créneaux pour la session
+        // Récupérer les examens de la session
+        const { data: examens, error: examErr } = await supabase
+          .from('examens')
+          .select('id')
+          .eq('session_id', activeSession.id);
+
+        if (examErr) throw examErr;
+        const examenIds = (examens || []).map(e => e.id);
+
+        // Récupérer les créneaux de la session
+        const { data: creneaux, error: crenErr } = await supabase
+          .from('creneaux_surveillance')
+          .select('id, examen_id, date_surveillance, heure_debut_surveillance, heure_fin_surveillance')
+          .in('examen_id', examenIds);
+
+        if (crenErr) throw crenErr;
+
+        // total global
+        const totalPourSession = (creneaux || []).length;
+
+        // Pour chaque surveillant, compter les dispos sur les créneaux de la session
         const surveillantsWithStats = await Promise.all(
           (surveillantsData || []).map(async (item) => {
             const surveillant = item.surveillants;
+            // combien de créneaux pour lesquels il a déclaré une dispo
+            let creneauxRepondus = 0;
+            if (creneaux && creneaux.length) {
+              // On compte les dispos pour ce surveillant sur ces créneaux (date/heure)
+              const dispoRes = await supabase
+                .from('disponibilites')
+                .select('date_examen, heure_debut, heure_fin')
+                .eq('surveillant_id', surveillant.id)
+                .eq('session_id', activeSession.id)
+                .eq('est_disponible', true);
 
-            // Compter le nombre de créneaux pour lesquels ce surveillant a répondu 
-            const { count: creneauxRepondus } = await supabase
-              .from('disponibilites')
-              .select('*', { count: 'exact' })
-              .eq('surveillant_id', surveillant.id)
-              .eq('session_id', activeSession.id)
-              .eq('est_disponible', true);
+              if (dispoRes.error) throw dispoRes.error;
+              // Matching créneau/dispo
+              creneauxRepondus = (dispoRes.data || []).filter(dispo =>
+                creneaux.some(c =>
+                  c.date_surveillance === dispo.date_examen &&
+                  c.heure_debut_surveillance === dispo.heure_debut &&
+                  c.heure_fin_surveillance === dispo.heure_fin
+                )
+              ).length;
+            }
 
             // Récupérer la dernière réponse
             const { data: derniereReponse } = await supabase
@@ -92,10 +145,8 @@ export const SuiviDisponibilites = () => {
               .limit(1)
               .single();
 
-            const totalPourSurveillant = totalCreneaux; // si tous doivent répondre à tout
-
-            const pourcentage = totalPourSurveillant > 0
-              ? Math.round(((creneauxRepondus || 0) / totalPourSurveillant) * 100)
+            const pourcentage = totalPourSession > 0
+              ? Math.round((creneauxRepondus / totalPourSession) * 100)
               : 0;
 
             return {
@@ -104,8 +155,8 @@ export const SuiviDisponibilites = () => {
               prenom: surveillant.prenom,
               email: surveillant.email,
               type: surveillant.type,
-              total_creneaux: totalPourSurveillant,
-              creneaux_repondus: creneauxRepondus || 0,
+              total_creneaux: totalPourSession,
+              creneaux_repondus: creneauxRepondus,
               pourcentage_completion: pourcentage,
               derniere_reponse: derniereReponse?.updated_at || null
             };
@@ -114,7 +165,7 @@ export const SuiviDisponibilites = () => {
 
         setSurveillants(surveillantsWithStats);
 
-        // Calculer les statistiques globales
+        // Stats globales
         const totalSurveillants = surveillantsWithStats.length;
         const ontRepondu = surveillantsWithStats.filter(s => s.pourcentage_completion > 0).length;
         const completionMoyenne = surveillantsWithStats.reduce((sum, s) => sum + s.pourcentage_completion, 0) / (totalSurveillants || 1);

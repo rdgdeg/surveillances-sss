@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
@@ -9,6 +10,7 @@ import { Users, CheckCircle, XCircle, Eye, Mail, Phone, BookOpen } from "lucide-
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 
 import { useCandidatsSurveillance } from "@/hooks/candidatsSurveillance/useCandidatsSurveillance";
 import { useCandidatDisponibilites } from "@/hooks/candidatsSurveillance/useCandidatDisponibilites";
