@@ -20,10 +20,9 @@ export const CandidatsSurveillance = () => {
   const queryClient = useQueryClient();
   const [selectedCandidat, setSelectedCandidat] = useState<any>(null);
 
-  // 1. Charger tous les candidats pour la session
+  // Candidats de la session
   const { data: candidats, isLoading } = useCandidatsSurveillance(activeSession?.id);
-
-  // 2. Charger les créneaux de disponibilités réels du candidat sélectionné
+  // Créneaux réels renseignés pour le candidat sélectionné
   const { data: disponibilites } = useCandidatDisponibilites({
     candidat: selectedCandidat
       ? {
@@ -34,10 +33,32 @@ export const CandidatsSurveillance = () => {
       : null,
   });
 
-  // 3. Charger les demandes de modification info associées à ce candidat
+  // Demandes de modif pour le modal détail
   const { data: demandesModification } = useDemandesModification(selectedCandidat?.id);
 
   const updateTraiteMutation = useUpdateTraiteCandidat();
+
+  // --- AJOUT debug/total creneaux ---
+  // Récupérer le nombre total de créneaux pour la session (examens x horaires)
+  // Utilisation d'une requête sur la table examens (pour la session active)
+  const { data: totalCreneaux, isLoading: isLoadingCreneaux } = useQuery({
+    queryKey: ['total-creneaux-session', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession?.id) return 0;
+      // chaque examen = 1 créneau à surveiller
+      const { data, error } = await supabase
+        .from('examens')
+        .select('id')
+        .eq('session_id', activeSession.id);
+
+      if (error) {
+        console.log("Erreur récupération examens pour session", error);
+        return 0;
+      }
+      return (data || []).length;
+    },
+    enabled: !!activeSession?.id
+  });
 
   if (!activeSession) {
     return (
@@ -97,6 +118,7 @@ export const CandidatsSurveillance = () => {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {/* Ajout d'une colonne pour debug : creneaux attendus */}
                   <TableHead>Candidat</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>Statut</TableHead>
@@ -104,6 +126,7 @@ export const CandidatsSurveillance = () => {
                   <TableHead className="text-center">Traité</TableHead>
                   <TableHead>Date candidature</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
+                  <TableHead className="text-center text-primary">Créneaux attendus (session)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -240,6 +263,9 @@ export const CandidatsSurveillance = () => {
                             </div>
                           </DialogContent>
                         </Dialog>
+                      </TableCell>
+                      <TableCell className="text-center text-blue-600">
+                        {isLoadingCreneaux ? "..." : totalCreneaux}
                       </TableCell>
                     </TableRow>
                   ))
