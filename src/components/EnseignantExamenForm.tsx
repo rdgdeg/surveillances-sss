@@ -204,6 +204,56 @@ export const EnseignantExamenForm = () => {
     );
   }
 
+  const [nombrePersonnes, setNombrePersonnes] = useState(1); // Par défaut 1 personne à ajouter
+  const [personnesEquipe, setPersonnesEquipe] = useState([
+    { nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true }
+  ]);
+
+  // Lorsque le nombre change, ajuster la taille du tableau personnesEquipe
+  useEffect(() => {
+    setPersonnesEquipe(arr => {
+      const diff = nombrePersonnes - arr.length;
+      if (diff > 0) {
+        return [
+          ...arr,
+          ...Array(diff).fill({ nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true })
+        ];
+      } else if (diff < 0) {
+        return arr.slice(0, nombrePersonnes);
+      } else {
+        return arr;
+      }
+    });
+  }, [nombrePersonnes]);
+
+  // Nouvelle fonction pour ajouter plusieurs personnes d'un coup
+  const handleAjouterPersonnes = () => {
+    if (!selectedExamen) return;
+    const personnesValides = personnesEquipe.every(p => p.nom && p.prenom);
+    if (!personnesValides) {
+      toast({
+        title: "Champs requis",
+        description: "Nom et prénom sont obligatoires pour chaque personne.",
+        variant: "destructive"
+      });
+      return;
+    }
+    personnesEquipe.forEach((personne) => {
+      ajouterPersonneMutation.mutate({
+        examenId: selectedExamen.id,
+        personne: personne
+      });
+    });
+  };
+
+  // Affichage recap horizontal en flex aligné & style chiffres/color
+  const BlocResume = ({ nombre, titre, color }: { nombre: number, titre: string, color: string }) => (
+    <div className="flex flex-col items-center justify-center flex-1 py-2">
+      <div className={`text-3xl font-bold ${color}`}>{nombre}</div>
+      <div className="text-base text-gray-600">{titre}</div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <Card>
@@ -340,12 +390,14 @@ export const EnseignantExamenForm = () => {
         </CardContent>
       </Card>
 
-      {/* Le formulaire détaillé s'affiche si un examen a été sélectionné */}
       {selectedExamen && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>{selectedExamen.matiere}</span>
+              <div>
+                <span className="text-xl font-bold">{selectedExamen.code_examen}</span>
+                <span className="ml-3">{selectedExamen.matiere}</span>
+              </div>
               <Badge variant={selectedExamen.besoins_confirmes_par_enseignant ? "default" : "secondary"}>
                 {selectedExamen.besoins_confirmes_par_enseignant ? "Confirmé" : "En attente"}
               </Badge>
@@ -368,95 +420,114 @@ export const EnseignantExamenForm = () => {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">
-                  {selectedExamen.nombre_surveillants}
-                </div>
-                <div className="text-sm text-gray-600">Surveillants théoriques</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">
-                  {calculerSurveillantsPedagogiques(selectedExamen)}
-                </div>
-                <div className="text-sm text-gray-600">Équipe pédagogique</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">
-                  {calculerSurveillantsNecessaires(selectedExamen)}
-                </div>
-                <div className="text-sm text-gray-600">Surveillants à attribuer</div>
-              </div>
+
+            {/* Bloc résumé aligné horizontal */}
+            <div className="flex justify-between items-stretch bg-gray-50 rounded-xl px-2 py-2 mb-2">
+              <BlocResume
+                nombre={selectedExamen.nombre_surveillants}
+                titre="Surveillants théoriques"
+                color="text-blue-700"
+              />
+              <BlocResume
+                nombre={calculerSurveillantsPedagogiques(selectedExamen)}
+                titre="Équipe pédagogique"
+                color="text-green-700"
+              />
+              <BlocResume
+                nombre={calculerSurveillantsNecessaires(selectedExamen)}
+                titre="Surveillants à attribuer"
+                color="text-orange-600"
+              />
             </div>
 
+            {/* --- Nouveauté: Encodage équipe pédagogique --- */}
             <div>
-              <h4 className="font-medium mb-3">Ajouter une personne de votre équipe</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="nom">Nom *</Label>
-                  <Input
-                    id="nom"
-                    value={newPersonne.nom}
-                    onChange={(e) => setNewPersonne({...newPersonne, nom: e.target.value})}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="prenom">Prénom *</Label>
-                  <Input
-                    id="prenom"
-                    value={newPersonne.prenom}
-                    onChange={(e) => setNewPersonne({...newPersonne, prenom: e.target.value})}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={newPersonne.email}
-                    onChange={(e) => setNewPersonne({...newPersonne, email: e.target.value})}
-                  />
-                </div>
-                <div className="col-span-2 space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={newPersonne.est_assistant}
-                      onCheckedChange={(checked) => 
-                        setNewPersonne({...newPersonne, est_assistant: checked as boolean})
-                      }
-                    />
-                    <Label>Assistant qualifié</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={newPersonne.compte_dans_quota}
-                      onCheckedChange={(checked) => 
-                        setNewPersonne({...newPersonne, compte_dans_quota: checked as boolean})
-                      }
-                    />
-                    <Label>Compte dans le quota de surveillance</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={newPersonne.present_sur_place}
-                      onCheckedChange={(checked) => 
-                        setNewPersonne({...newPersonne, present_sur_place: checked as boolean})
-                      }
-                    />
-                    <Label>Présent sur place</Label>
-                  </div>
-                </div>
-                <div className="col-span-2">
-                  <Button 
-                    onClick={handleAjouterPersonne}
-                    disabled={ajouterPersonneMutation.isPending}
-                    className="w-full"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Ajouter
-                  </Button>
-                </div>
+              <h4 className="font-medium mb-3">
+                Combien de personnes apportez-vous dans votre équipe pédagogique ?
+              </h4>
+              <div className="w-52">
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  value={nombrePersonnes}
+                  onChange={e => setNombrePersonnes(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="mb-6"
+                />
               </div>
+              {Array.from({ length: nombrePersonnes }).map((_, idx) => (
+                <div key={idx} className="grid grid-cols-2 gap-4 bg-white rounded-lg mb-2 pb-2 border border-gray-100 px-2">
+                  <div>
+                    <Label>Nom *</Label>
+                    <Input
+                      value={personnesEquipe[idx]?.nom || ""}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setPersonnesEquipe(arr => arr.map((pers, i) =>
+                          i === idx ? { ...pers, nom: v } : pers
+                        ));
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <Label>Prénom *</Label>
+                    <Input
+                      value={personnesEquipe[idx]?.prenom || ""}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setPersonnesEquipe(arr => arr.map((pers, i) =>
+                          i === idx ? { ...pers, prenom: v } : pers
+                        ));
+                      }}
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Label>Email</Label>
+                    <Input
+                      type="email"
+                      value={personnesEquipe[idx]?.email || ""}
+                      onChange={e => {
+                        const v = e.target.value;
+                        setPersonnesEquipe(arr => arr.map((pers, i) =>
+                          i === idx ? { ...pers, email: v } : pers
+                        ));
+                      }}
+                    />
+                  </div>
+                  <div className="col-span-2 flex flex-wrap gap-6 py-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={!!personnesEquipe[idx]?.est_assistant}
+                        onCheckedChange={checked =>
+                          setPersonnesEquipe(arr => arr.map((pers, i) =>
+                            i === idx ? { ...pers, est_assistant: !!checked } : pers
+                          ))
+                        }
+                      />
+                      <Label>Assistant SSS</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        checked={!!personnesEquipe[idx]?.present_sur_place}
+                        onCheckedChange={checked =>
+                          setPersonnesEquipe(arr => arr.map((pers, i) =>
+                            i === idx ? { ...pers, present_sur_place: !!checked, compte_dans_quota: !!checked } : pers
+                          ))
+                        }
+                      />
+                      <Label>Sera présent sur place et assurera la surveillance</Label>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <Button
+                onClick={handleAjouterPersonnes}
+                className="w-full bg-uclouvain-blue hover:bg-blue-900"
+                disabled={ajouterPersonneMutation.isPending}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Ajouter
+              </Button>
             </div>
 
             {selectedExamen.personnes_aidantes && selectedExamen.personnes_aidantes.length > 0 && (
