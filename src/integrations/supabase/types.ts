@@ -707,9 +707,11 @@ export type Database = {
       surveillant_sessions: {
         Row: {
           created_at: string
+          date_desactivation: string | null
           id: string
           is_active: boolean
           quota: number
+          remarques_desactivation: string | null
           session_id: string
           sessions_imposees: number | null
           surveillant_id: string
@@ -717,9 +719,11 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          date_desactivation?: string | null
           id?: string
           is_active?: boolean
           quota?: number
+          remarques_desactivation?: string | null
           session_id: string
           sessions_imposees?: number | null
           surveillant_id: string
@@ -727,9 +731,11 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          date_desactivation?: string | null
           id?: string
           is_active?: boolean
           quota?: number
+          remarques_desactivation?: string | null
           session_id?: string
           sessions_imposees?: number | null
           surveillant_id?: string

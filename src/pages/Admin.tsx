@@ -4,6 +4,7 @@ import { AdminSidebar } from "@/components/AdminSidebar";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { SensitiveDataManager } from "@/components/SensitiveDataManager";
 import { SimpleSurveillantManager } from "@/components/SimpleSurveillantManager";
+import { SurveillantAdvancedManager } from "@/components/SurveillantAdvancedManager";
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
 import { ExamenWorkflowManager } from "@/components/ExamenWorkflowManager";
 import { NewPlanningView } from "@/components/NewPlanningView";
@@ -22,6 +23,7 @@ type ActiveTab =
   | "validation" 
   | "planning" 
   | "surveillants" 
+  | "surveillants-avance"
   | "contraintes" 
   | "candidatures" 
   | "disponibilites"
@@ -54,12 +56,16 @@ const Admin = () => {
         return <NewPlanningView />;
       case "surveillants":
         return <SimpleSurveillantManager />;
+      case "surveillants-avance":
+        return <SurveillantAdvancedManager />;
       case "contraintes":
         return <ContraintesAuditoires />;
       case "candidatures":
         return <CandidaturesManager />;
       case "disponibilites":
         return <CollecteDisponibilites />;
+      case "suivi-disponibilites":
+        return <SuiviDisponibilites />;
       case "historique":
         return <SurveillanceHistory />;
       case "donnees-sensibles":

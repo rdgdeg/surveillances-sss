@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,7 +18,8 @@ import {
   Shield,
   BarChart3,
   MapPin,
-  ClipboardCheck
+  ClipboardCheck,
+  UserMinus
 } from "lucide-react";
 import { HomeButton } from "@/components/HomeButton";
 
@@ -69,6 +69,7 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
       type: "section",
       children: [
         { id: "surveillants", label: "Surveillants", icon: Users },
+        { id: "surveillants-avance", label: "Gestion Avancée", icon: UserMinus },
         { id: "candidatures", label: "Candidatures", icon: UserPlus },
         { id: "disponibilites", label: "Collecte Disponibilités", icon: Clock },
         { id: "suivi-disponibilites", label: "Suivi Disponibilités", icon: ClipboardCheck }

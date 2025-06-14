@@ -234,7 +234,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
       salle: row[4],
       nombre_surveillants: parseInt(row[5]) || 1,
       type_requis: row[6],
-      faculte: row[7] || null,
+      faculte: row[7] || null, // Nouvelle colonne faculté
       auditoire_original: row[8] || null
     }));
 
