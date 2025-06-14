@@ -18,206 +18,43 @@ import { format } from "date-fns";
 import { RechercheExamenSection } from "./RechercheExamenSection";
 import { ExamenRecap } from "./ExamenRecap";
 import { EquipePedagogiqueForm } from "./EquipePedagogiqueForm";
+import { useExamenManagement } from "@/hooks/useExamenManagement";
+import { usePersonnesEquipe } from "@/hooks/usePersonnesEquipe";
+import { useExamenMutations } from "@/hooks/useExamenMutations";
+import { useExamenCalculations } from "@/hooks/useExamenCalculations";
 
 export const EnseignantExamenForm = () => {
-  // --- ALL HOOKS MUST BE HERE AT THE TOP LEVEL ---
+  // --------- GESTION DES ETATS ET HOOKS OPTIMISES ---------
+  const {
+    activeSession,
+    searchCode,
+    setSearchCode,
+    selectedExamen,
+    setSelectedExamen,
+    faculteFilter,
+    setFaculteFilter,
+    dateFilter,
+    setDateFilter,
+    examensValides,
+    faculteList,
+    filteredExamens,
+    examenTrouve,
+  } = useExamenManagement();
 
-  const { data: activeSession } = useActiveSession();
-  const queryClient = useQueryClient();
-  const [searchCode, setSearchCode] = useState("");
-  const [selectedExamen, setSelectedExamen] = useState<any>(null);
-  const [newPersonne, setNewPersonne] = useState({
-    nom: "",
-    prenom: "",
-    email: "",
-    est_assistant: false,
-    compte_dans_quota: true,
-    present_sur_place: true
-  });
-  // Nouveaux filtres
-  const [faculteFilter, setFaculteFilter] = useState<string>("");
-  const [dateFilter, setDateFilter] = useState<Date | null>(null);
+  const { personnesEquipe, setPersonnesEquipe, nombrePersonnes, setNombrePersonnes } = usePersonnesEquipe();
 
-  const [nombrePersonnes, setNombrePersonnes] = useState(1); // Par défaut 1 personne à ajouter
-  const [personnesEquipe, setPersonnesEquipe] = useState([
-    { nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true }
-  ]);
-
-  const { data: examensValides } = useQuery({
-    queryKey: ['examens-enseignant', activeSession?.id],
-    queryFn: async () => {
-      if (!activeSession?.id) return [];
-      const { data, error } = await supabase
-        .from('examens')
-        .select(`
-          *,
-          personnes_aidantes (*)
-        `)
-        .eq('session_id', activeSession.id)
-        .eq('statut_validation', 'VALIDE')
-        .eq('is_active', true)
-        .order('date_examen')
-        .order('heure_debut');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!activeSession?.id
-  });
-
-  // Liste unique des facultés disponibles
-  const faculteList = useMemo(() => {
-    if (!examensValides) return [];
-    const uniques = Array.from(new Set(examensValides.map((e: any) => e.faculte).filter(Boolean)));
-    return uniques;
-  }, [examensValides]);
-
-  // Filtrage de la liste
-  const filteredExamens = useMemo(() => {
-    if (!examensValides) return [];
-
-    return examensValides.filter((ex: any) => {
-      if (faculteFilter && ex.faculte !== faculteFilter) return false;
-      if (dateFilter && ex.date_examen !== format(dateFilter, "yyyy-MM-dd")) return false;
-      // Ne filtre pas sur code ici (on propose toute la liste)
-      return true;
+  // Remise à zéro du formulaire si ajout réussi
+  const { ajouterPersonneMutation, supprimerPersonneMutation, confirmerExamenMutation } =
+    useExamenMutations({
+      onPersonneAdded: () => {
+        setPersonnesEquipe(Array(nombrePersonnes).fill({
+          nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true
+        }));
+      }
     });
-  }, [examensValides, faculteFilter, dateFilter]);
 
-  const ajouterPersonneMutation = useMutation({
-    mutationFn: async ({ examenId, personne }: { examenId: string; personne: any }) => {
-      const { error } = await supabase
-        .from('personnes_aidantes')
-        .insert({
-          examen_id: examenId,
-          ...personne
-        });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
-      setNewPersonne({
-        nom: "",
-        prenom: "",
-        email: "",
-        est_assistant: false,
-        compte_dans_quota: true,
-        present_sur_place: true
-      });
-      toast({
-        title: "Personne ajoutée",
-        description: "La personne aidante a été ajoutée avec succès."
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible d'ajouter la personne.",
-        variant: "destructive"
-      });
-    }
-  });
+  const { calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires } = useExamenCalculations(selectedExamen);
 
-  const supprimerPersonneMutation = useMutation({
-    mutationFn: async (personneId: string) => {
-      const { error } = await supabase
-        .from('personnes_aidantes')
-        .delete()
-        .eq('id', personneId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
-      toast({
-        title: "Personne supprimée",
-        description: "La personne aidante a été supprimée."
-      });
-    }
-  });
-
-  const confirmerExamenMutation = useMutation({
-    mutationFn: async (examenId: string) => {
-      const { error } = await supabase
-        .from('examens')
-        .update({
-          besoins_confirmes_par_enseignant: true,
-          date_confirmation_enseignant: new Date().toISOString()
-        })
-        .eq('id', examenId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
-      toast({
-        title: "Examen confirmé",
-        description: "Les besoins de surveillance ont été confirmés."
-      });
-    }
-  });
-
-  const examenTrouve = useMemo(() => (
-    examensValides?.find(e =>
-      e.code_examen?.toLowerCase().includes(searchCode.toLowerCase()))
-  ), [examensValides, searchCode]);
-
-  useEffect(() => {
-    if (examenTrouve && searchCode) {
-      setSelectedExamen(examenTrouve);
-    }
-  }, [examenTrouve, searchCode]);
-
-  const handleAjouterPersonne = () => {
-    if (!selectedExamen || !newPersonne.nom || !newPersonne.prenom) {
-      toast({
-        title: "Champs requis",
-        description: "Nom et prénom sont obligatoires.",
-        variant: "destructive"
-      });
-      return;
-    }
-    ajouterPersonneMutation.mutate({
-      examenId: selectedExamen.id,
-      personne: newPersonne
-    });
-  };
-
-  const calculerSurveillantsPedagogiques = (examen: any) => {
-    if (!examen.personnes_aidantes) return 0;
-    return examen.personnes_aidantes.filter((p: any) =>
-      p.compte_dans_quota && p.present_sur_place
-    ).length;
-  };
-
-  const calculerSurveillantsNecessaires = (examen: any) => {
-    const pedagogiques = calculerSurveillantsPedagogiques(examen);
-    const necessaires = Math.max(0, examen.nombre_surveillants - pedagogiques);
-    return necessaires;
-  };
-
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString('fr-FR', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  // Lorsque le nombre change, ajuster la taille du tableau personnesEquipe
-  useEffect(() => {
-    const diff = nombrePersonnes - personnesEquipe.length;
-    if (diff > 0) {
-      setPersonnesEquipe([
-        ...personnesEquipe,
-        ...Array(diff).fill({ nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true })
-      ]);
-    } else if (diff < 0) {
-      setPersonnesEquipe(personnesEquipe.slice(0, nombrePersonnes));
-    }
-    // pas de else : sinon rien à faire si égal
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nombrePersonnes]);
-
-  // Nouvelle fonction pour ajouter plusieurs personnes d'un coup
   const handleAjouterPersonnes = () => {
     if (!selectedExamen) return;
     const personnesValides = personnesEquipe.every(p => p.nom && p.prenom);
@@ -237,15 +74,16 @@ export const EnseignantExamenForm = () => {
     });
   };
 
-  // Affichage recap horizontal en flex aligné & style chiffres/color
-  const BlocResume = ({ nombre, titre, color }: { nombre: number, titre: string, color: string }) => (
-    <div className="flex flex-col items-center justify-center flex-1 py-2">
-      <div className={`text-3xl font-bold ${color}`}>{nombre}</div>
-      <div className="text-base text-gray-600">{titre}</div>
-    </div>
-  );
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
 
-  // HERE: Place conditional returns after hooks are defined
+  // --------- AFFICHAGE UI ---------
   if (!activeSession) {
     return (
       <Card>
@@ -339,3 +177,10 @@ export const EnseignantExamenForm = () => {
     </div>
   );
 };
+
+const BlocResume = ({ nombre, titre, color }: { nombre: number, titre: string, color: string }) => (
+  <div className="flex flex-col items-center justify-center flex-1 py-2">
+    <div className={`text-3xl font-bold ${color}`}>{nombre}</div>
+    <div className="text-base text-gray-600">{titre}</div>
+  </div>
+);
