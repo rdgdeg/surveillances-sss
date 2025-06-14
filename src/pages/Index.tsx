@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Calendar, FileText, Settings, ClipboardList, GraduationCap } from "lucide-react";
@@ -10,20 +9,29 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-uclouvain-blue text-white shadow-sm border-b border-uclouvain-cyan/30">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Système de Gestion des Surveillances
-              </h1>
-              <p className="text-gray-600 mt-2">
-                Université Libre de Bruxelles - Gestion automatisée des examens
-              </p>
+            <div className="flex items-center gap-4">
+              {/* Logo UCLouvain */}
+              <img
+                src="/lovable-uploads/f6a7054d-ce38-4ede-84cf-87b92a350bea.png"
+                alt="Logo UCLouvain"
+                className="h-12 w-auto"
+              />
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-white mb-1">UCLouvain</h1>
+                <p className="text-uclouvain-cyan font-semibold">
+                  Université catholique de Louvain – Système de Gestion des Surveillances
+                </p>
+                <p className="text-uclouvain-cyan/80 text-xs hidden md:block">
+                  Secteur des Sciences de la Santé
+                </p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <Link to="/admin">
-                <Button variant="outline" className="flex items-center space-x-2">
+                <Button variant="outline" className="flex items-center space-x-2 border-uclouvain-cyan text-uclouvain-cyan hover:bg-uclouvain-cyan hover:text-uclouvain-blue transition-colors">
                   <Settings className="h-4 w-4" />
                   <span>Administration</span>
                 </Button>
