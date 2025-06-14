@@ -14,6 +14,10 @@ import { fr } from "date-fns/locale";
 import { InformationsPersonnellesSection } from "./InformationsPersonnellesSection";
 import { JobistePreferencesSection } from "./JobistePreferencesSection";
 import { CommentaireSurveillanceSection } from "./CommentaireSurveillanceSection";
+import { CollecteHeader } from "./CollecteHeader";
+import { CollecteExplications } from "./CollecteExplications";
+import { CollecteDocumentation } from "./CollecteDocumentation";
+import { DisponibilitesSection } from "./DisponibilitesSection";
 
 interface ExamenSlot {
   id: string;
@@ -377,21 +381,16 @@ export const CollecteSurveillants = () => {
   if (!activeSession) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
-          <Button variant="outline" asChild className="border-uclouvain-blue text-uclouvain-blue hover:bg-uclouvain-blue hover:text-white">
-            <Link to="/">
-              <Home className="h-4 w-4 mr-2" />
-              Retour à l'accueil
-            </Link>
-          </Button>
+        <CollecteHeader title="Gestion des Surveillances d'Examen" />
+        <div className="mt-6">
+          <Card className="border-uclouvain-blue/20">
+            <CardContent className="pt-6">
+              <p className="text-center text-muted-foreground">
+                Aucune session de surveillance active pour le moment.
+              </p>
+            </CardContent>
+          </Card>
         </div>
-        <Card className="border-uclouvain-blue/20">
-          <CardContent className="pt-6">
-            <p className="text-center text-muted-foreground">
-              Aucune session de surveillance active pour le moment.
-            </p>
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -399,14 +398,7 @@ export const CollecteSurveillants = () => {
   if (submitted) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="flex justify-between items-center mb-6">
-          <Button variant="outline" asChild className="border-uclouvain-blue text-uclouvain-blue hover:bg-uclouvain-blue hover:text-white">
-            <Link to="/">
-              <Home className="h-4 w-4 mr-2" />
-              Retour à l'accueil
-            </Link>
-          </Button>
-        </div>
+        <CollecteHeader title="Gestion des Surveillances d'Examen" />
         <Card className="border-uclouvain-cyan">
           <CardHeader className="text-center">
             <CardTitle className="text-uclouvain-blue">Disponibilités enregistrées !</CardTitle>
@@ -421,107 +413,15 @@ export const CollecteSurveillants = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
-      {/* Navigation Button */}
-      <div className="flex justify-between items-center">
-        <Button variant="outline" asChild className="border-uclouvain-blue text-uclouvain-blue hover:bg-uclouvain-blue hover:text-white">
-          <Link to="/">
-            <Home className="h-4 w-4 mr-2" />
-            Retour à l'accueil
-          </Link>
-        </Button>
-      </div>
+      <CollecteHeader
+        title="Gestion des Surveillances d'Examen"
+        subtitle="Secteur des Sciences de la Santé"
+        sessionName={activeSession.name}
+      />
 
-      {/* Header avec logo UCLouvain */}
-      <div className="text-center space-y-4 py-8 bg-gradient-uclouvain rounded-lg text-white">
-        <div className="flex justify-center mb-4">
-          <img 
-            src="/lovable-uploads/5ff3f8eb-c734-4f43-bde5-5d591faf4b9a.png" 
-            alt="UCLouvain" 
-            className="h-16 w-auto"
-          />
-        </div>
-        <h1 className="text-3xl font-bold">Gestion des Surveillances d'Examen</h1>
-        <h2 className="text-xl text-uclouvain-cyan">Secteur des Sciences de la Santé</h2>
-        <p className="text-white/90">
-          Session {activeSession.name} - Candidature pour la surveillance d'examens
-        </p>
-      </div>
+      <CollecteExplications />
 
-      {/* Notes explicatives */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardContent className="pt-6">
-          <div className="flex items-start space-x-3">
-            <AlertTriangle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="space-y-2">
-              <p className="text-blue-800 font-medium">Important :</p>
-              <ul className="text-blue-700 text-sm space-y-1 list-disc list-inside">
-                <li>Si vous avez déjà une surveillance obligatoire pendant un créneau, cochez la case correspondante et renseignez le nom de l'examen.</li>
-                <li>
-                  <TrendingUp className="h-4 w-4 inline mr-1" />
-                  Maximisez le nombre de créneaux sélectionnés pour augmenter vos chances d'être retenu.
-                </li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Liens vers les consignes */}
-      <Card className="border-uclouvain-blue/20">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2 text-uclouvain-blue">
-            <BookOpen className="h-5 w-5" />
-            <span>Documentation et Consignes</span>
-          </CardTitle>
-          <CardDescription>
-            Consultez les documents suivants avant de remplir votre candidature
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <a 
-              href="https://www.uclouvain.be/fr/sss/consignes-de-surveillance" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center space-x-2 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/10 hover:border-uclouvain-cyan transition-colors"
-            >
-              <BookOpen className="h-4 w-4 text-uclouvain-blue" />
-              <span className="text-uclouvain-blue">Consignes de surveillance</span>
-              <ExternalLink className="h-4 w-4 ml-auto text-uclouvain-cyan" />
-            </a>
-            <a 
-              href="https://www.uclouvain.be/fr/sss/faq-surveillants" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center space-x-2 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/10 hover:border-uclouvain-cyan transition-colors"
-            >
-              <HelpCircle className="h-4 w-4 text-uclouvain-blue" />
-              <span className="text-uclouvain-blue">FAQ Surveillants</span>
-              <ExternalLink className="h-4 w-4 ml-auto text-uclouvain-cyan" />
-            </a>
-            <a 
-              href="https://www.uclouvain.be/fr/sss/devenir-jobiste" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center space-x-2 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/10 hover:border-uclouvain-cyan transition-colors"
-            >
-              <Users className="h-4 w-4 text-uclouvain-blue" />
-              <span className="text-uclouvain-blue">Devenir jobiste</span>
-              <ExternalLink className="h-4 w-4 ml-auto text-uclouvain-cyan" />
-            </a>
-            <a 
-              href="https://www.uclouvain.be/fr/sss/auditoires-et-locaux" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center space-x-2 p-3 border border-uclouvain-blue/20 rounded-lg hover:bg-uclouvain-cyan/10 hover:border-uclouvain-cyan transition-colors"
-            >
-              <Building2 className="h-4 w-4 text-uclouvain-blue" />
-              <span className="text-uclouvain-blue">Auditoires et locaux</span>
-              <ExternalLink className="h-4 w-4 ml-auto text-uclouvain-cyan" />
-            </a>
-          </div>
-        </CardContent>
-      </Card>
+      <CollecteDocumentation />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <InformationsPersonnellesSection
@@ -538,73 +438,13 @@ export const CollecteSurveillants = () => {
           }
         />
 
-        {/* Disponibilités avec commentaires */}
-        <Card className="border-uclouvain-blue/20">
-          <CardHeader>
-            <CardTitle className="text-uclouvain-blue">Disponibilités</CardTitle>
-            <CardDescription>
-              Cochez les créneaux où vous êtes disponible pour surveiller. 
-              Les horaires incluent le temps de préparation (45 minutes avant chaque examen).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-8">
-              {groupCreneauxByWeek(uniqueCreneaux).map((semaine, semIdx) => (
-                <div key={semaine.title}>
-                  <h3 className="font-bold text-uclouvain-blue mb-2">{semaine.title}</h3>
-                  <div className="space-y-4">
-                    {semaine.creneaux.map((creneau, idx) => {
-                      const dateObj = parseISO(creneau.date_examen);
-                      const jourSemaine = format(dateObj, "EEEE", { locale: fr });
-                      const jourNum = format(dateObj, "dd-MM-yyyy", { locale: fr });
-                      const { debutSurv, heure_fin } = formatExamSlotForDisplay(
-                        creneau.date_examen,
-                        creneau.heure_debut,
-                        creneau.heure_fin
-                      );
-                      const anyChecked = creneau.examenIds.some(id => formData.disponibilites[id]);
-                      
-                      return (
-                        <div
-                          key={`${creneau.date_examen}_${creneau.heure_debut}_${creneau.heure_fin}`}
-                          className="border border-uclouvain-blue/20 rounded-lg p-4 space-y-3"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <Checkbox
-                              id={`creneau-${semIdx}-${idx}`}
-                              checked={anyChecked}
-                              onCheckedChange={checked => handleCreneauChange(creneau.examenIds, !!checked)}
-                            />
-                            <Label htmlFor={`creneau-${semIdx}-${idx}`} className="flex-1 cursor-pointer">
-                              <div className="font-medium text-uclouvain-blue flex items-center space-x-2">
-                                <span className="capitalize">{jourSemaine}</span>
-                                <span>{jourNum}</span>
-                                <span className="text-sm text-muted-foreground">
-                                  {debutSurv} - {heure_fin}
-                                </span>
-                              </div>
-                            </Label>
-                          </div>
-                          
-                          {anyChecked && creneau.examenIds.map(examenId => (
-                            <CommentaireSurveillanceSection
-                              key={examenId}
-                              creneauId={examenId}
-                              commentaire={formData.commentaires_surveillance[examenId] || ""}
-                              nomExamen={formData.noms_examens_obligatoires[examenId] || ""}
-                              onCommentaireChange={handleCommentaireChange}
-                              onNomExamenChange={handleNomExamenChange}
-                            />
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <DisponibilitesSection
+          uniqueCreneaux={uniqueCreneaux}
+          formData={formData}
+          handleCreneauChange={handleCreneauChange}
+          handleCommentaireChange={handleCommentaireChange}
+          handleNomExamenChange={handleNomExamenChange}
+        />
 
         <div className="flex justify-center">
           <Button 
