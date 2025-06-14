@@ -235,8 +235,8 @@ export const AvailabilityMatrix = () => {
     return (
       <Card>
         <CardContent className="p-6 text-center">
-          <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-500">Aucune session active. Veuillez d'abord activer une session.</p>
+          <Calendar className="h-12 w-12 text-uclouvain-blue-grey mx-auto mb-4" />
+          <p className="text-uclouvain-blue">Aucune session active. Veuillez d'abord activer une session.</p>
         </CardContent>
       </Card>
     );
@@ -244,22 +244,26 @@ export const AvailabilityMatrix = () => {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
+      <Card className="border-uclouvain-blue-grey">
+        <CardHeader className="bg-gradient-uclouvain text-white">
           <CardTitle className="flex items-center space-x-2">
             <Calendar className="h-5 w-5" />
             <span>Matrice des Disponibilités - {activeSession.name}</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-blue-100">
             Gérez les disponibilités des surveillants pour tous les créneaux d'examens. 
             Format compatible avec Cally (✓ = disponible, ✗ = non disponible).
           </CardDescription>
           <div className="flex space-x-2">
-            <Button onClick={generateCallyTemplate} variant="outline" size="sm">
+            <Button onClick={generateCallyTemplate} variant="outline" size="sm" className="bg-white text-uclouvain-blue border-white hover:bg-blue-50">
               <Download className="h-4 w-4 mr-2" />
               Télécharger template Cally
             </Button>
-            <Button onClick={handleSave} disabled={saveDisponibilitesMutation.isPending}>
+            <Button 
+              onClick={handleSave} 
+              disabled={saveDisponibilitesMutation.isPending}
+              className="bg-uclouvain-cyan text-uclouvain-blue hover:bg-blue-100"
+            >
               Sauvegarder les disponibilités
             </Button>
           </div>
@@ -267,18 +271,18 @@ export const AvailabilityMatrix = () => {
         <CardContent>
           {timeSlots.length === 0 ? (
             <div className="text-center py-8">
-              <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Aucun examen trouvé. Veuillez d'abord importer les examens.</p>
+              <Clock className="h-12 w-12 text-uclouvain-blue-grey mx-auto mb-4" />
+              <p className="text-uclouvain-blue">Aucun examen trouvé. Veuillez d'abord importer les examens.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-gray-300">
+              <table className="w-full border-collapse border border-uclouvain-blue-grey">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="border border-gray-300 p-2 text-left font-medium">Surveillant</th>
-                    <th className="border border-gray-300 p-2 text-left font-medium">Type</th>
+                  <tr className="bg-uclouvain-blue-grey">
+                    <th className="border border-uclouvain-blue-grey p-2 text-left font-medium text-uclouvain-blue">Surveillant</th>
+                    <th className="border border-uclouvain-blue-grey p-2 text-left font-medium text-uclouvain-blue">Type</th>
                     {timeSlots.map((slot, index) => (
-                      <th key={index} className="border border-gray-300 p-2 text-center font-medium min-w-24">
+                      <th key={index} className="border border-uclouvain-blue-grey p-2 text-center font-medium min-w-24 text-uclouvain-blue">
                         <div className="text-xs">
                           <div>{slot.date}</div>
                           <div>{slot.heure_debut}-{slot.heure_fin}</div>
@@ -289,27 +293,27 @@ export const AvailabilityMatrix = () => {
                 </thead>
                 <tbody>
                   {surveillants.map((surveillant) => (
-                    <tr key={surveillant.id} className="hover:bg-gray-50">
-                      <td className="border border-gray-300 p-2">
+                    <tr key={surveillant.id} className="hover:bg-blue-50">
+                      <td className="border border-uclouvain-blue-grey p-2">
                         <div>
-                          <div className="font-medium">{surveillant.prenom} {surveillant.nom}</div>
-                          <div className="text-sm text-gray-500">{surveillant.email}</div>
+                          <div className="font-medium text-uclouvain-blue">{surveillant.prenom} {surveillant.nom}</div>
+                          <div className="text-sm text-uclouvain-blue-grey">{surveillant.email}</div>
                         </div>
                       </td>
-                      <td className="border border-gray-300 p-2">
-                        <Badge variant="outline">{surveillant.type}</Badge>
+                      <td className="border border-uclouvain-blue-grey p-2">
+                        <Badge variant="outline" className="border-uclouvain-cyan text-uclouvain-blue">{surveillant.type}</Badge>
                       </td>
                       {timeSlots.map((slot, slotIndex) => {
                         const available = isAvailable(surveillant.id, slot);
                         return (
-                          <td key={slotIndex} className="border border-gray-300 p-1 text-center">
+                          <td key={slotIndex} className="border border-uclouvain-blue-grey p-1 text-center">
                             <Button
                               variant={available ? "default" : "outline"}
                               size="sm"
                               className={`w-8 h-8 p-0 ${
                                 available 
                                   ? 'bg-green-500 hover:bg-green-600 text-white' 
-                                  : 'bg-red-100 hover:bg-red-200 text-red-800'
+                                  : 'bg-red-100 hover:bg-red-200 text-red-800 border-red-300'
                               }`}
                               onClick={() => toggleAvailability(surveillant.id, slot)}
                             >

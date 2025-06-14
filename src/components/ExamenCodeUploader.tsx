@@ -258,31 +258,31 @@ export const ExamenCodeUploader = () => {
   };
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="border-uclouvain-blue-grey">
+      <CardHeader className="bg-gradient-uclouvain text-white">
         <CardTitle className="flex items-center space-x-2">
           <FileText className="h-5 w-5" />
           <span>Import des Codes d'Examens</span>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-blue-100">
           Importez un fichier Excel contenant les codes d'examens pour classification automatique
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {!isProcessing && !uploadStats && (
           <div
-            className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
+            className="border-2 border-dashed border-uclouvain-blue-grey rounded-lg p-8 text-center hover:border-uclouvain-cyan transition-colors"
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
           >
-            <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+            <Upload className="mx-auto h-12 w-12 text-uclouvain-blue-grey mb-4" />
             <div className="space-y-2">
-              <p className="text-lg font-medium">Glissez votre fichier Excel ici</p>
-              <p className="text-sm text-gray-500">
+              <p className="text-lg font-medium text-uclouvain-blue">Glissez votre fichier Excel ici</p>
+              <p className="text-sm text-uclouvain-blue-grey">
                 ou cliquez pour sélectionner
               </p>
               <label className="cursor-pointer">
-                <Button variant="outline" asChild>
+                <Button variant="outline" asChild className="border-uclouvain-blue text-uclouvain-blue hover:bg-blue-50">
                   <span>Parcourir les fichiers</span>
                 </Button>
                 <input
@@ -293,7 +293,7 @@ export const ExamenCodeUploader = () => {
                 />
               </label>
             </div>
-            <div className="mt-4 text-xs text-gray-500">
+            <div className="mt-4 text-xs text-uclouvain-blue-grey">
               <p>Format attendu : Code | Matière | Date | Heure Début | Heure Fin | Salle | Nb Surveillants | Type</p>
             </div>
           </div>
@@ -301,8 +301,8 @@ export const ExamenCodeUploader = () => {
 
         {isProcessing && (
           <div className="text-center py-8">
-            <div className="animate-spin mx-auto w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mb-4"></div>
-            <p className="text-sm text-gray-600">
+            <div className="animate-spin mx-auto w-8 h-8 border-4 border-uclouvain-cyan border-t-transparent rounded-full mb-4"></div>
+            <p className="text-sm text-uclouvain-blue">
               Traitement et classification des examens en cours...
             </p>
           </div>
@@ -311,19 +311,19 @@ export const ExamenCodeUploader = () => {
         {uploadStats && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-blue-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-blue-600">{uploadStats.total}</div>
-                <div className="text-sm text-blue-800">Total traités</div>
+              <div className="bg-blue-50 p-4 rounded-lg text-center border border-uclouvain-blue-grey">
+                <div className="text-2xl font-bold text-uclouvain-blue">{uploadStats.total}</div>
+                <div className="text-sm text-uclouvain-blue">Total traités</div>
               </div>
-              <div className="bg-green-50 p-4 rounded-lg text-center">
+              <div className="bg-green-50 p-4 rounded-lg text-center border border-green-200">
                 <div className="text-2xl font-bold text-green-600">{uploadStats.valides}</div>
                 <div className="text-sm text-green-800">Validés auto</div>
               </div>
-              <div className="bg-orange-50 p-4 rounded-lg text-center">
+              <div className="bg-orange-50 p-4 rounded-lg text-center border border-orange-200">
                 <div className="text-2xl font-bold text-orange-600">{uploadStats.necessitent_validation}</div>
                 <div className="text-sm text-orange-800">À valider</div>
               </div>
-              <div className="bg-red-50 p-4 rounded-lg text-center">
+              <div className="bg-red-50 p-4 rounded-lg text-center border border-red-200">
                 <div className="text-2xl font-bold text-red-600">{uploadStats.rejetes}</div>
                 <div className="text-sm text-red-800">Rejetés</div>
               </div>
@@ -333,6 +333,7 @@ export const ExamenCodeUploader = () => {
               <Button
                 onClick={() => setUploadStats(null)}
                 variant="outline"
+                className="border-uclouvain-blue text-uclouvain-blue hover:bg-blue-50"
               >
                 Importer d'autres examens
               </Button>

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { DashboardOverview } from "@/components/DashboardOverview";
@@ -16,6 +15,8 @@ import SurveillanceHistory from "@/components/SurveillanceHistory";
 import { EnseignantViewManager } from "@/components/EnseignantViewManager";
 import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 import { TokenGenerator } from "@/components/TokenGenerator";
+import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
+import { ExamenCodeUploader } from "@/components/ExamenCodeUploader";
 
 type ActiveTab = 
   | "dashboard" 
@@ -32,7 +33,9 @@ type ActiveTab =
   | "donnees-sensibles"
   | "enseignant-view"
   | "pre-assignations"
-  | "tokens-enseignants";
+  | "tokens-enseignants"
+  | "matrice-disponibilites"
+  | "import-codes";
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
@@ -77,6 +80,10 @@ const Admin = () => {
         return <PreAssignmentManager />;
       case "tokens-enseignants":
         return <TokenGenerator />;
+      case "matrice-disponibilites":
+        return <AvailabilityMatrix />;
+      case "import-codes":
+        return <ExamenCodeUploader />;
       default:
         return <DashboardOverview />;
     }

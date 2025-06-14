@@ -19,7 +19,9 @@ import {
   BarChart3,
   MapPin,
   ClipboardCheck,
-  UserMinus
+  UserMinus,
+  Grid3X3,
+  Code2
 } from "lucide-react";
 import { HomeButton } from "@/components/HomeButton";
 
@@ -56,6 +58,7 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
       type: "section",
       children: [
         { id: "examens", label: "Import & Révision", icon: FileText },
+        { id: "import-codes", label: "Import Codes Auto", icon: Code2 },
         { id: "validation", label: "Workflow de Validation", icon: CheckCircle },
         { id: "enseignant-view", label: "Vue Enseignant", icon: Eye },
         { id: "tokens-enseignants", label: "Liens Enseignants", icon: UserPlus },
@@ -72,6 +75,7 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
         { id: "surveillants-avance", label: "Gestion Avancée", icon: UserMinus },
         { id: "candidatures", label: "Candidatures", icon: UserPlus },
         { id: "disponibilites", label: "Collecte Disponibilités", icon: Clock },
+        { id: "matrice-disponibilites", label: "Matrice Disponibilités", icon: Grid3X3 },
         { id: "suivi-disponibilites", label: "Suivi Disponibilités", icon: ClipboardCheck }
       ]
     },

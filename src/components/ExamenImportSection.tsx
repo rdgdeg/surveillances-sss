@@ -1,8 +1,8 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { NewFileUploader } from "@/components/NewFileUploader";
 import { TemplateDownloader } from "@/components/TemplateDownloader";
+import { ExamenCodeUploader } from "@/components/ExamenCodeUploader";
 
 export const ExamenImportSection = () => {
   const [uploadsState, setUploadsState] = useState({
@@ -69,10 +69,12 @@ export const ExamenImportSection = () => {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
+      <ExamenCodeUploader />
+      
+      <Card className="border-uclouvain-blue-grey">
+        <CardHeader className="bg-gradient-uclouvain text-white">
           <CardTitle>Templates de Fichiers</CardTitle>
-          <CardDescription>
+          <CardDescription className="text-blue-100">
             Téléchargez les templates pour préparer vos fichiers d'import
           </CardDescription>
         </CardHeader>
@@ -95,16 +97,16 @@ export const ExamenImportSection = () => {
         ))}
       </div>
 
-      <Card>
+      <Card className="border-uclouvain-blue-grey">
         <CardHeader>
-          <CardTitle>Informations importantes</CardTitle>
+          <CardTitle className="text-uclouvain-blue">Informations importantes</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <h4 className="font-medium text-blue-800 mb-2">Nouveau : Gestion des facultés</h4>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>• Les examens incluent maintenant le champ <code>faculte</code></li>
-              <li>• Les surveillants peuvent avoir une <code>faculte_interdite</code></li>
+          <div className="p-4 bg-blue-50 border border-uclouvain-cyan rounded-lg">
+            <h4 className="font-medium text-uclouvain-blue mb-2">Nouveau : Gestion des facultés</h4>
+            <ul className="text-sm text-uclouvain-blue space-y-1">
+              <li>• Les examens incluent maintenant le champ <code className="bg-white px-1 rounded">faculte</code></li>
+              <li>• Les surveillants peuvent avoir une <code className="bg-white px-1 rounded">faculte_interdite</code></li>
               <li>• L'attribution respectera automatiquement ces contraintes</li>
             </ul>
           </div>
