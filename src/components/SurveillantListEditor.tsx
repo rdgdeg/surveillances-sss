@@ -197,7 +197,7 @@ export const SurveillantListEditor = () => {
       if (aValue === null) return sortDirection === 'asc' ? 1 : -1;
       if (bValue === null) return sortDirection === 'asc' ? -1 : 1;
 
-      // Correction : comparison uniquement sur nombres pour quota
+      // Correction : forcer conversion en nombre pour quota pour éviter TS2367
       if (sortField === 'quota') {
         const numA = safeNumber(aValue);
         const numB = safeNumber(bValue);
@@ -683,14 +683,17 @@ export const SurveillantListEditor = () => {
 
                     // Quota calc
                     const quotaTheorique = calculateQuotaTheorique(surveillant);
-                    // Correction stricte du typage
+                    // Correction stricte du typage pour éviter la comparaison number/string
                     const assignedQuota =
                       surveillant.quota !== undefined &&
                       surveillant.quota !== null &&
                       surveillant.quota !== "" ? surveillant.quota : quotaTheorique;
                     const numAssignedQuota = safeNumber(assignedQuota);
                     const numQuotaTheorique = safeNumber(quotaTheorique);
-                    const quotaDiffers = numAssignedQuota !== numQuotaTheorique;
+                    // Correction explicite ici pour la comparaison
+                    const quotaDiffers = Number.isFinite(numAssignedQuota) && Number.isFinite(numQuotaTheorique)
+                      ? numAssignedQuota !== numQuotaTheorique
+                      : false;
 
                     return (
                       <TableRow 
