@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { excelTimeToHHMM, excelDateString, excelDurationToHM } from "@/utils/examensImportUtils";
 import { getExamProblem } from "@/utils/examensImportProblems";
 import { ExamensImportTable } from "./ExamensImportTable";
+import { DeleteBatchExamensImportButton } from "./DeleteBatchExamensImportButton";
 
 // Champs à mapper explicitement dans un ordre idéal pour l’affichage
 const IDEAL_COL_ORDER = [
@@ -323,10 +324,18 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   return (
     <Card className="mt-4">
       <CardHeader>
-        <CardTitle>Révision des examens importés</CardTitle>
-        <CardDescription>
-          Corrigez les examens avec des champs obligatoires vides (ex : faculté).<br />
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Révision des examens importés</CardTitle>
+            <CardDescription>
+              Corrigez les examens avec des champs obligatoires vides (ex : faculté).<br />
+            </CardDescription>
+          </div>
+          {/* Affiche le bouton suppression de batch uniquement si batchId présent */}
+          {batchId && (
+            <DeleteBatchExamensImportButton batchId={batchId} disabled={isLoading || rows.length === 0} />
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <ExamensImportTable
