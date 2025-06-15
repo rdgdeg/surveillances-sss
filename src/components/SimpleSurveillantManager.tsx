@@ -350,6 +350,10 @@ export const SimpleSurveillantManager = () => {
                       Type <ArrowUpDown className="ml-1 h-3 w-3" />
                     </Button>
                   </TableHead>
+                  {/* Ajout de la colonne Quota */}
+                  <TableHead>
+                    Quota
+                  </TableHead>
                   <TableHead>
                     <Button variant="ghost" onClick={() => handleSort('affectation_fac')} className="h-auto p-0">
                       Affectation <ArrowUpDown className="ml-1 h-3 w-3" />
@@ -422,6 +426,12 @@ export const SimpleSurveillantManager = () => {
                         ) : (
                           <Badge variant="outline">{surveillant.type}</Badge>
                         )}
+                      </TableCell>
+                      {/* Nouvelle colonne Quota */}
+                      <TableCell>
+                        {typeof surveillant.eft !== "undefined" && surveillant.eft !== null
+                          ? surveillant.eft
+                          : '-'}
                       </TableCell>
                       <TableCell>
                         {isEditing ? (
