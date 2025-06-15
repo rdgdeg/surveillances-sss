@@ -46,6 +46,8 @@ interface SurveillantJoin {
   affectation_fac?: string;
   campus?: string;
   eft?: number;
+  /** AJOUTER date_fin_contrat */
+  date_fin_contrat?: string | null;
   // Session fields
   session_entry_id?: string;
   quota?: number | null;
@@ -54,6 +56,8 @@ interface SurveillantJoin {
 // On reconstruit partout en interne avec ce type (toujours un tableau pour faculte_interdite)
 type SurveillantJoinWithArray = Omit<SurveillantJoin, "faculte_interdite"> & {
   faculte_interdite: string[];
+  /** AJOUT date_fin_contrat pour TypeScript */
+  date_fin_contrat?: string | null;
 };
 
 export function SurveillantUnifiedManager() {
@@ -98,7 +102,8 @@ export function SurveillantUnifiedManager() {
             faculte_interdite,
             affectation_fac,
             campus,
-            eft
+            eft,
+            date_fin_contrat
           )
         `
         )
@@ -123,6 +128,7 @@ export function SurveillantUnifiedManager() {
         affectation_fac: row.surveillants.affectation_fac,
         campus: row.surveillants.campus,
         eft: row.surveillants.eft ?? undefined,
+        date_fin_contrat: row.surveillants.date_fin_contrat ?? null, // AJOUT
         session_entry_id: row.id,
         quota: row.quota ?? null,
       })) as SurveillantJoinWithArray[];
