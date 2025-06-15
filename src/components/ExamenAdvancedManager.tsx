@@ -12,6 +12,7 @@ import { ExamensImportPermissif } from "./ExamensImportPermissif";
 import { ExamensImportRevision } from "./ExamensImportRevision";
 import { ExamenErrorsOnlyView } from "./ExamenErrorsOnlyView";
 import { ForceCleanImportsButton } from "./ForceCleanImportsButton";
+import { ExamenValidationFinalView } from "./ExamenValidationFinalView";
 
 export const ExamenAdvancedManager = () => {
   const [activeTab, setActiveTab] = useState("import");
@@ -68,7 +69,7 @@ export const ExamenAdvancedManager = () => {
           <ExamensImportRevision batchId={lastBatchId || undefined} />
         </TabsContent>
         <TabsContent value="validation" className="space-y-4">
-          <span className="text-gray-600 italic">À venir : création effective des examens à partir des imports validés.</span>
+          <ExamenValidationFinalView />
         </TabsContent>
       </Tabs>
     </div>

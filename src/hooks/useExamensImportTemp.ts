@@ -89,7 +89,7 @@ export function useUpdateExamenImportTemp() {
   });
 }
 
-// Pour valider en lot
+// Pour valider en lot et créer les examens définitifs
 export function useBatchValidateExamensImport() {
   const qc = useQueryClient();
   return useMutation({
@@ -101,14 +101,54 @@ export function useBatchValidateExamensImport() {
       statut: string;
     }) => {
       if (!rowIds.length) return;
-      const { error } = await supabase
+      
+      // Marquer comme validés
+      const { error: updateError } = await supabase
         .from("examens_import_temp")
         .update({ statut })
         .in("id", rowIds);
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      // Si validation, créer les examens définitifs
+      if (statut === "VALIDE") {
+        const { data: validatedRows, error: fetchError } = await supabase
+          .from("examens_import_temp")
+          .select("*")
+          .in("id", rowIds);
+        if (fetchError) throw fetchError;
+
+        // Créer les examens définitifs
+        const examensToCreate = validatedRows.map(row => {
+          const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+          
+          return {
+            session_id: row.session_id,
+            code_examen: data["Code"] || data["code"] || "",
+            matiere: data["Activite"] || data["Matière"] || data["matiere"] || "",
+            date_examen: data["Jour"] || data["Date"] || "",
+            heure_debut: data["Heure"] || data["heure_debut"] || "08:00",
+            heure_fin: data["Fin"] || data["heure_fin"] || "10:00",
+            salle: data["Auditoires"] || data["Salle"] || "",
+            faculte: data["Faculte"] || data["Faculté"] || data["faculte"] || "",
+            type_requis: "TOUS",
+            nombre_surveillants: 1,
+            statut_validation: "VALIDE"
+          };
+        });
+
+        const { error: insertError } = await supabase
+          .from("examens")
+          .insert(examensToCreate);
+        if (insertError) throw insertError;
+
+        console.log(`✅ ${examensToCreate.length} examens créés avec succès`);
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["examens-import-temp"] });
+      qc.invalidateQueries({ queryKey: ["examens-review"] });
+      qc.invalidateQueries({ queryKey: ["examens-valides"] });
+      qc.invalidateQueries({ queryKey: ["creneaux-surveillance"] });
     },
   });
 }

@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, CheckCircle, Save } from "lucide-react";
+import { AlertTriangle, CheckCircle, Save, Check } from "lucide-react";
 import { useExamensImportTemp, useUpdateExamenImportTemp, useBatchValidateExamensImport } from "@/hooks/useExamensImportTemp";
 import { getExamProblem } from "@/utils/examensImportProblems";
 import { toast } from "@/hooks/use-toast";
@@ -20,6 +21,7 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
   const batchValidate = useBatchValidateExamensImport();
   
   const [editingRows, setEditingRows] = useState<Record<string, any>>({});
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   // Helper to safely get the object form of `row.data`
   function asRowDataObject(data: any): Record<string, any> {
@@ -46,6 +48,75 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
     const problems = getExamProblem(row);
     return problems.length === 0 && row.statut === "NON_TRAITE";
   });
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedRows(new Set(examensWithErrors.map(row => row.id)));
+    } else {
+      setSelectedRows(new Set());
+    }
+  };
+
+  const handleSelectRow = (rowId: string, checked: boolean) => {
+    const newSelected = new Set(selectedRows);
+    if (checked) {
+      newSelected.add(rowId);
+    } else {
+      newSelected.delete(rowId);
+    }
+    setSelectedRows(newSelected);
+  };
+
+  const handleMarkSelectedAsReady = async () => {
+    if (selectedRows.size === 0) {
+      toast({
+        title: "Aucune sélection",
+        description: "Veuillez sélectionner au moins un examen à marquer comme prêt.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Vérifier que les examens sélectionnés n'ont plus d'erreurs
+      const stillHasErrors = Array.from(selectedRows).some(rowId => {
+        const row = rows.find(r => r.id === rowId);
+        if (!row) return false;
+        const problems = getExamProblem(row);
+        return problems.length > 0;
+      });
+
+      if (stillHasErrors) {
+        toast({
+          title: "Erreurs détectées",
+          description: "Certains examens sélectionnés ont encore des erreurs. Corrigez-les d'abord.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Marquer comme prêts (statut reste NON_TRAITE mais considérés comme corrects)
+      for (const rowId of selectedRows) {
+        await updateMutation.mutateAsync({
+          id: rowId,
+          statut: "NON_TRAITE", // Garde le statut pour la validation finale
+          erreurs: null
+        });
+      }
+
+      setSelectedRows(new Set());
+      toast({
+        title: "Examens marqués comme prêts",
+        description: `${selectedRows.size} examen(s) marqué(s) comme prêt(s) pour validation.`
+      });
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de marquer les examens comme prêts.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleEditChange = (rowId: string, field: string, value: string) => {
     setEditingRows(prev => ({
@@ -124,7 +195,7 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
       
       toast({
         title: "Validation réussie",
-        description: `${rowsToValidate.length} examens ont été validés avec succès.`
+        description: `${rowsToValidate.length} examens ont été validés avec succès. Les créneaux et listes enseignants sont en cours de génération.`
       });
     } catch (error) {
       toast({
@@ -151,13 +222,23 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
-            <span>Correction des Erreurs d'Import</span>
+            <span>Correction et Validation des Examens</span>
           </div>
           <div className="flex items-center space-x-4">
             <div className="text-sm text-gray-600">
               <span className="font-medium text-red-600">{examensWithErrors.length}</span> avec erreurs •{" "}
               <span className="font-medium text-green-600">{examensWithoutErrors.length}</span> prêts
             </div>
+            {selectedRows.size > 0 && (
+              <Button
+                onClick={handleMarkSelectedAsReady}
+                variant="outline"
+                className="border-blue-300 text-blue-700 hover:bg-blue-50"
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Marquer comme prêts ({selectedRows.size})
+              </Button>
+            )}
             <Button
               onClick={handleValidateAll}
               disabled={examensWithErrors.length > 0 || batchValidate.isPending}
@@ -169,7 +250,7 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
           </div>
         </CardTitle>
         <CardDescription>
-          Corrigez les champs manquants ou incorrects pour pouvoir valider l'ensemble des examens.
+          Corrigez les champs manquants ou incorrects, puis validez l'ensemble pour générer les créneaux et listes enseignants.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -194,14 +275,25 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
         ) : (
           <div className="space-y-4">
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <AlertTriangle className="h-5 w-5 text-orange-600" />
-                <span className="font-medium text-orange-800">
-                  {examensWithErrors.length} examen(s) nécessitent une correction
-                </span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2">
+                  <AlertTriangle className="h-5 w-5 text-orange-600" />
+                  <span className="font-medium text-orange-800">
+                    {examensWithErrors.length} examen(s) nécessitent une correction
+                  </span>
+                </div>
+                {examensWithErrors.length > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      checked={selectedRows.size === examensWithErrors.length && examensWithErrors.length > 0}
+                      onCheckedChange={handleSelectAll}
+                    />
+                    <span className="text-sm text-orange-700">Tout sélectionner</span>
+                  </div>
+                )}
               </div>
               <p className="text-sm text-orange-700">
-                Corrigez les champs manquants ci-dessous pour pouvoir procéder à la validation.
+                Corrigez les champs manquants ci-dessous ou sélectionnez les examens à marquer comme prêts une fois corrigés.
               </p>
             </div>
 
@@ -209,6 +301,12 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-12">
+                      <Checkbox
+                        checked={selectedRows.size === examensWithErrors.length && examensWithErrors.length > 0}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Matière</TableHead>
                     <TableHead>Date</TableHead>
@@ -224,9 +322,16 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
                     const editData = editingRows[row.id] || data;
                     const isEditing = !!editingRows[row.id];
                     const problems = getExamProblem(row);
+                    const isSelected = selectedRows.has(row.id);
 
                     return (
-                      <TableRow key={row.id}>
+                      <TableRow key={row.id} className={isSelected ? "bg-blue-50" : ""}>
+                        <TableCell>
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={(checked) => handleSelectRow(row.id, checked as boolean)}
+                          />
+                        </TableCell>
                         <TableCell className="font-mono text-sm">
                           {data["Code"] || data["code"] || "N/A"}
                         </TableCell>
