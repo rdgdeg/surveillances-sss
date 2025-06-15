@@ -64,6 +64,8 @@ const IDEAL_COL_ORDER = [
   "Enseignants"
 ];
 
+import { ExamensImportTable } from "./ExamensImportTable";
+
 export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   const { data: rows = [], isLoading } = useExamensImportTemp(batchId);
   const updateMutation = useUpdateExamenImportTemp();
@@ -88,12 +90,11 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
       toast({ title: "Examen supprimé", description: "La ligne a été supprimée." });
       setDeleteRowId(null);
     },
-    onError: (error: any) => {
+    onError: () => {
       toast({ title: "Erreur", description: "Impossible de supprimer la ligne." });
     }
   });
 
-  // Champs obligatoires à contrôler (corrigez ici selon vos colonnes)
   function getExamProblem(row: any) {
     const { data } = row;
     const missing: string[] = [];
@@ -102,7 +103,6 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     return missing;
   }
 
-  // Calcule les surveillants théoriques même pour plusieurs auditoires séparés par virgule (ou point-virgule)
   function getSurvTh(data: any) {
     const audString =
       data["Auditoires"] ||
@@ -133,26 +133,6 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
 
-  // Correction inline
-  function EditableCell({ row, col }: { row: any, col: string }) {
-    if (editRow === row.id) {
-      return (
-        <Input
-          value={editData[col] ?? ""}
-          className="text-xs"
-          onChange={e => setEditData({ ...editData, [col]: e.target.value })}
-        />
-      );
-    }
-    // Ici : formatage si colonne = heure, date…
-    if (["Debut", "Heure_debut", "heure_debut"].includes(col)) return <span>{excelTimeToHHMM(row.data?.[col])}</span>;
-    if (["Fin", "Heure_fin", "heure_fin"].includes(col)) return <span>{excelTimeToHHMM(row.data?.[col])}</span>;
-    if (["Jour", "Date", "date_examen"].includes(col)) return <span>{excelDateString(row.data?.[col])}</span>;
-    if (["Duree", "Durée", "duree"].includes(col)) return <span>{excelDurationToHM(row.data?.[col])}</span>;
-    return <span>{row.data?.[col]?.toString() ?? ""}</span>;
-  }
-
-  // Calcule la liste des colonnes
   let columns: string[] = [];
   if (rows[0]) {
     const dataCols = Object.keys(rows[0].data || {});
@@ -160,7 +140,6 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     columns = columns.concat(dataCols.filter(c => !columns.includes(c)));
   }
 
-  // Appliquer la recherche sur toutes les colonnes concaténées
   const filteredRows = rows.filter(row => {
     if (!searchTerm.trim()) return true;
     const globalString = [
@@ -171,18 +150,16 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     return globalString.includes(searchTerm.toLowerCase());
   });
 
-  // Gestion du tri sur la colonne sélectionnée
   const sortedRows = [...filteredRows].sort((a, b) => {
     if (!sortBy) return 0;
     const valA =
       sortBy === "État"
-        ? getExamProblem(a).join("") // On classe "État" sur le nombre de problèmes
+        ? getExamProblem(a).join("")
         : a.data?.[sortBy] ?? "";
     const valB =
       sortBy === "État"
         ? getExamProblem(b).join("")
         : b.data?.[sortBy] ?? "";
-    // Gestion nombre/texte
     if (!isNaN(parseFloat(valA)) && !isNaN(parseFloat(valB))) {
       return sortAsc
         ? parseFloat(valA) - parseFloat(valB)
@@ -202,15 +179,18 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     }
   }
 
-  // Correction : la colonne Duree affiche la valeur brute, sauf si nombre Excel
   function getDureeAffichee(val: any) {
     if (typeof val === "number") return excelDurationToHM(val);
-    return val?.toString() || "";
+    return val?.toString() ?? "";
   }
 
   const handleEdit = (id: string, data: any) => {
     setEditRow(id);
     setEditData(data);
+  };
+
+  const handleChangeEdit = (col: string, value: any) => {
+    setEditData({ ...editData, [col]: value });
   };
 
   const handleSave = async (id: string) => {
@@ -242,142 +222,31 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-2 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
-          <Input
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Rechercher dans tous les examens..."
-            className="w-full sm:w-96"
-          />
-          <span className="ml-auto text-xs text-gray-500">
-            {sortedRows.length} / {rows.length} affichés
-          </span>
-        </div>
-        {rows.length === 0 && <div>Aucune donnée à réviser.</div>}
-        {rows.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full border text-xs">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  {columns.map(col => (
-                    <th
-                      key={col}
-                      className="cursor-pointer select-none hover:underline"
-                      onClick={() => handleSort(col)}
-                    >
-                      {col}
-                      {sortBy === col && (
-                        <span className="ml-1">{sortAsc ? "▲" : "▼"}</span>
-                      )}
-                    </th>
-                  ))}
-                  <th
-                    className="cursor-pointer select-none hover:underline"
-                    onClick={() => handleSort("Surveillants théoriques")}
-                  >
-                    Surveillants théoriques
-                    {sortBy === "Surveillants théoriques" && (
-                      <span className="ml-1">{sortAsc ? "▲" : "▼"}</span>
-                    )}
-                  </th>
-                  <th
-                    className="cursor-pointer select-none hover:underline"
-                    onClick={() => handleSort("État")}
-                  >
-                    État
-                    {sortBy === "État" && (
-                      <span className="ml-1">{sortAsc ? "▲" : "▼"}</span>
-                    )}
-                  </th>
-                  <th colSpan={2}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedRows.map((row, idx) => {
-                  const problems = getExamProblem(row);
-                  const theorique = getSurvTh(row.data);
-                  return (
-                    <tr key={row.id} className={problems.length ? "bg-red-50" : ""}>
-                      <td>{idx + 1}</td>
-                      {columns.map(col => (
-                        <td key={col}>
-                          {editRow === row.id
-                            ? <EditableCell row={row} col={col} />
-                            : (
-                              col === "Duree" || col === "Durée" || col === "duree"
-                                ? getDureeAffichee(row.data?.[col])
-                                : ["Debut", "Heure_debut", "heure_debut"].includes(col)
-                                  ? excelTimeToHHMM(row.data?.[col])
-                                  : ["Fin", "Heure_fin", "heure_fin"].includes(col)
-                                    ? excelTimeToHHMM(row.data?.[col])
-                                    : ["Jour", "Date", "date_examen"].includes(col)
-                                      ? excelDateString(row.data?.[col])
-                                      : row.data?.[col]?.toString() ?? ""
-                            )}
-                        </td>
-                      ))}
-                      <td>
-                        {theorique !== null && theorique !== undefined
-                          ? <Badge className="bg-green-100 text-green-800">{theorique}</Badge>
-                          : <span className="text-red-700">?</span>}
-                      </td>
-                      <td>
-                        {problems.length === 0
-                          ? <Badge className="bg-green-100 text-green-800">Prêt</Badge>
-                          : <Badge className="bg-orange-100 text-orange-800">À corriger: {problems.join(", ")}</Badge>
-                        }
-                      </td>
-                      <td>
-                        {editRow === row.id
-                          ? <Button size="sm" variant="outline" onClick={() => handleSave(row.id)}>Enregistrer</Button>
-                          : <Button size="sm" variant="ghost" onClick={() => handleEdit(row.id, row.data)}>Éditer</Button>
-                        }
-                      </td>
-                      <td>
-                        <AlertDialog open={deleteRowId === row.id} onOpenChange={open => { if (!open) setDeleteRowId(null); }}>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="destructive"
-                              title="Supprimer la ligne"
-                              onClick={() => setDeleteRowId(row.id)}
-                            >
-                              <Delete className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Voulez-vous vraiment supprimer cette ligne ?<br />
-                                Cette action est irréversible.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annuler</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteMutation.mutate(row.id)}
-                                disabled={deleteMutation.isPending}
-                              >
-                                Supprimer
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <div className="mt-4">
-              <Button onClick={handleBatchValidate} disabled={validating}>
-                {validating ? "Validation en cours..." : "Valider tous les examens prêts"}
-              </Button>
-            </div>
-          </div>
-        )}
+        <ExamensImportTable
+          rows={sortedRows}
+          columns={columns}
+          editRow={editRow}
+          editData={editData}
+          onEdit={handleEdit}
+          onChangeEdit={handleChangeEdit}
+          onSave={handleSave}
+          onDelete={setDeleteRowId}
+          deleteRowId={deleteRowId}
+          deleteMutation={deleteMutation}
+          getExamProblem={getExamProblem}
+          getSurvTh={getSurvTh}
+          excelTimeToHHMM={excelTimeToHHMM}
+          excelDateString={excelDateString}
+          getDureeAffichee={getDureeAffichee}
+          validating={validating}
+          handleBatchValidate={handleBatchValidate}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          sortBy={sortBy}
+          sortAsc={sortAsc}
+          handleSort={handleSort}
+          totalRowsCount={rows.length}
+        />
       </CardContent>
     </Card>
   );
