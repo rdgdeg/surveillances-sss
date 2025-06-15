@@ -324,22 +324,30 @@ export function SurveillantUnifiedManager() {
                   </TableRow>
                 ) : (
                   surveillants?.map((row) => {
-                    // row: SurveillantJoinWithArray
                     const isEdit = editRow === row.id;
 
-                    // Correction ici : hasRestriction sur le tableau
-                    const hasRestriction = Array.isArray(row.faculte_interdite) && row.faculte_interdite.length > 0 && !row.faculte_interdite.includes("NONE");
-                    
-                    // Détection du quota théorique selon le statut
-                    let quotaTheorique = (() => {
-                      const statutL = (isEdit ? editValues.statut : row.statut) || "";
-                      if (statutL === "Assistant") return 6;
-                      if (statutL === "PAT FASB") return 12;
-                      if (statutL === "Jobiste") return 0;
-                      return 0; // par défaut autres statuts
+                    // Calcul correctement le quota théorique selon le statut
+                    // (Assistant -> ETP * 6, PAT/Doctorant/Jobiste/Autres -> 0)
+                    let statut = isEdit ? editValues.statut ?? row.statut : row.statut;
+                    let etp = isEdit ? editValues.etp ?? row.eft ?? 0 : row.eft ?? 0;
+
+                    const quotaTheorique = (() => {
+                      if (!statut) return 0;
+                      // Normalisation minuscule pour plus de robustesse
+                      switch (statut.toLowerCase()) {
+                        case "assistant":
+                        case "pat fasb": // Certains statuts peuvent être PAT FASB (0, pour suivre consigne)
+                          return Math.round(Number(etp) * 6);
+                        case "pat":
+                        case "doctorant":
+                        case "jobiste":
+                          return 0;
+                        default:
+                          return 0; // Pour tout autre cas, à adapter si consignes changent
+                      }
                     })();
+
                     // Correction de la propagation du type pour handleEdit et handleSave
-                    // Correction selection value pour FacultesMultiSelect
                     const selectedFacs = isEdit
                       ? editValues.faculte_interdite ?? ["NONE"]
                       : row.faculte_interdite.length > 0
@@ -347,7 +355,7 @@ export function SurveillantUnifiedManager() {
                         : ["NONE"];
 
                     return (
-                      <TableRow key={row.id}>
+                      <TableRow key={row.id} className={isEdit ? 'bg-blue-50' : undefined}>
                         <TableCell>{row.nom}</TableCell>
                         <TableCell>{row.prenom}</TableCell>
                         <TableCell>{row.email}</TableCell>
@@ -414,9 +422,10 @@ export function SurveillantUnifiedManager() {
                           )}
                         </TableCell>
                         <TableCell>
-                          <span className="inline-block px-2 py-1 bg-gray-100 rounded text-xs font-semibold">
+                          <span className="inline-block px-3 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200 min-w-[2.7rem] text-center">
                             {quotaTheorique}
                           </span>
+                          <div className="text-[10px] text-gray-400 leading-tight text-center">ETP × 6</div>
                         </TableCell>
                         <TableCell>
                           {isEdit ? (
@@ -443,7 +452,7 @@ export function SurveillantUnifiedManager() {
                               onChange={(v) => setEditValues((vals) => ({ ...vals, faculte_interdite: v }))}
                               disabled={updateFaculteInterditeMutation.isPending}
                             />
-                          ) : hasRestriction ? (
+                          ) : Array.isArray(selectedFacs) && selectedFacs.length > 0 && !selectedFacs.includes("NONE") ? (
                             <div className="flex flex-wrap gap-1 max-w-xs">
                               {selectedFacs.map((f) => (
                                 <span key={f} className="inline-block bg-red-100 text-red-700 rounded px-2 text-xs">
