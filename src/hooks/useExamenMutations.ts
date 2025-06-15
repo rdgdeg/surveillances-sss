@@ -85,7 +85,16 @@ export const useExamenMutations = ({ onPersonneAdded }: UseExamenMutationsProps 
       personnesAmenees: number;
       detailsPersonnesAmenees?: PersonneAmenee[];
     }) => {
-      // Mettre à jour les informations d'examen
+      // Vérifier d'abord si l'examen était déjà confirmé
+      const { data: examenActuel, error: fetchError } = await supabase
+        .from('examens')
+        .select('besoins_confirmes_par_enseignant')
+        .eq('id', examenId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Préparer les données de mise à jour
       const updateData: any = {
         surveillants_enseignant: enseignantPresent ? 1 : 0,
         surveillants_amenes: personnesAmenees
@@ -94,6 +103,12 @@ export const useExamenMutations = ({ onPersonneAdded }: UseExamenMutationsProps 
       // Ajouter le nom de l'enseignant s'il est fourni
       if (nomEnseignant) {
         updateData.enseignant_nom = nomEnseignant;
+      }
+
+      // Si l'examen était déjà confirmé, remettre le statut en attente
+      if (examenActuel?.besoins_confirmes_par_enseignant) {
+        updateData.besoins_confirmes_par_enseignant = false;
+        updateData.date_confirmation_enseignant = null;
       }
 
       const { error: updateError } = await supabase
@@ -131,7 +146,22 @@ export const useExamenMutations = ({ onPersonneAdded }: UseExamenMutationsProps 
         }
       }
 
-      return { enseignantPresent, personnesAmenees };
+      return { 
+        enseignantPresent, 
+        personnesAmenees,
+        wasConfirmed: examenActuel?.besoins_confirmes_par_enseignant 
+      };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
+      
+      if (data.wasConfirmed) {
+        toast({
+          title: "Informations mises à jour",
+          description: "L'examen doit être reconfirmé suite aux modifications.",
+          variant: "default"
+        });
+      }
     },
     onError: (error: any) => {
       toast({
