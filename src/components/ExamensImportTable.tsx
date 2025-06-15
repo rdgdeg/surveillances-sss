@@ -1,8 +1,8 @@
-
 import { ExamensImportTableRow } from "./ExamensImportTableRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ExamensImportTableProps {
   rows: any[];
@@ -28,14 +28,21 @@ interface ExamensImportTableProps {
   sortAsc: boolean;
   handleSort: (col: string) => void;
   totalRowsCount: number;
+  selectedRows: string[];
+  onSelectRow: (id: string, checked: boolean) => void;
+  onSelectAll: (checked: boolean, ids: string[]) => void;
+  allRowIds: string[];
 }
 
 export function ExamensImportTable({
   rows, columns, editRow, editData, onEdit, onChangeEdit, onSave, onDelete, deleteRowId, deleteMutation,
   getExamProblem, getSurvTh, excelTimeToHHMM, excelDateString, getDureeAffichee,
   validating, handleBatchValidate, searchTerm, setSearchTerm,
-  sortBy, sortAsc, handleSort, totalRowsCount
+  sortBy, sortAsc, handleSort, totalRowsCount,
+  selectedRows, onSelectRow, onSelectAll, allRowIds
 }: ExamensImportTableProps) {
+
+  const isAllSelected = allRowIds.length > 0 && selectedRows.length === allRowIds.length;
 
   return (
     <div>
@@ -56,6 +63,12 @@ export function ExamensImportTable({
           <table className="w-full border text-xs">
             <thead>
               <tr>
+                <th>
+                  <Checkbox
+                    checked={isAllSelected}
+                    onCheckedChange={checked => onSelectAll(!!checked, allRowIds)}
+                  />
+                </th>
                 <th>#</th>
                 {columns.map(col => (
                   <th
@@ -109,6 +122,8 @@ export function ExamensImportTable({
                   excelTimeToHHMM={excelTimeToHHMM}
                   excelDateString={excelDateString}
                   getDureeAffichee={getDureeAffichee}
+                  isSelected={selectedRows.includes(row.id)}
+                  onSelect={onSelectRow}
                 />
               ))}
             </tbody>

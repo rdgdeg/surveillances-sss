@@ -192,6 +192,40 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     setValidating(false);
   };
 
+  // Ajout état pour la sélection multiple
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+  // Pour confirmation de suppression multiple
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
+  // Ajout de la suppression en masse (mutation simple, réutilise le delete existant)
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from("examens_import_temp").delete().in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["examens-import-temp"] });
+      toast({ title: "Examens supprimés", description: `${selectedRows.length} lignes supprimées.` });
+      setSelectedRows([]);
+      setBulkDeleteOpen(false);
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de supprimer la sélection." });
+    }
+  });
+
+  // Sélection/désélection d'une ligne
+  function handleSelectRow(id: string, checked: boolean) {
+    setSelectedRows(prev =>
+      checked ? [...prev, id] : prev.filter(rowId => rowId !== id)
+    );
+  }
+
+  // Sélection/désélection tout
+  function handleSelectAll(checked: boolean, ids: string[]) {
+    setSelectedRows(checked ? ids : []);
+  }
+
   return (
     <Card className="mt-4">
       <CardHeader>
@@ -225,7 +259,42 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
           sortAsc={sortAsc}
           handleSort={handleSort}
           totalRowsCount={rows.length}
+          selectedRows={selectedRows}
+          onSelectRow={handleSelectRow}
+          onSelectAll={handleSelectAll}
+          allRowIds={sortedRows.map(r => r.id)}
         />
+        {/* Bouton de suppression en masse */}
+        <div className="mt-4">
+          <Button
+            variant="destructive"
+            disabled={selectedRows.length === 0}
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            Supprimer la sélection ({selectedRows.length})
+          </Button>
+        </div>
+        {/* Dialog de confirmation */}
+        <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer la sélection</AlertDialogTitle>
+              <AlertDialogDescription>
+                Confirmez-vous la suppression de {selectedRows.length} examen{selectedRows.length > 1 ? "s" : ""} ? <br />
+                Cette action est irréversible.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => bulkDeleteMutation.mutate(selectedRows)}
+                disabled={bulkDeleteMutation.isPending}
+              >
+                Supprimer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

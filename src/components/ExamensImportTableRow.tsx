@@ -1,7 +1,9 @@
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ChangeEvent } from "react";
 import { Delete } from "lucide-react";
 
@@ -21,11 +23,15 @@ interface ExamensImportTableRowProps {
   excelTimeToHHMM: (t: any) => string;
   excelDateString: (d: any) => string;
   getDureeAffichee: (val: any) => string;
+  // Ajouts :
+  isSelected?: boolean;
+  onSelect?: (id: string, checked: boolean) => void;
 }
 
 export function ExamensImportTableRow({
   row, columns, editRow, editData, onEdit, onChangeEdit, onSave, onDelete, deleteRowId, deleteMutation,
-  getExamProblem, getSurvTh, excelTimeToHHMM, excelDateString, getDureeAffichee
+  getExamProblem, getSurvTh, excelTimeToHHMM, excelDateString, getDureeAffichee,
+  isSelected, onSelect
 }: ExamensImportTableRowProps) {
   const problems = getExamProblem(row);
 
@@ -38,6 +44,12 @@ export function ExamensImportTableRow({
 
   return (
     <tr key={row.id} className={problems.length ? "bg-red-50" : ""}>
+      <td>
+        <Checkbox
+          checked={!!isSelected}
+          onCheckedChange={(checked) => onSelect?.(row.id, !!checked)}
+        />
+      </td>
       <td>{row.indice + 1}</td>
       {columns.map(col => (
         <td key={col}>
