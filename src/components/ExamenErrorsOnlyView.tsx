@@ -79,18 +79,36 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
     }
 
     try {
-      // Marquer tous les examens comme prêts (nettoyer les erreurs)
+      // Marquer tous les examens comme prêts et corriger automatiquement ceux sans auditoire
       for (const row of examensNonTraites) {
-        await updateMutation.mutateAsync({
-          id: row.id,
-          statut: "NON_TRAITE",
-          erreurs: null
-        });
+        const data = asRowDataObject(row.data);
+        const salle = data["Auditoires"] || data["Salle"] || "";
+        
+        // Si pas d'auditoire, mettre les surveillants théoriques à 0
+        if (!salle || salle.trim() === "") {
+          const updatedData = {
+            ...data,
+            Surveillants_Th: 0
+          };
+          
+          await updateMutation.mutateAsync({
+            id: row.id,
+            data: updatedData,
+            statut: "NON_TRAITE",
+            erreurs: null
+          });
+        } else {
+          await updateMutation.mutateAsync({
+            id: row.id,
+            statut: "NON_TRAITE",
+            erreurs: null
+          });
+        }
       }
 
       toast({
         title: "Examens marqués comme prêts",
-        description: `${examensNonTraites.length} examen(s) marqué(s) comme prêt(s) pour validation.`
+        description: `${examensNonTraites.length} examen(s) marqué(s) comme prêt(s) pour validation. Les examens sans auditoire ont été automatiquement corrigés avec 0 surveillant.`
       });
     } catch (error) {
       console.error("Erreur lors du marquage comme prêts:", error);

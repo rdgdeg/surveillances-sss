@@ -212,16 +212,32 @@ export function useBatchValidateExamensImport() {
 
         console.log("Insertion des examens:", examensToCreate);
 
-        const { error: insertError } = await supabase
-          .from("examens")
-          .insert(examensToCreate);
-        
-        if (insertError) {
-          console.error("Erreur lors de l'insertion des examens:", insertError);
-          throw new Error(`Erreur lors de la création des examens: ${insertError.message}`);
-        }
+        // Filtrer les doublons avant insertion en créant une Map basée sur code + date + session
+        const examensUniques = new Map();
+        examensToCreate.forEach(examen => {
+          const key = `${examen.session_id}_${examen.code_examen}_${examen.date_examen}`;
+          if (!examensUniques.has(key)) {
+            examensUniques.set(key, examen);
+          } else {
+            console.warn("Doublon détecté et ignoré:", examen.code_examen, examen.date_examen);
+          }
+        });
 
-        console.log(`✅ ${examensToCreate.length} examens créés avec succès`);
+        const examensFiltered = Array.from(examensUniques.values());
+        console.log(`${examensToCreate.length} examens originaux, ${examensFiltered.length} après filtrage des doublons`);
+
+        if (examensFiltered.length > 0) {
+          const { error: insertError } = await supabase
+            .from("examens")
+            .insert(examensFiltered);
+          
+          if (insertError) {
+            console.error("Erreur lors de l'insertion des examens:", insertError);
+            throw new Error(`Erreur lors de la création des examens: ${insertError.message}`);
+          }
+
+          console.log(`✅ ${examensFiltered.length} examens créés avec succès`);
+        }
       }
     },
     onSuccess: () => {
