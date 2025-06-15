@@ -44,8 +44,9 @@ export function ExamensImportTableRow({
               />
             )
             : (
+              // Pour Durée, utilise la valeur brute (plus de conversion)
               col === "Duree" || col === "Durée" || col === "duree"
-                ? getDureeAffichee(row.data?.[col])
+                ? row.data?.[col]?.toString() ?? ""
                 : ["Debut", "Heure_debut", "heure_debut"].includes(col)
                   ? excelTimeToHHMM(row.data?.[col])
                   : ["Fin", "Heure_fin", "heure_fin"].includes(col)

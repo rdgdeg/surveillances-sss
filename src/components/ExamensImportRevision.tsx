@@ -180,7 +180,7 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   }
 
   function getDureeAffichee(val: any) {
-    if (typeof val === "number") return excelDurationToHM(val);
+    // Affiche la valeur brute importée, sans conversion.
     return val?.toString() ?? "";
   }
 
