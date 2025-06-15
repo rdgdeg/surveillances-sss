@@ -76,6 +76,8 @@ export function SurveillantUnifiedManager() {
   const [customStatuts, setCustomStatuts] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"actifs" | "desactives">("actifs");
+  const [selectedRows, setSelectedRows] = useState<string[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   const statutsDisponibles = [...BASE_STATUTS, ...customStatuts, "Ajouter..."];
 
@@ -291,6 +293,99 @@ export function SurveillantUnifiedManager() {
   // Pour la démo, on affiche juste un bouton
   const handleOpenUpload = () => setShowUpload(true);
 
+  // --- SÉLECTION MULTIPLE ---
+  const currentRows =
+    activeTab === "actifs"
+      ? Array.isArray(surveillants)
+        ? surveillants.filter(
+            (s) =>
+              s.statut === "actif" ||
+              s.statut?.toLowerCase() === "assistant" ||
+              (s.quota ?? 0) > 0
+          )
+        : []
+      : Array.isArray(surveillants)
+      ? surveillants.filter(
+          (s) =>
+            s.statut !== "actif" &&
+            !["assistant", "PAT FASB"].includes((s.statut ?? "").toUpperCase()) &&
+            (s.quota ?? 0) === 0
+        )
+      : [];
+  // Gestion du bouton tout sélectionner
+  const handleSelectAll = (checked: boolean) => {
+    setSelectAll(checked);
+    if (checked) {
+      setSelectedRows(currentRows.map((r) => r.id));
+    } else {
+      setSelectedRows([]);
+    }
+  };
+  // Sélection individuelle
+  const handleSelectRow = (id: string, checked: boolean) => {
+    setSelectedRows((prev) =>
+      checked ? [...prev, id] : prev.filter((rowId) => rowId !== id)
+    );
+  };
+
+  // Action de masse (activation/désactivation)
+  const toggleActivationStatusMutation = useMutation({
+    mutationFn: async ({
+      surveillantIds,
+      targetIsActive,
+    }: {
+      surveillantIds: string[];
+      targetIsActive: boolean;
+    }) => {
+      // update surveillant_sessions SET is_active=targetIsActive
+      // Attention : Il faut requêter surveillant_sessions (liaison session/surveillant)
+      if (!activeSession) throw new Error("Session non sélectionnée");
+      // Récupère les row surveillant_sessions à modifier
+      const { data: sessionsRows, error } = await supabase
+        .from("surveillant_sessions")
+        .select("id, surveillant_id, is_active")
+        .eq("session_id", activeSession.id)
+        .in("surveillant_id", surveillantIds);
+      if (error) throw error;
+      const ids = (sessionsRows ?? []).map((row: any) => row.id);
+      if (ids.length === 0) return;
+      const { error: errorUpdate } = await supabase
+        .from("surveillant_sessions")
+        .update({ is_active: targetIsActive })
+        .in("id", ids);
+      if (errorUpdate) throw errorUpdate;
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast({
+        title: "Statut modifié",
+        description: "Les surveillants sélectionnés ont été mis à jour.",
+      });
+      setSelectedRows([]);
+      setSelectAll(false);
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erreur",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Adaptation du calcul quota théorique
+  function getTheoreticalQuota(statut: string | undefined | null, etp: number | undefined | null): number {
+    if (!statut) return 0;
+    const statutNorm = (statut || "").toLowerCase();
+    if (statutNorm === "assistant") return Math.round(Number(etp || 0) * 6);
+    if (statutNorm === "pat fasb") return Math.round(Number(etp || 0) * 12);
+    return 0;
+  }
+
+  // Barre d’actions pour sélection multiple
+  const hasSelection = selectedRows.length > 0;
+
   return (
     <div className="space-y-6">
       <Card>
@@ -308,6 +403,52 @@ export function SurveillantUnifiedManager() {
         </CardHeader>
 
         <CardContent>
+          {/* --- BARRE ACTIONS SÉLECTION MULTIPLE --- */}
+          {hasSelection && (
+            <div className="flex items-center mb-2 gap-2 bg-blue-50 p-2 rounded">
+              <span className="text-sm text-gray-700">
+                {selectedRows.length} surveillant{selectedRows.length > 1 ? "s" : ""} sélectionné{selectedRows.length > 1 ? "s" : ""}
+              </span>
+              <Button
+                size="sm"
+                variant="default"
+                onClick={() =>
+                  toggleActivationStatusMutation.mutate({
+                    surveillantIds: selectedRows,
+                    targetIsActive: true,
+                  })
+                }
+                disabled={toggleActivationStatusMutation.isPending}
+              >
+                Activer
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  toggleActivationStatusMutation.mutate({
+                    surveillantIds: selectedRows,
+                    targetIsActive: false,
+                  })
+                }
+                disabled={toggleActivationStatusMutation.isPending}
+              >
+                Désactiver
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => {
+                  setSelectedRows([]);
+                  setSelectAll(false);
+                }}
+                title="Effacer la sélection"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
           {/* Onglets "actifs"/"désactivés" */}
           <Tabs value={activeTab} onValueChange={v => setActiveTab(v as "actifs" | "desactives")}>
             <TabsList className="mb-4">
@@ -319,16 +460,25 @@ export function SurveillantUnifiedManager() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>
+                        <input
+                          type="checkbox"
+                          checked={selectAll}
+                          onChange={e => handleSelectAll(e.target.checked)}
+                          aria-label="Tout sélectionner"
+                        />
+                      </TableHead>
                       <TableHead>Nom</TableHead>
                       <TableHead>Prénom</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Statut</TableHead>
                       <TableHead>Affectation</TableHead>
-                      <TableHead>Campus</TableHead>
+                      {/* Suppression de la colonne Campus */}
                       <TableHead>ETP</TableHead>
                       <TableHead>
                         Quota théorique
-                        <br /><span className="text-xs text-gray-400">(ETP × 6)</span>
+                        <br />
+                        <span className="text-xs text-gray-400">(Assistant: ETP×6, PAT FASB: ETP×12, autres: 0)</span>
                       </TableHead>
                       <TableHead>Quota session<br /><span className="text-xs text-gray-400">(modifiable)</span></TableHead>
                       <TableHead>
@@ -345,44 +495,38 @@ export function SurveillantUnifiedManager() {
                       <TableRow>
                         <TableCell colSpan={12}>Chargement...</TableCell>
                       </TableRow>
-                    ) : surveillantsActifs.length === 0 ? (
+                    ) : currentRows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={12} className="text-center">Aucun surveillant actif</TableCell>
                       </TableRow>
                     ) : (
-                      surveillantsActifs?.map((row) => {
+                      currentRows?.map((row) => {
                         const isEdit = editRow === row.id;
+                        const isChecked = selectedRows.includes(row.id);
 
-                        // Calcul correctement le quota théorique selon le statut
-                        // (Assistant -> ETP * 6, PAT/Doctorant/Jobiste/Autres -> 0)
+                        // Calcul du quota théorique (Assistant: ETP × 6, PAT FASB: ETP × 12, autres: 0)
                         let statut = isEdit ? editValues.statut ?? row.statut : row.statut;
                         let etp = isEdit ? editValues.etp ?? row.eft ?? 0 : row.eft ?? 0;
 
-                        const quotaTheorique = (() => {
-                          if (!statut) return 0;
-                          // Normalisation minuscule pour plus de robustesse
-                          switch (statut.toLowerCase()) {
-                            case "assistant":
-                            case "pat fasb": // Certains statuts peuvent être PAT FASB (0, pour suivre consigne)
-                              return Math.round(Number(etp) * 6);
-                            case "pat":
-                            case "doctorant":
-                            case "jobiste":
-                              return 0;
-                            default:
-                              return 0; // Pour tout autre cas, à adapter si consignes changent
-                          }
-                        })();
+                        const quotaTheorique = getTheoreticalQuota(statut, etp);
 
                         // Correction de la propagation du type pour handleEdit et handleSave
                         const selectedFacs = isEdit
                           ? editValues.faculte_interdite ?? ["NONE"]
                           : row.faculte_interdite.length > 0
-                            ? row.faculte_interdite
-                            : ["NONE"];
+                          ? row.faculte_interdite
+                          : ["NONE"];
 
                         return (
-                          <TableRow key={row.id} className={isEdit ? 'bg-blue-50' : undefined}>
+                          <TableRow key={row.id} className={isEdit ? "bg-blue-50" : undefined}>
+                            <TableCell>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => handleSelectRow(row.id, e.target.checked)}
+                                aria-label="Sélectionner"
+                              />
+                            </TableCell>
                             <TableCell>{row.nom}</TableCell>
                             <TableCell>{row.prenom}</TableCell>
                             <TableCell>{row.email}</TableCell>
@@ -428,7 +572,7 @@ export function SurveillantUnifiedManager() {
                                 row.affectation_fac || "-"
                               )}
                             </TableCell>
-                            <TableCell>{row.campus || "-"}</TableCell>
+                            {/* Suppression campus */}
                             <TableCell>
                               {isEdit ? (
                                 <Input
@@ -452,7 +596,6 @@ export function SurveillantUnifiedManager() {
                               <span className="inline-block px-3 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200 min-w-[2.7rem] text-center">
                                 {quotaTheorique}
                               </span>
-                              <div className="text-[10px] text-gray-400 leading-tight text-center">ETP × 6</div>
                             </TableCell>
                             <TableCell>
                               {isEdit ? (
@@ -491,7 +634,9 @@ export function SurveillantUnifiedManager() {
                                 <span className="text-xs text-muted-foreground">Aucune restriction</span>
                               )}
                             </TableCell>
-                            <TableCell>{row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}</TableCell>
+                            <TableCell>
+                              {row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}
+                            </TableCell>
                             <TableCell>
                               {isEdit ? (
                                 <>
@@ -531,10 +676,20 @@ export function SurveillantUnifiedManager() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>
+                        {/* Sélection multiple aussi sur désactivés */}
+                        <input
+                          type="checkbox"
+                          checked={selectAll}
+                          onChange={e => handleSelectAll(e.target.checked)}
+                          aria-label="Tout sélectionner"
+                        />
+                      </TableHead>
                       <TableHead>Nom</TableHead>
                       <TableHead>Prénom</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Statut</TableHead>
+                      {/* Suppression campus */}
                       <TableHead>ETP</TableHead>
                       <TableHead>Quota théorique</TableHead>
                       <TableHead>Quota session</TableHead>
@@ -546,24 +701,37 @@ export function SurveillantUnifiedManager() {
                       <TableRow>
                         <TableCell colSpan={8}>Chargement...</TableCell>
                       </TableRow>
-                    ) : surveillantsDesactives.length === 0 ? (
+                    ) : currentRows.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={8} className="text-center">Aucun surveillant désactivé</TableCell>
                       </TableRow>
                     ) : (
-                      surveillantsDesactives.map(row => {
+                      currentRows.map(row => {
                         let etp = row.eft ?? 0;
-                        const quotaTheorique = Math.round(Number(etp || 0) * 6);
+                        // Correction PAT FASB ici aussi
+                        const quotaTheorique = getTheoreticalQuota(row.statut, etp);
+                        const isChecked = selectedRows.includes(row.id);
                         return (
                           <TableRow key={row.id}>
+                            <TableCell>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={e => handleSelectRow(row.id, e.target.checked)}
+                                aria-label="Sélectionner"
+                              />
+                            </TableCell>
                             <TableCell>{row.nom}</TableCell>
                             <TableCell>{row.prenom}</TableCell>
                             <TableCell>{row.email}</TableCell>
                             <TableCell>{row.statut}</TableCell>
+                            {/* Pas de campus */}
                             <TableCell>{etp}</TableCell>
                             <TableCell>{quotaTheorique}</TableCell>
                             <TableCell>{row.quota ?? "-"}</TableCell>
-                            <TableCell>{row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}</TableCell>
+                            <TableCell>
+                              {row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}
+                            </TableCell>
                           </TableRow>
                         );
                       })
