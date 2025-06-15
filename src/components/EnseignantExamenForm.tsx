@@ -38,7 +38,8 @@ export const EnseignantExamenForm = () => {
   });
 
   const { 
-    confirmerExamenMutation 
+    confirmerExamenMutation,
+    updateEnseignantPresenceMutation
   } = useExamenMutations();
 
   // Get constraints for available auditoires
@@ -142,7 +143,7 @@ export const EnseignantExamenForm = () => {
 
           <EnseignantPresenceForm
             selectedExamen={selectedExamen}
-            updateEnseignantPresenceMutation={useExamenMutations().updateEnseignantPresenceMutation}
+            updateEnseignantPresenceMutation={updateEnseignantPresenceMutation}
             surveillantsTheoriques={getTheoreticalSurveillants()}
             surveillantsNecessaires={calculerSurveillantsNecessaires()}
             onPresenceSaved={() => refreshSelectedExamen(selectedExamen.id)}
