@@ -1,3 +1,4 @@
+
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -8,8 +9,8 @@ import { Footer } from "@/components/Footer";
 import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 
 // Import des principaux modules admin
-// (désactivez ceux qui n'existent pas ou adaptez les chemins si nécessaire)
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
+import { ExamenAdvancedManager } from "@/components/ExamenAdvancedManager";
 import { SurveillantUnifiedManager } from "@/components/SurveillantUnifiedManager";
 import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
 
@@ -32,6 +33,8 @@ function DashboardAdmin() {
 function getAdminContent(tab: string | null) {
   switch (tab) {
     case "examens":
+      // Modification : vue avancée pour tout gérer (import, validation, configuration)
+      return <ExamenAdvancedManager />;
     case "import-codes":
     case "planning":
     case "enseignant-view":
@@ -86,3 +89,4 @@ export default function AdminPage() {
     </>
   );
 }
+
