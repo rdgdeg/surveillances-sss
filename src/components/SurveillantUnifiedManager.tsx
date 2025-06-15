@@ -75,6 +75,7 @@ export function SurveillantUnifiedManager() {
     faculte_interdite?: string[];
     statut?: string;
     affectation_fac?: string;
+    type?: string;
   }>({});
   const [showUpload, setShowUpload] = useState(false);
   const [customStatuts, setCustomStatuts] = useState<string[]>([]);
@@ -267,6 +268,7 @@ export function SurveillantUnifiedManager() {
       faculte_interdite: row.faculte_interdite.length > 0 ? row.faculte_interdite : ["NONE"],
       statut: row.statut,
       affectation_fac: row.affectation_fac ?? "",
+      type: row.type,
     });
   };
   const handleCancel = () => {
