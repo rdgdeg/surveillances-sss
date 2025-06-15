@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -421,6 +420,21 @@ export const SurveillantListEditor = () => {
     );
   }
 
+  // Quota de base pour calcul quota théorique, à paramétrer selon session
+  // On suppose 6 si non spécifié par session (could be adjusted according to your activeSession)
+  const defaultSessionQuota = 6;
+
+  // Helper: calculate quota théorique
+  const calculateQuotaTheorique = (surveillant: SurveillantData) => {
+    // If no ETP: fallback to 1
+    const etp = surveillant.eft !== undefined && surveillant.eft !== null && surveillant.eft !== "" ? Number(surveillant.eft) : 1;
+    return Math.round(etp * defaultSessionQuota);
+  };
+
+  // Quota totals for displayed surveillants
+  const totalAssignedQuota = filteredAndSortedSurvaillants.reduce((sum, s) => sum + (Number(s.quota) || 0), 0);
+  const totalTheoriqueQuota = filteredAndSortedSurvaillants.reduce((sum, s) => sum + calculateQuotaTheorique(s), 0);
+
   const SortableHeader = ({ field, children }: { field: SortField, children: React.ReactNode }) => (
     <TableHead 
       className="cursor-pointer hover:bg-gray-50 select-none" 
@@ -633,14 +647,15 @@ export const SurveillantListEditor = () => {
                     <TableHead>Faculté interdite</TableHead>
                     {showSensitiveData && (
                       <>
-                        <TableHead>EFT</TableHead>
+                        <TableHead>ETP</TableHead>
                         <SortableHeader field="affectation_fac">Affectation</SortableHeader>
                         <SortableHeader field="date_fin_contrat">Fin contrat</SortableHeader>
                         <TableHead>GSM</TableHead>
                         <TableHead>Campus</TableHead>
                       </>
                     )}
-                    <SortableHeader field="quota">Quota</SortableHeader>
+                    <TableHead>Quota théorique</TableHead>
+                    <SortableHeader field="quota">Quota assigné</SortableHeader>
                     <TableHead>Sessions imposées</TableHead>
                     <TableHead>Actif</TableHead>
                     <TableHead>Actions</TableHead>
@@ -655,6 +670,11 @@ export const SurveillantListEditor = () => {
                     });
                     const contractExpiring = isContractExpiringSoon(surveillant.date_fin_contrat);
                     const contractExpired = isContractExpired(surveillant.date_fin_contrat);
+
+                    // Quota calc
+                    const quotaTheorique = calculateQuotaTheorique(surveillant);
+                    const assignedQuota = surveillant.quota !== undefined && surveillant.quota !== null && surveillant.quota !== "" ? Number(surveillant.quota) : quotaTheorique;
+                    const quotaDiffers = assignedQuota !== quotaTheorique;
 
                     return (
                       <TableRow 
@@ -760,16 +780,20 @@ export const SurveillantListEditor = () => {
                             <TableCell>
                               {editingId === surveillant.id ? (
                                 <EditableCell
-                                  value={surveillant.eft || ""}
+                                  value={surveillant.eft ?? ""}
                                   type="number"
-                                  onSave={(value) => setSurvaillants(prev => 
-                                    prev.map(s => s.id === surveillant.id ? { ...s, eft: value || null } : s)
-                                  )}
+                                  min={0}
+                                  step="0.01"
+                                  onSave={value =>
+                                    setSurvaillants(prev =>
+                                      prev.map(s =>
+                                        s.id === surveillant.id ? { ...s, eft: value === "" ? null : parseFloat(value) } : s
+                                      )
+                                    )
+                                  }
                                 />
                               ) : (
-                                <span className="text-sm">
-                                  {formatSensitiveDisplay(surveillant.eft, 'eft')}
-                                </span>
+                                <span>{surveillant.eft ?? <span className="text-gray-400">-</span>}</span>
                               )}
                             </TableCell>
                             <TableCell>
@@ -858,26 +882,35 @@ export const SurveillantListEditor = () => {
                           </>
                         )}
 
+                        {/* Quota théorique */}
+                        <TableCell>
+                          <span>{quotaTheorique}</span>
+                        </TableCell>
+
+                        {/* Quota assigné */}
                         <TableCell>
                           {editingId === surveillant.id ? (
                             <EditableCell
-                              value={surveillant.quota}
+                              value={assignedQuota}
                               type="number"
-                              onSave={(value) => setSurvaillants(prev => 
-                                prev.map(s => s.id === surveillant.id ? { ...s, quota: value } : s)
-                              )}
+                              min={0}
+                              step="1"
+                              onSave={value =>
+                                setSurvaillants(prev =>
+                                  prev.map(s =>
+                                    s.id === surveillant.id ? { ...s, quota: value === "" ? 0 : parseInt(value) } : s
+                                  )
+                                )
+                              }
                             />
                           ) : (
-                            <div className="flex flex-col">
-                              <span>{surveillant.quota}</span>
-                              {surveillant.eft && showSensitiveData && (
-                                <span className="text-xs text-gray-500">
-                                  (ajusté: {calculateAdjustedQuota(surveillant.quota, surveillant.eft)})
-                                </span>
-                              )}
-                            </div>
+                            <span className={quotaDiffers ? "font-bold text-yellow-700" : ""}>{assignedQuota}</span>
+                          )}
+                          {quotaDiffers && (
+                            <span className="text-xs text-yellow-600 ml-1">(≠ {quotaTheorique})</span>
                           )}
                         </TableCell>
+
                         <TableCell>
                           {editingId === surveillant.id ? (
                             <EditableCell
@@ -933,6 +966,18 @@ export const SurveillantListEditor = () => {
                       </TableRow>
                     );
                   })}
+                  {/* Totals Row */}
+                  <TableRow>
+                    <TableCell colSpan={showSensitiveData ? 7 : 4} className="text-right font-semibold">
+                      Totaux (affichés):
+                    </TableCell>
+                    {showSensitiveData && <TableCell></TableCell>}
+                    <TableCell className="font-semibold">{totalTheoriqueQuota}</TableCell>
+                    <TableCell className="font-semibold">{totalAssignedQuota}</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>

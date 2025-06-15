@@ -9,9 +9,12 @@ interface EditableCellProps {
   type?: 'text' | 'number' | 'switch' | 'select' | 'date';
   options?: { value: string; label: string }[];
   onSave: (value: any) => void;
+  min?: number;
+  max?: number;
+  step?: string;
 }
 
-export const EditableCell = ({ value, type = 'text', options, onSave }: EditableCellProps) => {
+export const EditableCell = ({ value, type = 'text', options, onSave, min, max, step }: EditableCellProps) => {
   const [currentValue, setCurrentValue] = useState(value);
 
   const handleChange = (newValue: any) => {
@@ -49,10 +52,13 @@ export const EditableCell = ({ value, type = 'text', options, onSave }: Editable
     <Input
       type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
       value={currentValue || ''}
+      min={type === 'number' ? min : undefined}
+      max={type === 'number' ? max : undefined}
+      step={type === 'number' ? step : undefined}
       onChange={(e) => {
-        const newValue = type === 'number' ? 
-          (e.target.value ? parseInt(e.target.value) : '') : 
-          e.target.value;
+        const newValue = type === 'number'
+          ? (e.target.value !== '' ? parseFloat(e.target.value) : '')
+          : e.target.value;
         handleChange(newValue);
       }}
       className="w-full"
