@@ -68,6 +68,10 @@ export const useExamenReview = () => {
           examenUpdates.surveillants_pre_assignes = Math.ceil(updates.surveillants_pre_assignes_total / groupe.examens.length);
         }
 
+        if (updates.faculte !== undefined) {
+          examenUpdates.faculte = updates.faculte;
+        }
+
         if (Object.keys(examenUpdates).length > 0) {
           const { error } = await supabase
             .from('examens')
