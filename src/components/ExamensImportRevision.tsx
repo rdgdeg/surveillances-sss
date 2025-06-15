@@ -136,8 +136,28 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   let columns: string[] = [];
   if (rows[0]) {
     const dataCols = Object.keys(rows[0].data || {});
-    columns = IDEAL_COL_ORDER.filter(c => dataCols.includes(c));
-    columns = columns.concat(dataCols.filter(c => !columns.includes(c)));
+
+    // Nouvelle logique : injecter Durée juste après Fin
+    // On prend le tableau trouvé, puis on ajuste Durée
+    const indexFin = dataCols.findIndex(
+      c =>
+        ["Fin", "Heure_fin", "heure_fin"].includes(c)
+    );
+    let colsForDisplay = [...dataCols];
+    // Si Durée existe, place-la juste après Fin si possible
+    const dureeCandidate = dataCols.find(c => ["Duree", "Durée", "duree"].includes(c));
+    if (dureeCandidate) {
+      // Retire Durée de sa place actuelle
+      colsForDisplay = colsForDisplay.filter(c => c !== dureeCandidate);
+      // Place juste après Fin (ou à la fin si Fin n'existe pas)
+      if (indexFin !== -1) {
+        colsForDisplay.splice(indexFin + 1, 0, dureeCandidate);
+      } else {
+        colsForDisplay.push(dureeCandidate);
+      }
+    }
+    columns = IDEAL_COL_ORDER.filter(c => colsForDisplay.includes(c))
+      .concat(colsForDisplay.filter(c => !IDEAL_COL_ORDER.includes(c)));
   }
 
   const filteredRows = rows.filter(row => {
@@ -180,8 +200,8 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   }
 
   function getDureeAffichee(val: any) {
-    // Affiche la valeur brute importée, sans conversion.
-    return val?.toString() ?? "";
+    // Conversion au même format que début/fin
+    return excelTimeToHHMM(val);
   }
 
   const handleEdit = (id: string, data: any) => {

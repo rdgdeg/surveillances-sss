@@ -1,4 +1,3 @@
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
@@ -44,9 +43,9 @@ export function ExamensImportTableRow({
               />
             )
             : (
-              // Pour Durée, utilise la valeur brute (plus de conversion)
+              // Colonne Durée = format hh:mm !
               col === "Duree" || col === "Durée" || col === "duree"
-                ? row.data?.[col]?.toString() ?? ""
+                ? getDureeAffichee(row.data?.[col])
                 : ["Debut", "Heure_debut", "heure_debut"].includes(col)
                   ? excelTimeToHHMM(row.data?.[col])
                   : ["Fin", "Heure_fin", "heure_fin"].includes(col)
