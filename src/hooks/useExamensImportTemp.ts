@@ -1,3 +1,4 @@
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
@@ -191,7 +192,7 @@ export function useBatchValidateExamensImport() {
             heure_fin: heureFin,
             salle: salle,
             faculte: faculte,
-            type_requis: "TOUS",
+            type_requis: "ENSEIGNANT", // Changé de "TOUS" vers une valeur valide
             nombre_surveillants: 1,
             statut_validation: "VALIDE"
           };
