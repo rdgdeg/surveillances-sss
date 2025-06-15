@@ -15,6 +15,7 @@ import { SensitiveDataManager } from "./SensitiveDataManager";
 import { EditableCell } from "./EditableCell";
 import { supabase } from "@/integrations/supabase/client";
 import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin, Search, Filter, SortAsc, SortDesc, CheckSquare, Square, ArrowUpDown } from "lucide-react";
+import { safeNumber } from "@/lib/utils";
 
 interface SurveillantData {
   id: string;
@@ -196,10 +197,10 @@ export const SurveillantListEditor = () => {
       if (aValue === null) return sortDirection === 'asc' ? 1 : -1;
       if (bValue === null) return sortDirection === 'asc' ? -1 : 1;
 
-      // Correction : pour les comparaisons de type, cast explicitement les deux côtés en number si champ = quota
+      // Correction : comparison uniquement sur nombres pour quota
       if (sortField === 'quota') {
-        const numA = Number(aValue) || 0;
-        const numB = Number(bValue) || 0;
+        const numA = safeNumber(aValue);
+        const numB = safeNumber(bValue);
         if (numA < numB) return sortDirection === 'asc' ? -1 : 1;
         if (numA > numB) return sortDirection === 'asc' ? 1 : -1;
         return 0;
@@ -686,10 +687,10 @@ export const SurveillantListEditor = () => {
                     const assignedQuota =
                       surveillant.quota !== undefined &&
                       surveillant.quota !== null &&
-                      surveillant.quota !== "" ? Number(surveillant.quota) : quotaTheorique;
-                    const numAssignedQuota = Number(assignedQuota) || 0;
-                    const numQuotaTheorique = Number(quotaTheorique) || 0;
-                    const quotaDiffers = Number(numAssignedQuota) !== Number(numQuotaTheorique);
+                      surveillant.quota !== "" ? surveillant.quota : quotaTheorique;
+                    const numAssignedQuota = safeNumber(assignedQuota);
+                    const numQuotaTheorique = safeNumber(quotaTheorique);
+                    const quotaDiffers = numAssignedQuota !== numQuotaTheorique;
 
                     return (
                       <TableRow 
