@@ -39,10 +39,10 @@ const COLUMN_MAP = {
     "facultesecreteriat", "faculte", "secreteriat", 
     "facultésecreteriat", "faculté", 
     "facultésecrétariat", "faculté/secrétariat","faculte/secreteriat",
-    "facultesecretariat", "faculte/secrétariat", "faculté/secreteriat",
+    "facultesecretariat", "faculte/secrétariat", "faculté/secréteriat",
     "faculte/secrétariat", "faculté/secrétariat",
     "faculte/secreteriat", "faculté/secrétariat",
-    "faculté/secreteriat", "faculté/secrétariat",
+    "faculté/secréteriat", "faculté/secrétariat",
     "faculté/secrétariat", "faculté / secreteriat", "faculté / secrétariat"
   ],
   code: ["code", "codeexamen"],
@@ -59,6 +59,43 @@ function findColKey(keys: string[], wanted: string[]): string | null {
   return null;
 }
 
+// Liste des noms recommandés et leurs colonnes
+const RECOMMENDED_COLUMNS = [
+  { ideal: "Jour", matchers: ["jour", "date", "dateexamen"] },
+  { ideal: "Debut", matchers: ["debut", "heuredebut", "debutheure", "heuredebutexamen", "début"] },
+  { ideal: "Fin", matchers: ["fin", "heurefin", "finheure", "heurefinexamen"] },
+  { ideal: "Duree", matchers: ["dureeh","duree","dureeexamen","durée","duree(h)","duréeh"] },
+  { ideal: "Activite", matchers: ["activite","matiere","nomexamen","activité"] },
+  { ideal: "Faculte", matchers: ["faculte","faculté","secreteriat","secrétariat"] },
+  { ideal: "Code", matchers: ["code","codeexamen"] },
+  { ideal: "Auditoires", matchers: ["auditoires","auditoire","salle"] },
+  { ideal: "Etudiants", matchers: ["etudiants","etudiant","effectif","nombreetudiants"] },
+  { ideal: "Enseignants", matchers: ["enseignants","enseignant"] },
+];
+
+// Regex: accent/caractère spécial/espaces hors lettres ou chiffres
+function isNonIdealHeader(header: string): boolean {
+  // Accepts e.g. "Durée", "Début", "Faculté / Secrétariat", "Code examen"
+  // Refuse si contient autre chose que a-zA-Z0-9 (slash ou espace toléré si besoin)
+  return /[àâäéèêëîïôöùûüçœÿÀÂÄÉÈÊËÎÏÔÖÙÛÜÇŒŸ]/.test(header) ||
+    /[^\w\d]/.test(header) ||
+    /\s/.test(header);
+}
+
+// Trouver les corrections recommandées
+function getSuggestions(headers: string[]) {
+  return headers
+    .filter(h => isNonIdealHeader(h))
+    .map(h => {
+      // Proposition : suggère le "ideal" le plus proche selon normalisation
+      const norm = normalizeCol(h);
+      const nearest = RECOMMENDED_COLUMNS.find(col =>
+        col.matchers.some(m => m === norm || normalizeCol(m) === norm)
+      );
+      return { name: h, suggestion: nearest ? nearest.ideal : null };
+    });
+}
+
 export const StandardExcelImporter = () => {
   const [file, setFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<any[]>([]);
@@ -68,6 +105,7 @@ export const StandardExcelImporter = () => {
 
   // Les clés réelles trouvées
   const [detectedColumns, setDetectedColumns] = useState<any | null>(null);
+  const [headerSuggestions, setHeaderSuggestions] = useState<{name: string, suggestion: string|null}[]>([]);
 
   // Fonction utilitaire pour convertir une date Excel/chaîne en YYYY-MM-DD
   function formatDateCell(value: any): string | null {
@@ -116,6 +154,10 @@ export const StandardExcelImporter = () => {
           const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
           const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
 
+          // Ajout : suggestions naming
+          const suggestions = getSuggestions(cols);
+          setHeaderSuggestions(suggestions);
+
           // Mapping amélioré !
           const colMap: Record<string, string | null> = {};
           Object.entries(COLUMN_MAP).forEach(([field, variations]) => {
@@ -151,12 +193,14 @@ export const StandardExcelImporter = () => {
           });
           setParsedRows([]);
           setPreviewRows([]);
+          setHeaderSuggestions([]);
         }
       };
       reader.readAsBinaryString(selected);
     } else {
       setPreviewRows([]);
       setParsedRows([]);
+      setHeaderSuggestions([]);
     }
   };
 
@@ -291,6 +335,44 @@ export const StandardExcelImporter = () => {
           onChange={handleFileChange}
           className="mb-2"
         />
+
+        {/* Zone d'avertissement si colonnes à améliorer */}
+        {headerSuggestions.length > 0 && (
+          <Alert variant="default" className="bg-yellow-50 border-yellow-400 text-yellow-800">
+            <div className="flex items-start gap-2">
+              <span className="mt-1 mr-2">
+                <svg width="20" height="20" fill="orange" viewBox="0 0 24 24"><g><circle cx="12" cy="12" r="10" fill="#f59e42"/><text x="12" y="16" fontSize="13" textAnchor="middle" fill="#fff" fontWeight="bold">!</text></g></svg>
+              </span>
+              <div>
+                <AlertTitle>Astuce pour vos fichiers Excel</AlertTitle>
+                <AlertDescription>
+                  Noms de colonnes ci-dessous à simplifier pour les prochains imports.<br />
+                  Utilisez des intitulés sans accent, sans espace ni caractères spéciaux :
+                  <ul className="list-disc ml-6 mt-1 space-y-0">
+                    {headerSuggestions.map(s =>
+                      <li key={s.name}>
+                        <span className="font-semibold">{s.name}</span>
+                        {s.suggestion && (
+                          <> → <span className="text-green-900 font-medium">{s.suggestion}</span></>
+                        )}
+                      </li>
+                    )}
+                  </ul>
+                  <div className="mt-2">
+                    <b>Exemple recommandé de colonnes :</b><br />
+                    <code className="bg-white py-0.5 px-1 rounded border text-xs">
+                      Jour, Debut, Fin, Duree, Activite, Faculte, Code, Auditoires, Etudiants, Enseignants
+                    </code>
+                  </div>
+                  <div className="mt-2 text-xs">
+                    <b>Format des heures (conseillé)&nbsp;:</b> <span className="font-mono">08:30</span> (HH:MM, sur 24h)<br />
+                    <b>Format des dates (conseillé)&nbsp;:</b> <span className="font-mono">2025-06-20</span> (YYYY-MM-DD)
+                  </div>
+                </AlertDescription>
+              </div>
+            </div>
+          </Alert>
+        )}
 
         {/* Aperçu augmenté pour montrer les correspondances */}
         {previewRows.length > 0 && (
