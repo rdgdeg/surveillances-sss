@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,12 +39,32 @@ export const ExamenCodeUploader = () => {
         valides: 0,
         rejetes: 0,
         necessitent_validation: 0,
-        errors: [] as string[]
+        errors: [] as string[],
+        skipped: [] as { code_examen: string, date_examen: string }[]
       };
 
       for (const examenData of examensData) {
         try {
           results.total++;
+
+          // Vérifier si ce code+date existe déjà pour la session
+          const { data: existingExam, error: checkError } = await supabase
+            .from('examens')
+            .select('id')
+            .eq('session_id', activeSession.id)
+            .eq('code_examen', examenData.code_examen)
+            .eq('date_examen', examenData.date_examen)
+            .maybeSingle();
+
+          if (checkError) throw checkError;
+          if (existingExam) {
+            // Ne pas insérer en cas de doublon
+            results.skipped.push({
+              code_examen: examenData.code_examen,
+              date_examen: examenData.date_examen
+            });
+            continue;
+          }
 
           // Insérer l'examen
           const { data: examen, error: examenError } = await supabase
@@ -121,9 +140,17 @@ export const ExamenCodeUploader = () => {
       queryClient.invalidateQueries({ queryKey: ['examens-validation'] });
       queryClient.invalidateQueries({ queryKey: ['examens-review'] });
 
+      let skippedMsg = "";
+      if (results.skipped && results.skipped.length > 0) {
+        skippedMsg = `\n${results.skipped.length} doublon${results.skipped.length > 1 ? "s" : ""} ignoré${results.skipped.length > 1 ? "s" : ""} (même code et date) :\n` +
+          results.skipped.map(sk => `${sk.code_examen} (${sk.date_examen})`).join(', ');
+      }
+
       toast({
         title: "Import terminé",
-        description: `${results.total} examens traités. ${results.valides} validés automatiquement, ${results.necessitent_validation} nécessitent une validation manuelle.`,
+        description: `${results.total} examens traités. ${results.valides} validés automatiquement, ${results.necessitent_validation} nécessitent une validation manuelle.` +
+          skippedMsg,
+        variant: results.skipped && results.skipped.length > 0 ? "destructive" : "default",
       });
 
       if (results.errors.length > 0) {
