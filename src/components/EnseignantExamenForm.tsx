@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,13 +16,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar as ShadcnCalendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { RechercheExamenSection } from "./RechercheExamenSection";
-import { ExamenRecap } from "./ExamenRecap";
-import { EquipePedagogiqueForm } from "./EquipePedagogiqueForm";
-import { useExamenManagement } from "@/hooks/useExamenManagement";
-import { usePersonnesEquipe } from "@/hooks/usePersonnesEquipe";
-import { useExamenMutations } from "@/hooks/useExamenMutations";
-import { useExamenCalculations } from "@/hooks/useExamenCalculations";
 
 export const EnseignantExamenForm = () => {
   // --------- GESTION DES ETATS ET HOOKS OPTIMISES ---------
@@ -184,3 +178,4 @@ const BlocResume = ({ nombre, titre, color }: { nombre: number, titre: string, c
     <div className="text-base text-gray-600">{titre}</div>
   </div>
 );
+

@@ -188,6 +188,7 @@ export const EnseignantViewManager = () => {
                     <TableHead>Auditoire</TableHead>
                     <TableHead>Besoins Surveillance</TableHead>
                     <TableHead>Statut</TableHead>
+                    <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -249,6 +250,17 @@ export const EnseignantViewManager = () => {
                               : "À valider"}
                           </Badge>
                         </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              window.location.href = "/enseignant";
+                            }}
+                          >
+                            Confirmer besoins
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -272,3 +284,4 @@ export const EnseignantViewManager = () => {
     </div>
   );
 };
+
