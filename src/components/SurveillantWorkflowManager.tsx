@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SimpleSurveillantManager } from "./SimpleSurveillantManager";
 import { NewFileUploader } from "./NewFileUploader";
 import { Button } from "@/components/ui/button";
-import { Users, FileSpreadsheet, BadgeEuro, Checkbox, ArrowRight, ListChecks } from "lucide-react";
+import { Users, FileSpreadsheet, BadgeEuro, ArrowRight, ListChecks, CheckSquare } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 const surveillantTemplateColumns = [
