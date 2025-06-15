@@ -386,6 +386,32 @@ export function SurveillantUnifiedManager() {
   // Barre d’actions pour sélection multiple
   const hasSelection = selectedRows.length > 0;
 
+  // Ajout: gestion de mutation rapide activation/désactivation (par ligne)
+  const toggleActiveMutation = useMutation({
+    mutationFn: async ({ sessionEntryId, is_active }: { sessionEntryId: string, is_active: boolean }) => {
+      const { error } = await supabase
+        .from("surveillant_sessions")
+        .update({ is_active })
+        .eq("id", sessionEntryId);
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast({
+        title: "Statut d'activation modifié",
+        description: "Le surveillant a été (dés)activé.",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erreur",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   return (
     <div className="space-y-6">
       <Card>
@@ -464,6 +490,8 @@ export function SurveillantUnifiedManager() {
                       <TableHead className="py-3 px-2">Nom</TableHead>
                       <TableHead className="py-3 px-2">Prénom</TableHead>
                       <TableHead className="py-3 px-2">Email</TableHead>
+                      <TableHead className="py-3 px-2">Actif</TableHead>
+                      <TableHead className="py-3 px-2">Type</TableHead>
                       <TableHead className="py-3 px-2">Statut</TableHead>
                       <TableHead className="py-3 px-2">Affectation</TableHead>
                       <TableHead className="py-3 px-2">ETP</TableHead>
@@ -488,11 +516,11 @@ export function SurveillantUnifiedManager() {
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={12}>Chargement...</TableCell>
+                        <TableCell colSpan={14}>Chargement...</TableCell>
                       </TableRow>
                     ) : currentRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center">Aucun surveillant actif</TableCell>
+                        <TableCell colSpan={14} className="text-center">Aucun surveillant actif</TableCell>
                       </TableRow>
                     ) : (
                       currentRows?.map((row) => {
@@ -501,6 +529,7 @@ export function SurveillantUnifiedManager() {
 
                         // Calcul du quota théorique (Assistant: ETP × 6, PAT FASB: ETP × 12, autres: 0)
                         let statut = isEdit ? editValues.statut ?? row.statut : row.statut;
+                        let type = row.type;
                         let etp = isEdit ? editValues.etp ?? row.eft ?? 0 : row.eft ?? 0;
 
                         const quotaTheorique = getTheoreticalQuota(statut, etp);
@@ -525,6 +554,37 @@ export function SurveillantUnifiedManager() {
                             <TableCell className="px-2 py-2">{row.nom}</TableCell>
                             <TableCell className="px-2 py-2">{row.prenom}</TableCell>
                             <TableCell className="px-2 py-2">{row.email}</TableCell>
+                            {/* --- COLONNE ACTIF --- */}
+                            <TableCell className="px-2 py-2">
+                              {row.session_entry_id && row.quota !== undefined ? (
+                                isEdit ? (
+                                  <span>
+                                    {row.statut /* Dans ce contexte, on modifie uniquement le quota/ETP/affect, le statut d'activation par session reste géré via le badge ou l'action directe. */}
+                                  </span>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant={row.quota! > 0 ? (row.statut === "actif" ? "secondary" : "outline") : "outline"}
+                                    className={row.statut === "actif" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}
+                                    onClick={() =>
+                                      toggleActiveMutation.mutate({
+                                        sessionEntryId: row.session_entry_id!,
+                                        is_active: row.statut !== "actif",
+                                      })
+                                    }
+                                  >
+                                    {row.statut === "actif" ? "Actif" : "Désactivé"}
+                                  </Button>
+                                )
+                              ) : (
+                                <span>-</span>
+                              )}
+                            </TableCell>
+                            {/* --- COLONNE TYPE --- */}
+                            <TableCell className="px-2 py-2">
+                              <Badge variant="outline">{type}</Badge>
+                            </TableCell>
+                            {/* --- COLONNE STATUT (editable) --- */}
                             <TableCell className="px-2 py-2">
                               {isEdit ? (
                                 <select
@@ -546,6 +606,7 @@ export function SurveillantUnifiedManager() {
                                 <Badge variant="outline">{row.statut}</Badge>
                               )}
                             </TableCell>
+                            {/* ... keep existing code (affect, etp, quotas, facs...) the same ... */}
                             <TableCell className="px-2 py-2">
                               {isEdit ? (
                                 <select
@@ -567,7 +628,6 @@ export function SurveillantUnifiedManager() {
                                 row.affectation_fac || "-"
                               )}
                             </TableCell>
-                            {/* PAS de colonne campus */}
                             <TableCell className="px-2 py-2">
                               {isEdit ? (
                                 <Input
@@ -589,7 +649,7 @@ export function SurveillantUnifiedManager() {
                             </TableCell>
                             <TableCell className="px-2 py-2">
                               <span className="inline-block px-3 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200 min-w-[2.7rem] text-center">
-                                {getTheoreticalQuota(statut, etp)}
+                                {quotaTheorique}
                               </span>
                             </TableCell>
                             <TableCell className="px-2 py-2">
