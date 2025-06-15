@@ -35,7 +35,7 @@ interface SurveillantData {
   campus: string | null;
 }
 
-type SortField = 'nom' | 'prenom' | 'email' | 'type' | 'quota' | 'date_fin_contrat' | 'affectation_fac';
+type SortField = 'nom' | 'prenom' | 'email' | 'type' | 'quota' | 'date_fin_contrat' | 'affectation_fac' | 'eft';
 type SortDirection = 'asc' | 'desc';
 
 export const SurveillantListEditor = () => {
@@ -197,8 +197,8 @@ export const SurveillantListEditor = () => {
       if (aValue === null) return sortDirection === 'asc' ? 1 : -1;
       if (bValue === null) return sortDirection === 'asc' ? -1 : 1;
 
-      // Correction : conversion explicite en nombre pour quota
-      if (sortField === 'quota') {
+      // Correction : conversion explicite en nombre pour quota et eft
+      if (sortField === 'quota' || sortField === 'eft') {
         const numA = safeNumber(aValue);
         const numB = safeNumber(bValue);
         if (numA < numB) return sortDirection === 'asc' ? -1 : 1;
@@ -437,13 +437,14 @@ export const SurveillantListEditor = () => {
   // Helper: calculate quota théorique
   const calculateQuotaTheorique = (surveillant: SurveillantData) => {
     // If no ETP: fallback to 1
-    const etp = surveillant.eft !== undefined && surveillant.eft !== null && surveillant.eft !== "" ? Number(surveillant.eft) : 1;
+    const etp = surveillant.eft !== undefined && surveillant.eft !== null ? safeNumber(surveillant.eft) : 1;
     return Math.round(etp * defaultSessionQuota);
   };
 
   // Quota totals for displayed surveillants
-  const totalAssignedQuota = filteredAndSortedSurvaillants.reduce((sum, s) => sum + (Number(s.quota) || 0), 0);
+  const totalAssignedQuota = filteredAndSortedSurvaillants.reduce((sum, s) => sum + safeNumber(s.quota), 0);
   const totalTheoriqueQuota = filteredAndSortedSurvaillants.reduce((sum, s) => sum + calculateQuotaTheorique(s), 0);
+  const totalETP = filteredAndSortedSurvaillants.reduce((sum, s) => sum + safeNumber(s.eft || 1), 0);
 
   const SortableHeader = ({ field, children }: { field: SortField, children: React.ReactNode }) => (
     <TableHead 
@@ -477,11 +478,27 @@ export const SurveillantListEditor = () => {
             <span>Gestion des Surveillants</span>
           </CardTitle>
           <CardDescription>
-            Gérez les surveillants par catégorie avec filtres et options de recherche avancées.
+            Gérez les surveillants, leurs quotas et ETP par catégorie avec filtres et options de recherche avancées.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {/* Résumé des quotas */}
+            <div className="grid grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{totalETP.toFixed(1)}</div>
+                <div className="text-sm text-blue-800">Total ETP affiché</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{totalTheoriqueQuota}</div>
+                <div className="text-sm text-green-800">Quota théorique total</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">{totalAssignedQuota}</div>
+                <div className="text-sm text-orange-800">Quota assigné total</div>
+              </div>
+            </div>
+
             {/* Filtres et recherche */}
             <div className="flex flex-wrap gap-4 items-center">
               <div className="flex-1 min-w-[250px]">
@@ -655,9 +672,9 @@ export const SurveillantListEditor = () => {
                     <SortableHeader field="email">Email</SortableHeader>
                     <SortableHeader field="type">Type</SortableHeader>
                     <TableHead>Faculté interdite</TableHead>
+                    <SortableHeader field="eft">ETP</SortableHeader>
                     {showSensitiveData && (
                       <>
-                        <TableHead>ETP</TableHead>
                         <SortableHeader field="affectation_fac">Affectation</SortableHeader>
                         <SortableHeader field="date_fin_contrat">Fin contrat</SortableHeader>
                         <TableHead>GSM</TableHead>
@@ -683,11 +700,7 @@ export const SurveillantListEditor = () => {
 
                     // Quota calc
                     const quotaTheorique = calculateQuotaTheorique(surveillant);
-                    // Correction stricte : conversion explicite en nombre pour éviter les erreurs TS2367
-                    const assignedQuotaRaw = surveillant.quota !== undefined &&
-                      surveillant.quota !== null &&
-                      surveillant.quota !== "" ? surveillant.quota : quotaTheorique;
-                    const numAssignedQuota = safeNumber(assignedQuotaRaw);
+                    const numAssignedQuota = safeNumber(surveillant.quota);
                     const numQuotaTheorique = safeNumber(quotaTheorique);
                     // Correction : comparaison uniquement entre nombres
                     const quotaDiffers = numAssignedQuota !== numQuotaTheorique;
@@ -789,29 +802,33 @@ export const SurveillantListEditor = () => {
                             )
                           )}
                         </TableCell>
+
+                        {/* Colonne ETP (toujours visible) */}
+                        <TableCell>
+                          {editingId === surveillant.id ? (
+                            <EditableCell
+                              value={surveillant.eft ?? ""}
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              onSave={value =>
+                                setSurvaillants(prev =>
+                                  prev.map(s =>
+                                    s.id === surveillant.id ? { ...s, eft: value === "" ? null : parseFloat(value) } : s
+                                  )
+                                )
+                              }
+                            />
+                          ) : (
+                            <span className="font-medium">
+                              {surveillant.eft !== null ? safeNumber(surveillant.eft).toFixed(2) : <span className="text-gray-400">1.00</span>}
+                            </span>
+                          )}
+                        </TableCell>
                         
                         {/* Colonnes sensibles */}
                         {showSensitiveData && (
                           <>
-                            <TableCell>
-                              {editingId === surveillant.id ? (
-                                <EditableCell
-                                  value={surveillant.eft ?? ""}
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  onSave={value =>
-                                    setSurvaillants(prev =>
-                                      prev.map(s =>
-                                        s.id === surveillant.id ? { ...s, eft: value === "" ? null : parseFloat(value) } : s
-                                      )
-                                    )
-                                  }
-                                />
-                              ) : (
-                                <span>{surveillant.eft ?? <span className="text-gray-400">-</span>}</span>
-                              )}
-                            </TableCell>
                             <TableCell>
                               {editingId === surveillant.id ? (
                                 <EditableCell
@@ -900,28 +917,20 @@ export const SurveillantListEditor = () => {
 
                         {/* Quota théorique */}
                         <TableCell>
-                          <span>{quotaTheorique}</span>
+                          <span className="text-blue-600 font-medium">{quotaTheorique}</span>
                         </TableCell>
 
-                        {/* Quota assigné */}
+                        {/* Quota assigné (toujours éditable) */}
                         <TableCell>
-                          {editingId === surveillant.id ? (
-                            <EditableCell
-                              value={numAssignedQuota}
-                              type="number"
-                              min={0}
-                              step="1"
-                              onSave={value =>
-                                setSurvaillants(prev =>
-                                  prev.map(s =>
-                                    s.id === surveillant.id ? { ...s, quota: value === "" ? 0 : parseInt(value) } : s
-                                  )
-                                )
-                              }
-                            />
-                          ) : (
-                            <span className={quotaDiffers ? "font-bold text-yellow-700" : ""}>{numAssignedQuota}</span>
-                          )}
+                          <EditableCell
+                            value={numAssignedQuota}
+                            type="number"
+                            min={0}
+                            step="1"
+                            onSave={value =>
+                              updateSurveillant(surveillant.id, { quota: value === "" ? 0 : parseInt(value) })
+                            }
+                          />
                           {quotaDiffers && (
                             <span className="text-xs text-yellow-600 ml-1">(≠ {quotaTheorique})</span>
                           )}
@@ -944,9 +953,7 @@ export const SurveillantListEditor = () => {
                           <EditableCell
                             value={surveillant.is_active}
                             type="switch"
-                            onSave={(value) => setSurvaillants(prev => 
-                              prev.map(s => s.id === surveillant.id ? { ...s, is_active: value } : s)
-                            )}
+                            onSave={(value) => updateSurveillant(surveillant.id, { is_active: value })}
                           />
                         </TableCell>
                         <TableCell>
@@ -983,13 +990,21 @@ export const SurveillantListEditor = () => {
                     );
                   })}
                   {/* Totals Row */}
-                  <TableRow>
-                    <TableCell colSpan={showSensitiveData ? 7 : 4} className="text-right font-semibold">
+                  <TableRow className="bg-gray-50 font-semibold">
+                    <TableCell colSpan={showSensitiveData ? 7 : 6} className="text-right">
                       Totaux (affichés):
                     </TableCell>
-                    {showSensitiveData && <TableCell></TableCell>}
-                    <TableCell className="font-semibold">{totalTheoriqueQuota}</TableCell>
-                    <TableCell className="font-semibold">{totalAssignedQuota}</TableCell>
+                    <TableCell className="text-blue-600 font-bold">{totalETP.toFixed(1)}</TableCell>
+                    {showSensitiveData && (
+                      <>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                        <TableCell></TableCell>
+                      </>
+                    )}
+                    <TableCell className="text-green-600 font-bold">{totalTheoriqueQuota}</TableCell>
+                    <TableCell className="text-orange-600 font-bold">{totalAssignedQuota}</TableCell>
                     <TableCell></TableCell>
                     <TableCell></TableCell>
                     <TableCell></TableCell>
