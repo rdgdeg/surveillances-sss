@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,7 +13,7 @@ interface SuiviConfirmationFiltersProps {
     searchTerm: string;
     sortBy: string;
     statusFilter: string;
-    selectedExamen?: any;
+    selectedExamen: any | null;
   }) => void;
 }
 
@@ -25,7 +24,7 @@ export function SuiviConfirmationFilters({ examens, onFilterChange }: SuiviConfi
   const [selectedExamen, setSelectedExamen] = useState<any>(null);
   const [open, setOpen] = useState(false);
 
-  const handleFilterUpdate = (updates: Partial<typeof filters>) => {
+  const handleFilterUpdate = (updates: Partial<{ searchTerm: string; sortBy: string; statusFilter: string; selectedExamen: any | null; }>) => {
     const filters = {
       searchTerm,
       sortBy,
