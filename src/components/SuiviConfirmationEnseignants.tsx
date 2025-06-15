@@ -55,7 +55,7 @@ export function SuiviConfirmationEnseignants() {
                   </TableCell>
                   <TableCell>
                     {ex.surveillants_enseignant > 0 ? (
-                      <Badge variant="success">Présent</Badge>
+                      <Badge variant="default">Présent</Badge>
                     ) : (
                       <Badge variant="destructive">Absent</Badge>
                     )}
@@ -65,7 +65,7 @@ export function SuiviConfirmationEnseignants() {
                   </TableCell>
                   <TableCell>
                     {ex.besoins_confirmes_par_enseignant ? (
-                      <Badge variant="success">Confirmé</Badge>
+                      <Badge variant="default">Confirmé</Badge>
                     ) : (
                       <Badge variant="outline">En attente</Badge>
                     )}

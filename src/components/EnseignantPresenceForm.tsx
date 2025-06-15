@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,7 +44,7 @@ export const EnseignantPresenceForm = ({
     toast({
       title: "Présence enregistrée",
       description: "Vos informations ont bien été sauvegardées.",
-      variant: "success"
+      variant: "default"
     });
   };
 
