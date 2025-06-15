@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,41 +8,81 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Eye, Users, Calendar, Clock, MapPin, Filter } from "lucide-react";
+import { Search, Eye, Users, Calendar, Clock, MapPin, UserCheck, ChevronDown, ChevronUp } from "lucide-react";
 import { groupExamens, ExamenGroupe } from "@/utils/examenReviewUtils";
-
-// Nouveau : Select (filtre)
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
+interface PersonneAidante {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  statut: string;
+  est_assistant: boolean;
+}
+
+interface ExamenWithTeam {
+  id: string;
+  date_examen: string;
+  heure_debut: string;
+  heure_fin: string;
+  matiere: string;
+  salle: string;
+  code_examen: string;
+  faculte: string;
+  statut_validation: string;
+  surveillants_enseignant: number;
+  surveillants_amenes: number;
+  surveillants_pre_assignes: number;
+  surveillants_a_attribuer: number;
+  personnes_aidantes: PersonneAidante[];
+  professeur_present: boolean;
+  equipe_confirmee: boolean;
+}
 
 export const EnseignantViewManager = () => {
   const { data: activeSession } = useActiveSession();
   const [searchTerm, setSearchTerm] = useState('');
-  // Ajout du filtre de statut (ALL/VALIDE)
   const [statutFilter, setStatutFilter] = useState<'ALL' | 'VALIDE'>('VALIDE');
-  // Ajout des filtres faculté et code
   const [faculteFilter, setFaculteFilter] = useState('');
   const [codeFilter, setCodeFilter] = useState('');
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
-  // Requête pour TOUS les examens actifs
   const { data: allExamens, isLoading } = useQuery({
-    queryKey: ['examens-tous', activeSession?.id],
-    queryFn: async () => {
+    queryKey: ['examens-tous-avec-equipe', activeSession?.id],
+    queryFn: async (): Promise<ExamenWithTeam[]> => {
       if (!activeSession?.id) return [];
+      
       const { data, error } = await supabase
         .from('examens')
-        .select('*')
+        .select(`
+          *,
+          personnes_aidantes!inner(
+            id,
+            nom,
+            prenom,
+            email,
+            statut,
+            est_assistant
+          )
+        `)
         .eq('session_id', activeSession.id)
         .eq('is_active', true)
         .order('date_examen', { ascending: true })
         .order('heure_debut', { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      
+      return (data || []).map(examen => ({
+        ...examen,
+        professeur_present: examen.surveillants_enseignant > 0,
+        equipe_confirmee: examen.personnes_aidantes?.length > 0
+      }));
     },
     enabled: !!activeSession?.id
   });
 
-  // Requête contraintes auditoires inchangée
   const { data: contraintesAuditoires } = useQuery({
     queryKey: ['contraintes-auditoires'],
     queryFn: async () => {
@@ -53,28 +94,24 @@ export const EnseignantViewManager = () => {
     }
   });
 
-  // Extraction des facultés possibles pour le sélecteur
-  const faculteOptions = Array.from(new Set((allExamens || []).map((e: any) => e.faculte).filter(Boolean)));
+  const faculteOptions = Array.from(new Set((allExamens || []).map(e => e.faculte).filter(Boolean)));
 
-  // Deux filtres : statut filteré (VALIDE) ou non
   const examensFiltres = useMemo(() => {
     let res = allExamens || [];
-    if (statutFilter === 'VALIDE') res = res.filter((e: any) => e.statut_validation === 'VALIDE');
-    if (faculteFilter) res = res.filter((e: any) => e.faculte === faculteFilter);
-    if (codeFilter) res = res.filter((e: any) => (e.code_examen || "").includes(codeFilter));
+    if (statutFilter === 'VALIDE') res = res.filter(e => e.statut_validation === 'VALIDE');
+    if (faculteFilter) res = res.filter(e => e.faculte === faculteFilter);
+    if (codeFilter) res = res.filter(e => (e.code_examen || "").includes(codeFilter));
     return res;
   }, [allExamens, statutFilter, faculteFilter, codeFilter]);
-  // Comptes pour l’UX
-  const totalExamens = allExamens?.length || 0;
-  const totalValidés = allExamens?.filter((e: any) => e.statut_validation === 'VALIDE').length || 0;
 
-  // Grouper selon contraintes auditoires (comme avant)
+  const totalExamens = allExamens?.length || 0;
+  const totalValidés = allExamens?.filter(e => e.statut_validation === 'VALIDE').length || 0;
+
   const examensGroupes = useMemo(() => {
     if (!examensFiltres || !contraintesAuditoires) return [];
     return groupExamens(examensFiltres, contraintesAuditoires);
   }, [examensFiltres, contraintesAuditoires]);
 
-  // Filtre recherche utilisateur
   const filteredExamens = useMemo(() => {
     if (!searchTerm.trim()) return examensGroupes;
     const searchLower = searchTerm.toLowerCase();
@@ -84,6 +121,16 @@ export const EnseignantViewManager = () => {
       groupe.auditoire_unifie.toLowerCase().includes(searchLower)
     );
   }, [examensGroupes, searchTerm]);
+
+  const toggleRowExpansion = (groupeKey: string) => {
+    const newExpanded = new Set(expandedRows);
+    if (newExpanded.has(groupeKey)) {
+      newExpanded.delete(groupeKey);
+    } else {
+      newExpanded.add(groupeKey);
+    }
+    setExpandedRows(newExpanded);
+  };
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('fr-FR', {
@@ -106,6 +153,7 @@ export const EnseignantViewManager = () => {
       </Card>
     );
   }
+
   if (isLoading) {
     return (
       <Card>
@@ -122,10 +170,10 @@ export const EnseignantViewManager = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Eye className="h-5 w-5" />
-            <span>Vue Enseignant - Examens</span>
+            <span>Vue Enseignant - Examens & Équipes</span>
           </CardTitle>
           <CardDescription>
-            Consultez tous les examens de la session et leurs besoins en surveillance
+            Consultez tous les examens de la session avec les détails des équipes pédagogiques
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -167,17 +215,14 @@ export const EnseignantViewManager = () => {
                   <SelectValue placeholder="Afficher..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="VALIDE">
-                    Examens validés uniquement
-                  </SelectItem>
-                  <SelectItem value="ALL">
-                    Tous les examens actifs
-                  </SelectItem>
+                  <SelectItem value="VALIDE">Examens validés uniquement</SelectItem>
+                  <SelectItem value="ALL">Tous les examens actifs</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
-          {/* Statistiques & info */}
+
+          {/* Statistiques */}
           <div className="flex flex-wrap gap-4 items-center">
             <span className="text-sm text-gray-600">
               {totalValidés} examen{totalValidés > 1 ? 's' : ''} validé{totalValidés > 1 ? 's' : ''}
@@ -186,22 +231,18 @@ export const EnseignantViewManager = () => {
             </span>
             {statutFilter === "VALIDE" && (
               <span className="text-xs text-orange-600">
-                Seuls les examens validés sont affichés. Passez sur "Tous les examens" pour tout voir.
-              </span>
-            )}
-            {statutFilter === "ALL" && (
-              <span className="text-xs text-blue-600">
-                Tous les examens actifs de la session sont affichés, y compris ceux non validés.
+                Seuls les examens validés sont affichés.
               </span>
             )}
           </div>
-          {/* Aucun examen ? */}
+
+          {/* Table */}
           {filteredExamens.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               {searchTerm
                 ? 'Aucun examen trouvé pour cette recherche.'
                 : statutFilter === 'VALIDE'
-                  ? 'Aucun examen validé trouvé. Changez le filtre pour afficher tous les examens.'
+                  ? 'Aucun examen validé trouvé.'
                   : 'Aucun examen trouvé pour cette session.'}
             </div>
           ) : (
@@ -209,11 +250,13 @@ export const EnseignantViewManager = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead></TableHead>
                     <TableHead>Code Examen</TableHead>
                     <TableHead>Matière</TableHead>
                     <TableHead>Date & Heure</TableHead>
                     <TableHead>Auditoire</TableHead>
                     <TableHead>Besoins Surveillance</TableHead>
+                    <TableHead>Équipe Confirmée</TableHead>
                     <TableHead>Statut</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
@@ -221,80 +264,168 @@ export const EnseignantViewManager = () => {
                 <TableBody>
                   {filteredExamens.map((groupe) => {
                     const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
+                    const isExpanded = expandedRows.has(groupeKey);
+                    const hasTeam = groupe.examens.some((e: any) => e.equipe_confirmee);
+                    const hasProfesseur = groupe.examens.some((e: any) => e.professeur_present);
+                    
                     return (
-                      <TableRow key={groupeKey}>
-                        <TableCell className="font-medium">
-                          {groupe.code_examen || 'Non défini'}
-                        </TableCell>
-                        <TableCell>{groupe.matiere}</TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-1 text-sm">
-                              <Calendar className="h-3 w-3" />
-                              <span>{formatDate(groupe.date_examen)}</span>
+                      <>
+                        <TableRow key={groupeKey}>
+                          <TableCell>
+                            {hasTeam && (
+                              <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => toggleRowExpansion(groupeKey)}
+                                  >
+                                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                  </Button>
+                                </CollapsibleTrigger>
+                              </Collapsible>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {groupe.code_examen || 'Non défini'}
+                          </TableCell>
+                          <TableCell>{groupe.matiere}</TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="flex items-center space-x-1 text-sm">
+                                <Calendar className="h-3 w-3" />
+                                <span>{formatDate(groupe.date_examen)}</span>
+                              </div>
+                              <div className="flex items-center space-x-1 text-sm text-gray-600">
+                                <Clock className="h-3 w-3" />
+                                <span>{formatTime(groupe.heure_debut)} - {formatTime(groupe.heure_fin)}</span>
+                              </div>
                             </div>
-                            <div className="flex items-center space-x-1 text-sm text-gray-600">
-                              <Clock className="h-3 w-3" />
-                              <span>{formatTime(groupe.heure_debut)} - {formatTime(groupe.heure_fin)}</span>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-1">
-                            <MapPin className="h-3 w-3" />
-                            <span>{groupe.auditoire_unifie}</span>
-                            <Badge variant="outline" className="text-xs">
-                              {groupe.examens.length} salle{groupe.examens.length > 1 ? 's' : ''}
-                            </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
+                          </TableCell>
+                          <TableCell>
                             <div className="flex items-center space-x-1">
-                              <Users className="h-3 w-3" />
-                              <span className="text-sm font-medium">
-                                {groupe.nombre_surveillants_total} surveillant{groupe.nombre_surveillants_total > 1 ? 's' : ''} requis
-                              </span>
+                              <MapPin className="h-3 w-3" />
+                              <span>{groupe.auditoire_unifie}</span>
+                              <Badge variant="outline" className="text-xs">
+                                {groupe.examens.length} salle{groupe.examens.length > 1 ? 's' : ''}
+                              </Badge>
                             </div>
-                            <div className="grid grid-cols-2 gap-1 text-xs text-gray-600">
-                              <span>Enseignant: {groupe.surveillants_enseignant_total}</span>
-                              <span>Amenés: {groupe.surveillants_amenes_total}</span>
-                              <span>Pré-assignés: {groupe.surveillants_pre_assignes_total}</span>
-                              <span>À attribuer: {groupe.surveillants_a_attribuer_total}</span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="flex items-center space-x-1">
+                                <Users className="h-3 w-3" />
+                                <span className="text-sm font-medium">
+                                  {groupe.nombre_surveillants_total} surveillant{groupe.nombre_surveillants_total > 1 ? 's' : ''} requis
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1 text-xs text-gray-600">
+                                <span>Enseignant: {groupe.surveillants_enseignant_total}</span>
+                                <span>Amenés: {groupe.surveillants_amenes_total}</span>
+                                <span>Pré-assignés: {groupe.surveillants_pre_assignes_total}</span>
+                                <span>À attribuer: {groupe.surveillants_a_attribuer_total}</span>
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="default"
-                            className={
-                              groupe.examens.every((e: any) => e.statut_validation === 'VALIDE')
-                                ? "bg-green-100 text-green-800"
-                                : "bg-gray-100 text-gray-800"
-                            }
-                          >
-                            {groupe.examens.every((e: any) => e.statut_validation === 'VALIDE')
-                              ? "Validé"
-                              : "À valider"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              window.location.href = "/enseignant";
-                            }}
-                          >
-                            Confirmer besoins
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="flex items-center space-x-2">
+                                {hasProfesseur ? (
+                                  <Badge className="bg-green-100 text-green-800">
+                                    <UserCheck className="h-3 w-3 mr-1" />
+                                    Prof présent
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-gray-600">
+                                    Prof absent
+                                  </Badge>
+                                )}
+                              </div>
+                              {hasTeam && (
+                                <div className="text-xs text-blue-600">
+                                  Équipe configurée (cliquer pour détails)
+                                </div>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="default"
+                              className={
+                                groupe.examens.every((e: any) => e.statut_validation === 'VALIDE')
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }
+                            >
+                              {groupe.examens.every((e: any) => e.statut_validation === 'VALIDE')
+                                ? "Validé"
+                                : "À valider"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                window.location.href = "/enseignant";
+                              }}
+                            >
+                              Confirmer besoins
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                        {isExpanded && hasTeam && (
+                          <TableRow>
+                            <TableCell colSpan={9} className="bg-gray-50">
+                              <Collapsible open={isExpanded}>
+                                <CollapsibleContent>
+                                  <div className="p-4 space-y-3">
+                                    <h4 className="font-medium text-sm">Équipe pédagogique confirmée :</h4>
+                                    {groupe.examens.map((examen: any) => 
+                                      examen.personnes_aidantes?.length > 0 && (
+                                        <div key={examen.id} className="space-y-2">
+                                          {examen.salle && (
+                                            <div className="text-xs font-medium text-gray-700">Salle {examen.salle} :</div>
+                                          )}
+                                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                                            {examen.personnes_aidantes.map((personne: PersonneAidante) => (
+                                              <div key={personne.id} className="flex items-center space-x-2 p-2 bg-white rounded border">
+                                                <div className="flex-1">
+                                                  <div className="text-sm font-medium">
+                                                    {personne.nom} {personne.prenom}
+                                                  </div>
+                                                  <div className="text-xs text-gray-600">{personne.email}</div>
+                                                </div>
+                                                <div className="flex flex-col space-y-1">
+                                                  <Badge 
+                                                    variant={personne.est_assistant ? "default" : "secondary"}
+                                                    className="text-xs"
+                                                  >
+                                                    {personne.est_assistant ? "Assistant" : "Autre"}
+                                                  </Badge>
+                                                  <Badge variant="outline" className="text-xs">
+                                                    {personne.statut}
+                                                  </Badge>
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </>
                     );
                   })}
                 </TableBody>
               </Table>
             </div>
           )}
+
           {/* Résumé */}
           {filteredExamens.length > 0 && (
             <div className="flex justify-between items-center text-sm text-gray-600">

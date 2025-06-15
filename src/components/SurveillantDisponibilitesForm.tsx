@@ -1,6 +1,6 @@
 
-import { DisponibilitesCollector } from "./DisponibilitesCollector";
+import { SimpleSurveillantAvailabilityForm } from "./SimpleSurveillantAvailabilityForm";
 
 export function SurveillantDisponibilitesForm() {
-  return <DisponibilitesCollector mode="surveillant" />;
+  return <SimpleSurveillantAvailabilityForm />;
 }
