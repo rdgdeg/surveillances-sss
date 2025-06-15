@@ -182,6 +182,18 @@ export function useBatchValidateExamensImport() {
           if (!codeExamen || !dateExamenFormatted) {
             console.warn("Données critiques manquantes pour l'examen:", data);
           }
+
+          // Déterminer le nombre de surveillants : 0 si pas de salle valide, sinon utiliser la valeur par défaut
+          let nombreSurveillants = 1;
+          if (!salle || salle.trim() === "") {
+            nombreSurveillants = 0;
+          }
+
+          // Utiliser des valeurs valides pour type_requis selon les contraintes de la DB
+          let typeRequis = "Assistant"; // Valeur par défaut sûre
+          if (nombreSurveillants === 0) {
+            typeRequis = "Assistant"; // Même si 0 surveillant, on garde une valeur valide
+          }
           
           return {
             session_id: row.session_id,
@@ -190,10 +202,10 @@ export function useBatchValidateExamensImport() {
             date_examen: dateExamenFormatted, // Format YYYY-MM-DD pour PostgreSQL
             heure_debut: heureDebut,
             heure_fin: heureFin,
-            salle: salle,
+            salle: salle || "N/A", // Éviter les chaînes vides
             faculte: faculte,
-            type_requis: "ENSEIGNANT", // Changé de "TOUS" vers une valeur valide
-            nombre_surveillants: 1,
+            type_requis: typeRequis,
+            nombre_surveillants: nombreSurveillants,
             statut_validation: "VALIDE"
           };
         });
