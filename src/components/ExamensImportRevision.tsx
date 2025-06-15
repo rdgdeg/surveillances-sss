@@ -267,8 +267,17 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   // Ajout de la suppression en masse (mutation simple, réutilise le delete existant)
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase.from("examens_import_temp").delete().in("id", ids);
-      if (error) throw error;
+      const chunkSize = 100;
+      let errorMsg: string | null = null;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const { error } = await supabase.from("examens_import_temp").delete().in("id", chunk);
+        if (error) {
+          errorMsg = error.message || "Impossible de supprimer la sélection.";
+          break;
+        }
+      }
+      if (errorMsg) throw new Error(errorMsg);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["examens-import-temp"] });
@@ -276,8 +285,8 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
       setSelectedRows([]);
       setBulkDeleteOpen(false);
     },
-    onError: () => {
-      toast({ title: "Erreur", description: "Impossible de supprimer la sélection." });
+    onError: (error: any) => {
+      toast({ title: "Erreur", description: error.message || "Impossible de supprimer la sélection." });
     }
   });
 
