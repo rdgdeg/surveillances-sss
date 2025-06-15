@@ -1,4 +1,3 @@
-
 // Un manager unifié : jointure surveillants x surveillant_sessions,
 // édition ETP, quotas, import Excel surveillants, session active.
 
@@ -14,6 +13,19 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { UploadCloud, Save, Plus, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+// Facultés proposées (tu peux l'éditer à volonté)
+const FACULTES = [
+  { value: "FASB", label: "FASB" },
+  { value: "EPL", label: "EPL" },
+  { value: "FIAL", label: "FIAL" },
+  { value: "PSSP", label: "PSSP" },
+  { value: "LSM", label: "LSM" },
+  { value: "ESPO", label: "ESPO" },
+  { value: "FSP", label: "FSP" },
+  { value: "NONE", label: "Aucune restriction" }
+];
 
 // Types
 interface SurveillantJoin {
@@ -36,7 +48,7 @@ export function SurveillantUnifiedManager() {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
   const [editRow, setEditRow] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<{ etp?: number; quota?: number }>({});
+  const [editValues, setEditValues] = useState<{ etp?: number; quota?: number; faculte_interdite?: string }>({});
   const [showUpload, setShowUpload] = useState(false);
 
   // 1. CHARGEMENT surveillants (jointure surveillant_sessions)
@@ -153,12 +165,45 @@ export function SurveillantUnifiedManager() {
     },
   });
 
+  // Nouvelle mutation : faculte_interdite
+  const updateFaculteInterditeMutation = useMutation({
+    mutationFn: async ({
+      surveillantId,
+      faculte_interdite
+    }: {
+      surveillantId: string;
+      faculte_interdite: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("surveillants")
+        .update({ faculte_interdite: faculte_interdite === "NONE" ? null : faculte_interdite })
+        .eq("id", surveillantId);
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      toast({
+        title: "Faculté interdite mise à jour",
+        description: "La restriction a été prise en compte.",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Erreur",
+        description: err.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // 3. MODIFICATION des valeurs via édition par ligne
   const handleEdit = (row: SurveillantJoin) => {
     setEditRow(row.id);
     setEditValues({
       etp: row.eft ?? 0,
       quota: row.quota ?? ((row.eft ?? 0) * 6),
+      faculte_interdite: row.faculte_interdite ?? "NONE",
     });
   };
   const handleCancel = () => {
@@ -177,6 +222,14 @@ export function SurveillantUnifiedManager() {
         quota: editValues.quota ?? 0,
       });
     }
+    // Update faculte_interdite
+    if ((editValues.faculte_interdite ?? "NONE") !== (row.faculte_interdite ?? "NONE")) {
+      await updateFaculteInterditeMutation.mutateAsync({
+        surveillantId: row.id,
+        faculte_interdite:
+          editValues.faculte_interdite === "NONE" ? null : editValues.faculte_interdite,
+      });
+    }
     setEditRow(null);
     setEditValues({});
   };
@@ -191,9 +244,9 @@ export function SurveillantUnifiedManager() {
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div>
-            <CardTitle>Gestion unifiée des surveillants</CardTitle>
+            <CardTitle>Liste des surveillants</CardTitle>
             <CardDescription>
-              Gérez tous les surveillants, ETP, quotas et import sur la session courante.
+              Gérez tous les surveillants, ETP, quotas, restrictions de facultés, et import sur la session courante.
             </CardDescription>
           </div>
           <Button variant="outline" onClick={handleOpenUpload}>
@@ -216,21 +269,27 @@ export function SurveillantUnifiedManager() {
                   <TableHead>ETP</TableHead>
                   <TableHead>Quota théorique<br /><span className="text-xs text-gray-400">(ETP × 6)</span></TableHead>
                   <TableHead>Quota session</TableHead>
+                  <TableHead>
+                    Faculté interdite
+                    <span className="block text-xs text-gray-400 font-normal">Blocages attrib.</span>
+                  </TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={11}>Chargement...</TableCell>
+                    <TableCell colSpan={12}>Chargement...</TableCell>
                   </TableRow>
                 ) : surveillants && surveillants.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center">Aucun surveillant trouvé</TableCell>
+                    <TableCell colSpan={12} className="text-center">Aucun surveillant trouvé</TableCell>
                   </TableRow>
                 ) : (
                   surveillants?.map((row) => {
                     const isEdit = editRow === row.id;
+                    // pour badge couleur
+                    const hasRestriction = !!row.faculte_interdite && row.faculte_interdite !== "NONE";
                     return (
                       <TableRow key={row.id}>
                         <TableCell>{row.nom}</TableCell>
@@ -287,12 +346,49 @@ export function SurveillantUnifiedManager() {
                         </TableCell>
                         <TableCell>
                           {isEdit ? (
+                            <select
+                              className="w-36 rounded-md border px-2 py-1 text-sm"
+                              value={editValues.faculte_interdite ?? "NONE"}
+                              onChange={e =>
+                                setEditValues(v => ({
+                                  ...v,
+                                  faculte_interdite: e.target.value
+                                }))
+                              }
+                            >
+                              {FACULTES.map(f => (
+                                <option key={f.value} value={f.value}>
+                                  {f.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : hasRestriction ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="destructive" className="cursor-help w-32 flex justify-center">
+                                    {row.faculte_interdite}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  Ce surveillant ne pourra pas être affecté aux examens de cette faculté.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <Badge className="bg-gray-200 text-gray-600 w-32 flex justify-center">
+                              Aucune restriction
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {isEdit ? (
                             <>
                               <Button
                                 size="sm"
                                 variant="default"
                                 onClick={() => handleSave(row)}
-                                disabled={updateSurveillantMutation.isPending || updateQuotaSessionMutation.isPending}
+                                disabled={updateSurveillantMutation.isPending || updateQuotaSessionMutation.isPending || updateFaculteInterditeMutation.isPending}
                               >
                                 <Save className="h-4 w-4" />
                               </Button>
@@ -300,6 +396,7 @@ export function SurveillantUnifiedManager() {
                                 size="sm"
                                 variant="secondary"
                                 onClick={handleCancel}
+                                disabled={updateSurveillantMutation.isPending || updateQuotaSessionMutation.isPending || updateFaculteInterditeMutation.isPending}
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -335,7 +432,7 @@ export function SurveillantUnifiedManager() {
               <Button variant="outline" onClick={() => setShowUpload(false)}>Fermer</Button>
             </div>
             <div className="mt-2 text-xs text-muted">
-              Fonctionnalité à connecter à ton composant d'import. 
+              Fonctionnalité à connecter à ton composant d'import. 
             </div>
           </CardContent>
         </Card>
@@ -343,4 +440,3 @@ export function SurveillantUnifiedManager() {
     </div>
   );
 }
-
