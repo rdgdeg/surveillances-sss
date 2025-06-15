@@ -17,8 +17,7 @@ interface PersonneAidante {
   id: string;
   nom: string;
   prenom: string;
-  email: string;
-  statut: string;
+  email: string | null;
   est_assistant: boolean;
 }
 
@@ -29,13 +28,13 @@ interface ExamenWithTeam {
   heure_fin: string;
   matiere: string;
   salle: string;
-  code_examen: string;
-  faculte: string;
-  statut_validation: string;
-  surveillants_enseignant: number;
-  surveillants_amenes: number;
-  surveillants_pre_assignes: number;
-  surveillants_a_attribuer: number;
+  code_examen: string | null;
+  faculte: string | null;
+  statut_validation: string | null;
+  surveillants_enseignant: number | null;
+  surveillants_amenes: number | null;
+  surveillants_pre_assignes: number | null;
+  surveillants_a_attribuer: number | null;
   personnes_aidantes: PersonneAidante[];
   professeur_present: boolean;
   equipe_confirmee: boolean;
@@ -63,7 +62,6 @@ export const EnseignantViewManager = () => {
             nom,
             prenom,
             email,
-            statut,
             est_assistant
           )
         `)
@@ -76,7 +74,7 @@ export const EnseignantViewManager = () => {
       
       return (data || []).map(examen => ({
         ...examen,
-        professeur_present: examen.surveillants_enseignant > 0,
+        professeur_present: (examen.surveillants_enseignant || 0) > 0,
         equipe_confirmee: examen.personnes_aidantes?.length > 0
       }));
     },
@@ -107,10 +105,32 @@ export const EnseignantViewManager = () => {
   const totalExamens = allExamens?.length || 0;
   const totalValidés = allExamens?.filter(e => e.statut_validation === 'VALIDE').length || 0;
 
+  // Convert ExamenWithTeam to ExamenReview format for groupExamens
+  const examensForGrouping = useMemo(() => {
+    return examensFiltres.map(examen => ({
+      ...examen,
+      nombre_surveillants: 1, // Default value if missing
+      type_requis: examen.type_requis || 'E',
+      session_id: activeSession?.id || '',
+      auditoire_original: examen.salle,
+      besoins_confirmes_par_enseignant: false,
+      created_at: new Date().toISOString(),
+      date_confirmation_enseignant: null,
+      duree: null,
+      etudiants: null,
+      enseignants: null,
+      enseignant_nom: null,
+      enseignant_email: null,
+      lien_enseignant_token: null,
+      is_active: true,
+      updated_at: new Date().toISOString()
+    }));
+  }, [examensFiltres, activeSession?.id]);
+
   const examensGroupes = useMemo(() => {
-    if (!examensFiltres || !contraintesAuditoires) return [];
-    return groupExamens(examensFiltres, contraintesAuditoires);
-  }, [examensFiltres, contraintesAuditoires]);
+    if (!examensForGrouping || !contraintesAuditoires) return [];
+    return groupExamens(examensForGrouping, contraintesAuditoires);
+  }, [examensForGrouping, contraintesAuditoires]);
 
   const filteredExamens = useMemo(() => {
     if (!searchTerm.trim()) return examensGroupes;
@@ -401,9 +421,6 @@ export const EnseignantViewManager = () => {
                                                     className="text-xs"
                                                   >
                                                     {personne.est_assistant ? "Assistant" : "Autre"}
-                                                  </Badge>
-                                                  <Badge variant="outline" className="text-xs">
-                                                    {personne.statut}
                                                   </Badge>
                                                 </div>
                                               </div>
