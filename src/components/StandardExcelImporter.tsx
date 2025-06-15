@@ -51,13 +51,47 @@ export const StandardExcelImporter = () => {
     if (!file || importing || !activeSession?.id) return;
     setImporting(true);
     try {
-      // TODO: Adapter ici la logique d'import pour vos besoins métiers, insertion avec supabase ...
-      // (Code original d'import, à ajuster selon structure attendue)
-      // Ici on simule juste la réussite :
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      let totalOk = 0, totalFail = 0;
+      for (const row of parsedRows) {
+        // Assumons le mapping d’après ton import
+        // ['Jour', 'Durée (h)', 'Début', 'Fin', 'Activité', 'Faculté / Secrétariat', 'Code', 'Auditoires', 'Etudiants', 'Enseignants']
+        const examenData: any = {
+          session_id: activeSession.id,
+          date_examen: row["Jour"] || null,
+          duree: 
+            row["Durée (h)"] !== undefined && row["Durée (h)"] !== ""
+              ? typeof row["Durée (h)"] === 'number'
+                ? row["Durée (h)"]
+                : typeof row["Durée (h)"] === 'string'
+                  ? parseFloat(row["Durée (h)"].replace(",", "."))
+                  : null
+              : null,
+          heure_debut: row["Début"] || null,
+          heure_fin: row["Fin"] || null,
+          activite: row["Activité"] || null,
+          faculte: row["Faculté / Secrétariat"] || null,
+          code_examen: row["Code"] || null,
+          salle: row["Auditoires"] || null,
+          etudiants: row["Etudiants"] || null,
+          enseignants: row["Enseignants"] || null,
+          statut_validation: "NON_TRAITE",
+          is_active: true,
+          matiere: row["Activité"] || null, // fallback if tu veux remplir aussi matiere
+          type_requis: "Assistant", // défaut, à ajuster si tu as une colonne de type requis
+        };
+        // Supprimer les champs inutiles, Supabase n’acceptera pas des colonnes inattendues
+        Object.keys(examenData).forEach(key => {
+          if (examenData[key] === undefined) examenData[key] = null;
+        });
+
+        const { error } = await supabase.from("examens").insert(examenData);
+
+        if (!error) totalOk++;
+        else totalFail++;
+      }
       toast({
         title: "Import terminé",
-        description: `Les examens ont été importés (${parsedRows.length}).`,
+        description: `Examens importés : ${totalOk}, échecs : ${totalFail}`,
       });
       setFile(null);
       setPreviewRows([]);
