@@ -117,56 +117,52 @@ export function SimpleSurveillantAvailabilityForm() {
     console.log('Loading surveillance slots for session:', surveillant.session_id);
 
     try {
-      // Récupérer directement les créneaux de surveillance générés
-      const { data: creneauxData, error: creneauxError } = await supabase
-        .from('creneaux_surveillance')
-        .select(`
-          id,
-          date_surveillance,
-          heure_debut_surveillance,
-          heure_fin_surveillance,
-          examen_id,
-          examens!inner(
-            matiere,
-            session_id,
-            statut_validation,
-            is_active
-          )
-        `)
-        .eq('examens.session_id', surveillant.session_id)
-        .eq('examens.statut_validation', 'VALIDE')
-        .eq('examens.is_active', true)
-        .order('date_surveillance')
-        .order('heure_debut_surveillance');
+      // Récupérer les examens validés et actifs pour cette session
+      const { data: examensData, error: examensError } = await supabase
+        .from('examens')
+        .select('id, date_examen, heure_debut, heure_fin, matiere')
+        .eq('session_id', surveillant.session_id)
+        .eq('statut_validation', 'VALIDE')
+        .eq('is_active', true)
+        .order('date_examen')
+        .order('heure_debut');
 
-      if (creneauxError) {
-        console.error('Error loading surveillance slots:', creneauxError);
-        throw creneauxError;
+      if (examensError) {
+        console.error('Error loading exams:', examensError);
+        throw examensError;
       }
 
-      console.log('Found surveillance slots:', creneauxData?.length || 0);
+      console.log('Found validated exams:', examensData?.length || 0);
 
-      if (!creneauxData?.length) {
+      if (!examensData?.length) {
         setCreneaux([]);
         toast({
           title: "Aucun créneau disponible",
-          description: "Aucun créneau de surveillance n'a été trouvé pour cette session. Les examens doivent d'abord être validés par l'administration.",
+          description: "Aucun examen validé n'a été trouvé pour cette session.",
           variant: "destructive"
         });
         return;
       }
 
-      // Grouper par créneaux identiques (même date/heure)
+      // Générer les créneaux de surveillance (45 min avant jusqu'à la fin de l'examen)
       const creneauxGroupes = new Map();
-      creneauxData.forEach(creneau => {
-        const key = `${creneau.date_surveillance}_${creneau.heure_debut_surveillance}_${creneau.heure_fin_surveillance}`;
+      examensData.forEach(examen => {
+        // Calculer l'heure de début de surveillance (45 min avant)
+        const [heureDebut, minuteDebut] = examen.heure_debut.split(':').map(Number);
+        const debutSurveillance = new Date();
+        debutSurveillance.setHours(heureDebut, minuteDebut - 45, 0, 0);
+        
+        const heureDebutSurveillance = debutSurveillance.toTimeString().slice(0, 5);
+        
+        const key = `${examen.date_examen}_${heureDebutSurveillance}_${examen.heure_fin}`;
+        
         if (!creneauxGroupes.has(key)) {
           creneauxGroupes.set(key, {
-            id: creneau.id,
-            date_surveillance: creneau.date_surveillance,
-            heure_debut_surveillance: creneau.heure_debut_surveillance,
-            heure_fin_surveillance: creneau.heure_fin_surveillance,
-            matiere: creneau.examens?.matiere || 'Matière inconnue',
+            id: examen.id,
+            date_surveillance: examen.date_examen,
+            heure_debut_surveillance: heureDebutSurveillance,
+            heure_fin_surveillance: examen.heure_fin,
+            matiere: examen.matiere || 'Matière inconnue',
             nombre_examens: 1
           });
         } else {
@@ -204,7 +200,8 @@ export function SimpleSurveillantAvailabilityForm() {
   const sauvegarderDisponibilites = async () => {
     if (!surveillant) return;
 
-    if (!telephone.match(/^\\+?\\d+$/)) {
+    // Correction de la regex pour valider le téléphone
+    if (!telephone.match(/^[+]?[\d\s-()]+$/)) {
       toast({
         title: "Téléphone requis",
         description: "Veuillez saisir un numéro de téléphone valide.",
@@ -371,7 +368,7 @@ export function SimpleSurveillantAvailabilityForm() {
                   <Input
                     id="telephone"
                     type="tel"
-                    placeholder="+324..."
+                    placeholder="+32476..."
                     value={telephone}
                     onChange={(e) => setTelephone(e.target.value)}
                   />
@@ -397,7 +394,7 @@ export function SimpleSurveillantAvailabilityForm() {
               </Button>
               <Button
                 onClick={() => setEtape('disponibilites')}
-                disabled={!telephone.match(/^\\+?\\d+$/)}
+                disabled={!telephone.match(/^[+]?[\d\s-()]+$/)}
                 className="flex-1"
               >
                 Continuer
