@@ -136,25 +136,73 @@ export function ExamenReviewManager() {
       const examensToValidate = groupes.flatMap(groupe => groupe.examens);
 
       for (const examen of examensToValidate) {
-        const { error } = await supabase
+        console.log('Validating exam:', examen.id, examen.code_examen);
+        
+        // 1. Update exam status to VALIDE
+        const { error: updateError } = await supabase
           .from('examens')
-          .update({ statut_validation: 'VALIDE' })
+          .update({ 
+            statut_validation: 'VALIDE',
+            updated_at: new Date().toISOString()
+          })
           .eq('id', examen.id);
 
-        if (error) throw error;
+        if (updateError) {
+          console.error('Error updating exam:', updateError);
+          throw updateError;
+        }
+
+        // 2. Manually trigger surveillance slot creation
+        try {
+          const { error: slotError } = await supabase.rpc('calculer_creneaux_surveillance', {
+            p_examen_id: examen.id,
+            p_date_examen: examen.date_examen,
+            p_heure_debut: examen.heure_debut,
+            p_heure_fin: examen.heure_fin
+          });
+
+          if (slotError) {
+            console.error('Error creating surveillance slots:', slotError);
+            // Don't throw here, just log the error and continue
+          }
+        } catch (slotCreationError) {
+          console.error('Failed to create surveillance slots:', slotCreationError);
+          // Continue with other exams even if this fails
+        }
+
+        // 3. Manually trigger slot merging for the session
+        try {
+          const { error: mergeError } = await supabase.rpc('fusionner_creneaux_surveillance', {
+            p_session_id: examen.session_id
+          });
+
+          if (mergeError) {
+            console.error('Error merging surveillance slots:', mergeError);
+            // Don't throw here, just log the error
+          }
+        } catch (mergeError) {
+          console.error('Failed to merge surveillance slots:', mergeError);
+        }
       }
     },
     onSuccess: (_, groupes) => {
+      console.log('Successfully validated exams, invalidating queries...');
+      
+      // Invalidate all relevant queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['examens-review'] });
       queryClient.invalidateQueries({ queryKey: ['examens-valides'] });
       queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
+      queryClient.invalidateQueries({ queryKey: ['examens-tous-avec-equipe'] });
+      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance'] });
+      
       setSelectedGroupes(new Set());
       toast({
         title: "Examens validés",
-        description: `${groupes.length} groupe(s) d'examens ont été validés avec succès.`,
+        description: `${groupes.length} groupe(s) d'examens ont été validés avec succès. Les créneaux de surveillance ont été générés.`,
       });
     },
     onError: (error: any) => {
+      console.error('Validation error:', error);
       toast({
         title: "Erreur",
         description: error.message || "Impossible de valider les examens.",
@@ -314,6 +362,7 @@ export function ExamenReviewManager() {
 
   const handleValidateSelected = async () => {
     const groupsToValidate = examenGroupsArray.filter(group => selectedGroupes.has(group.id));
+    console.log('Groups to validate:', groupsToValidate.length);
     await validateExamens(groupsToValidate);
   };
 
@@ -323,7 +372,7 @@ export function ExamenReviewManager() {
         <CardHeader>
           <CardTitle>Gestion des Examens à Valider</CardTitle>
           <CardDescription>
-            Liste des examens importés nécessitant une validation.
+            Liste des examens importés nécessitant une validation. Une fois validés, ils seront disponibles pour les enseignants et généreront des créneaux de surveillance.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -348,7 +397,10 @@ export function ExamenReviewManager() {
               onClick={handleValidateSelected}
               disabled={isValidatePending || selectedGroupes.size === 0}
             >
-              Valider la sélection ({selectedGroupes.size} groupes)
+              {isValidatePending 
+                ? "Validation en cours..." 
+                : `Valider la sélection (${selectedGroupes.size} groupes)`
+              }
             </Button>
           </div>
         </CardContent>

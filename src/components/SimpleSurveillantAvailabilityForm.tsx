@@ -55,13 +55,28 @@ export function SimpleSurveillantAvailabilityForm() {
       if (error) throw error;
 
       if (surveillantData) {
-        // Récupérer le quota et session
+        // Récupérer le quota et session active
         const { data: sessionData } = await supabase
           .from("surveillant_sessions")
-          .select("quota,session_id")
+          .select(`
+            quota,
+            session_id,
+            sessions!inner(id, is_active)
+          `)
           .eq("surveillant_id", surveillantData.id)
           .eq("is_active", true)
+          .eq("sessions.is_active", true)
           .maybeSingle();
+
+        if (!sessionData) {
+          toast({
+            title: "Aucune session active",
+            description: "Vous n'êtes associé à aucune session d'examens active pour le moment.",
+            variant: "destructive"
+          });
+          setLoading(false);
+          return;
+        }
 
         setSurveillant({
           ...surveillantData,
@@ -78,6 +93,7 @@ export function SimpleSurveillantAvailabilityForm() {
         });
       }
     } catch (error: any) {
+      console.error('Error loading profile:', error);
       toast({
         title: "Erreur",
         description: error.message,
@@ -98,46 +114,59 @@ export function SimpleSurveillantAvailabilityForm() {
   const chargerCreneaux = async () => {
     if (!surveillant?.session_id) return;
 
+    console.log('Loading surveillance slots for session:', surveillant.session_id);
+
     try {
-      // Récupérer d'abord les examens validés de la session
-      const { data: examens, error: examensError } = await supabase
-        .from('examens')
-        .select('id, matiere')
-        .eq('session_id', surveillant.session_id)
-        .eq('statut_validation', 'VALIDE')
-        .eq('is_active', true);
-
-      if (examensError) throw examensError;
-
-      if (!examens?.length) {
-        setCreneaux([]);
-        return;
-      }
-
-      const examenIds = examens.map(e => e.id);
-
-      // Récupérer les créneaux pour ces examens
+      // Récupérer directement les créneaux de surveillance générés
       const { data: creneauxData, error: creneauxError } = await supabase
         .from('creneaux_surveillance')
-        .select('id, date_surveillance, heure_debut_surveillance, heure_fin_surveillance, examen_id')
-        .in('examen_id', examenIds)
+        .select(`
+          id,
+          date_surveillance,
+          heure_debut_surveillance,
+          heure_fin_surveillance,
+          examen_id,
+          examens!inner(
+            matiere,
+            session_id,
+            statut_validation,
+            is_active
+          )
+        `)
+        .eq('examens.session_id', surveillant.session_id)
+        .eq('examens.statut_validation', 'VALIDE')
+        .eq('examens.is_active', true)
         .order('date_surveillance')
         .order('heure_debut_surveillance');
 
-      if (creneauxError) throw creneauxError;
+      if (creneauxError) {
+        console.error('Error loading surveillance slots:', creneauxError);
+        throw creneauxError;
+      }
+
+      console.log('Found surveillance slots:', creneauxData?.length || 0);
+
+      if (!creneauxData?.length) {
+        setCreneaux([]);
+        toast({
+          title: "Aucun créneau disponible",
+          description: "Aucun créneau de surveillance n'a été trouvé pour cette session. Les examens doivent d'abord être validés par l'administration.",
+          variant: "destructive"
+        });
+        return;
+      }
 
       // Grouper par créneaux identiques (même date/heure)
       const creneauxGroupes = new Map();
-      (creneauxData || []).forEach(creneau => {
+      creneauxData.forEach(creneau => {
         const key = `${creneau.date_surveillance}_${creneau.heure_debut_surveillance}_${creneau.heure_fin_surveillance}`;
         if (!creneauxGroupes.has(key)) {
-          const examen = examens.find(e => e.id === creneau.examen_id);
           creneauxGroupes.set(key, {
             id: creneau.id,
             date_surveillance: creneau.date_surveillance,
             heure_debut_surveillance: creneau.heure_debut_surveillance,
             heure_fin_surveillance: creneau.heure_fin_surveillance,
-            matiere: examen?.matiere || 'Matière inconnue',
+            matiere: creneau.examens?.matiere || 'Matière inconnue',
             nombre_examens: 1
           });
         } else {
@@ -163,6 +192,7 @@ export function SimpleSurveillantAvailabilityForm() {
       setDisponibilites(dispoObj);
 
     } catch (error: any) {
+      console.error('Error loading surveillance slots:', error);
       toast({
         title: "Erreur",
         description: "Impossible de charger les créneaux de surveillance.",
@@ -174,7 +204,7 @@ export function SimpleSurveillantAvailabilityForm() {
   const sauvegarderDisponibilites = async () => {
     if (!surveillant) return;
 
-    if (!telephone.match(/^\+?\d+$/)) {
+    if (!telephone.match(/^\\+?\\d+$/)) {
       toast({
         title: "Téléphone requis",
         description: "Veuillez saisir un numéro de téléphone valide.",
@@ -228,6 +258,7 @@ export function SimpleSurveillantAvailabilityForm() {
       setEtape('termine');
 
     } catch (error: any) {
+      console.error('Error saving availabilities:', error);
       toast({
         title: "Erreur",
         description: error.message,
@@ -366,7 +397,7 @@ export function SimpleSurveillantAvailabilityForm() {
               </Button>
               <Button
                 onClick={() => setEtape('disponibilites')}
-                disabled={!telephone.match(/^\+?\d+$/)}
+                disabled={!telephone.match(/^\\+?\\d+$/)}
                 className="flex-1"
               >
                 Continuer
@@ -407,6 +438,7 @@ export function SimpleSurveillantAvailabilityForm() {
               <div className="text-center py-8 text-gray-500">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>Aucun créneau de surveillance disponible pour cette session.</p>
+                <p className="text-sm mt-2">Les examens doivent d'abord être validés par l'administration.</p>
               </div>
             ) : (
               Object.entries(semainesGroupees).map(([semaine, creneauxSemaine]) => (
@@ -490,18 +522,24 @@ export function SimpleSurveillantAvailabilityForm() {
               Vos {nbSelectionnes} disponibilité{nbSelectionnes > 1 ? 's ont' : ' a'} été enregistrée{nbSelectionnes > 1 ? 's' : ''} avec succès.
             </CardDescription>
           </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <p className="text-sm text-gray-600">
-              Vous recevrez une confirmation par email si vous êtes sélectionné(e) pour la surveillance.
-            </p>
+          <CardContent className="space-y-4">
+            <div className="bg-green-50 p-4 rounded-lg">
+              <p className="text-sm text-green-800">
+                Merci d'avoir renseigné vos disponibilités. Vous recevrez une notification 
+                dès que vos attributions seront confirmées.
+              </p>
+            </div>
             <Button
-              variant="outline"
               onClick={() => {
-                setEtape('disponibilites');
+                setEtape('email');
+                setEmail('');
+                setSurveillant(null);
+                setDisponibilites({});
+                setCreneaux([]);
               }}
               className="w-full"
             >
-              Modifier mes disponibilités
+              Nouvelle déclaration
             </Button>
           </CardContent>
         </Card>
