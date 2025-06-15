@@ -133,57 +133,71 @@ export function ExamenReviewManager() {
 
   const validateExamensMutation = useMutation({
     mutationFn: async (groupes: ExamenGroupe[]) => {
+      console.log('Starting validation for groups:', groupes.length);
       const examensToValidate = groupes.flatMap(groupe => groupe.examens);
+      console.log('Total exams to validate:', examensToValidate.length);
 
       for (const examen of examensToValidate) {
         console.log('Validating exam:', examen.id, examen.code_examen);
         
-        // 1. Update exam status to VALIDE
-        const { error: updateError } = await supabase
+        // 1. Update exam status to VALIDE with explicit timestamp
+        const { data: updatedExam, error: updateError } = await supabase
           .from('examens')
           .update({ 
             statut_validation: 'VALIDE',
             updated_at: new Date().toISOString()
           })
-          .eq('id', examen.id);
+          .eq('id', examen.id)
+          .select()
+          .single();
 
         if (updateError) {
           console.error('Error updating exam:', updateError);
           throw updateError;
         }
 
-        // 2. Manually trigger surveillance slot creation
-        try {
-          const { error: slotError } = await supabase.rpc('calculer_creneaux_surveillance', {
-            p_examen_id: examen.id,
-            p_date_examen: examen.date_examen,
-            p_heure_debut: examen.heure_debut,
-            p_heure_fin: examen.heure_fin
-          });
+        console.log('Exam updated successfully:', updatedExam);
+
+        // 2. Wait a bit for triggers to potentially fire
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // 3. Check if surveillance slots were created by trigger
+        const { data: existingSlots } = await supabase
+          .from('creneaux_surveillance')
+          .select('*')
+          .eq('examen_id', examen.id);
+
+        console.log('Existing surveillance slots after trigger:', existingSlots?.length || 0);
+
+        // 4. If no slots exist, create them manually
+        if (!existingSlots || existingSlots.length === 0) {
+          console.log('No slots found, creating manually for exam:', examen.id);
+          
+          // Calculate surveillance start time (45 minutes before exam)
+          const [heureDebut, minuteDebut] = examen.heure_debut.split(':').map(Number);
+          const debutSurveillance = new Date();
+          debutSurveillance.setHours(heureDebut, minuteDebut - 45, 0, 0);
+          const heureDebutSurveillance = debutSurveillance.toTimeString().slice(0, 5);
+
+          const { error: slotError } = await supabase
+            .from('creneaux_surveillance')
+            .insert({
+              examen_id: examen.id,
+              date_surveillance: examen.date_examen,
+              heure_debut_surveillance: heureDebutSurveillance,
+              heure_fin_surveillance: examen.heure_fin,
+              type_creneau: 'PRINCIPAL'
+            });
 
           if (slotError) {
-            console.error('Error creating surveillance slots:', slotError);
-            // Don't throw here, just log the error and continue
+            console.error('Error creating surveillance slot manually:', slotError);
+          } else {
+            console.log('Surveillance slot created manually for exam:', examen.id);
           }
-        } catch (slotCreationError) {
-          console.error('Failed to create surveillance slots:', slotCreationError);
-          // Continue with other exams even if this fails
-        }
-
-        // 3. Manually trigger slot merging for the session
-        try {
-          const { error: mergeError } = await supabase.rpc('fusionner_creneaux_surveillance', {
-            p_session_id: examen.session_id
-          });
-
-          if (mergeError) {
-            console.error('Error merging surveillance slots:', mergeError);
-            // Don't throw here, just log the error
-          }
-        } catch (mergeError) {
-          console.error('Failed to merge surveillance slots:', mergeError);
         }
       }
+
+      console.log('Validation completed for all exams');
     },
     onSuccess: (_, groupes) => {
       console.log('Successfully validated exams, invalidating queries...');
@@ -197,7 +211,7 @@ export function ExamenReviewManager() {
       
       setSelectedGroupes(new Set());
       toast({
-        title: "Examens validés",
+        title: "Examens validés ✅",
         description: `${groupes.length} groupe(s) d'examens ont été validés avec succès. Les créneaux de surveillance ont été générés.`,
       });
     },
@@ -366,6 +380,32 @@ export function ExamenReviewManager() {
     await validateExamens(groupsToValidate);
   };
 
+  // Debug: Check current exam statuses
+  const checkExamStatuses = async () => {
+    if (!activeSession?.id) return;
+    
+    const { data: allExams } = await supabase
+      .from('examens')
+      .select('id, code_examen, statut_validation, is_active')
+      .eq('session_id', activeSession.id);
+    
+    console.log('All exams in session:', allExams);
+    
+    const { data: validatedExams } = await supabase
+      .from('examens')
+      .select('id, code_examen, statut_validation')
+      .eq('session_id', activeSession.id)
+      .eq('statut_validation', 'VALIDE');
+    
+    console.log('Validated exams:', validatedExams);
+    
+    const { data: surveillanceSlots } = await supabase
+      .from('creneaux_surveillance')
+      .select('*');
+    
+    console.log('All surveillance slots:', surveillanceSlots);
+  };
+
   return (
     <div>
       <Card>
@@ -401,6 +441,12 @@ export function ExamenReviewManager() {
                 ? "Validation en cours..." 
                 : `Valider la sélection (${selectedGroupes.size} groupes)`
               }
+            </Button>
+            <Button
+              variant="outline"
+              onClick={checkExamStatuses}
+            >
+              Debug: Vérifier statuts
             </Button>
           </div>
         </CardContent>

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { DemandeModificationModal } from "./DemandeModificationModal";
-import { User, Calendar, CheckSquare, Phone, AlertCircle } from "lucide-react";
+import { User, Calendar, CheckSquare, Phone, AlertCircle, RefreshCw } from "lucide-react";
 
 interface Surveillant {
   id: string;
@@ -117,6 +118,14 @@ export function SimpleSurveillantAvailabilityForm() {
     console.log('Loading surveillance slots for session:', surveillant.session_id);
 
     try {
+      // Debug: Check what exams exist in the session
+      const { data: allExams } = await supabase
+        .from('examens')
+        .select('id, code_examen, statut_validation, is_active, date_examen, heure_debut, heure_fin, matiere')
+        .eq('session_id', surveillant.session_id);
+
+      console.log('All exams in session:', allExams?.length || 0, allExams);
+
       // Récupérer les examens validés et actifs pour cette session
       const { data: examensData, error: examensError } = await supabase
         .from('examens')
@@ -132,13 +141,21 @@ export function SimpleSurveillantAvailabilityForm() {
         throw examensError;
       }
 
-      console.log('Found validated exams:', examensData?.length || 0);
+      console.log('Found validated exams:', examensData?.length || 0, examensData);
 
       if (!examensData?.length) {
+        // Check if there are surveillance slots in the database
+        const { data: existingSlots } = await supabase
+          .from('creneaux_surveillance')
+          .select('*')
+          .order('date_surveillance');
+
+        console.log('Existing surveillance slots in DB:', existingSlots?.length || 0);
+
         setCreneaux([]);
         toast({
           title: "Aucun créneau disponible",
-          description: "Aucun examen validé n'a été trouvé pour cette session.",
+          description: "Aucun examen validé n'a été trouvé pour cette session. Vérifiez que les examens ont été validés par l'administration.",
           variant: "destructive"
         });
         return;
@@ -170,7 +187,9 @@ export function SimpleSurveillantAvailabilityForm() {
         }
       });
 
-      setCreneaux(Array.from(creneauxGroupes.values()));
+      const creneauxArray = Array.from(creneauxGroupes.values());
+      console.log('Generated surveillance slots:', creneauxArray.length, creneauxArray);
+      setCreneaux(creneauxArray);
 
       // Charger les disponibilités existantes
       const { data: dispoData } = await supabase
@@ -289,6 +308,36 @@ export function SimpleSurveillantAvailabilityForm() {
       semaines[semaineKey].push(creneau);
     });
     return semaines;
+  };
+
+  // Debug function
+  const debugData = async () => {
+    if (!surveillant?.session_id) return;
+    
+    console.log('=== DEBUG DATA ===');
+    
+    const { data: allExams } = await supabase
+      .from('examens')
+      .select('*')
+      .eq('session_id', surveillant.session_id);
+    console.log('All exams:', allExams);
+    
+    const { data: validatedExams } = await supabase
+      .from('examens')
+      .select('*')
+      .eq('session_id', surveillant.session_id)
+      .eq('statut_validation', 'VALIDE');
+    console.log('Validated exams:', validatedExams);
+    
+    const { data: slots } = await supabase
+      .from('creneaux_surveillance')
+      .select('*');
+    console.log('Surveillance slots:', slots);
+    
+    toast({
+      title: "Debug",
+      description: `Examens: ${allExams?.length || 0}, Validés: ${validatedExams?.length || 0}, Créneaux: ${slots?.length || 0}`,
+    });
   };
 
   // Étape 1: Saisie email
@@ -431,11 +480,38 @@ export function SimpleSurveillantAvailabilityForm() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="flex justify-between items-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={chargerCreneaux}
+                disabled={loading}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Actualiser
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={debugData}
+              >
+                Debug données
+              </Button>
+            </div>
+
             {Object.keys(semainesGroupees).length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>Aucun créneau de surveillance disponible pour cette session.</p>
                 <p className="text-sm mt-2">Les examens doivent d'abord être validés par l'administration.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={chargerCreneaux}
+                  className="mt-4"
+                >
+                  Recharger les créneaux
+                </Button>
               </div>
             ) : (
               Object.entries(semainesGroupees).map(([semaine, creneauxSemaine]) => (
