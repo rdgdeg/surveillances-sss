@@ -143,6 +143,7 @@ export type Database = {
           session_id: string | null
           statut: string
           statut_autre: string | null
+          surveillances_a_deduire: number | null
           telephone: string | null
           traite: boolean | null
           updated_at: string
@@ -162,6 +163,7 @@ export type Database = {
           session_id?: string | null
           statut: string
           statut_autre?: string | null
+          surveillances_a_deduire?: number | null
           telephone?: string | null
           traite?: boolean | null
           updated_at?: string
@@ -181,6 +183,7 @@ export type Database = {
           session_id?: string | null
           statut?: string
           statut_autre?: string | null
+          surveillances_a_deduire?: number | null
           telephone?: string | null
           traite?: boolean | null
           updated_at?: string
@@ -382,8 +385,10 @@ export type Database = {
           heure_fin: string
           id: string
           nom_examen_obligatoire: string | null
+          nom_examen_selectionne: string | null
           session_id: string
           surveillant_id: string
+          type_choix: string | null
           updated_at: string
         }
         Insert: {
@@ -395,8 +400,10 @@ export type Database = {
           heure_fin: string
           id?: string
           nom_examen_obligatoire?: string | null
+          nom_examen_selectionne?: string | null
           session_id: string
           surveillant_id: string
+          type_choix?: string | null
           updated_at?: string
         }
         Update: {
@@ -408,8 +415,10 @@ export type Database = {
           heure_fin?: string
           id?: string
           nom_examen_obligatoire?: string | null
+          nom_examen_selectionne?: string | null
           session_id?: string
           surveillant_id?: string
+          type_choix?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -967,6 +976,7 @@ export type Database = {
           nom: string
           prenom: string
           statut: string
+          surveillances_a_deduire: number | null
           telephone: string | null
           telephone_gsm: string | null
           type: string
@@ -984,6 +994,7 @@ export type Database = {
           nom: string
           prenom: string
           statut?: string
+          surveillances_a_deduire?: number | null
           telephone?: string | null
           telephone_gsm?: string | null
           type: string
@@ -1001,6 +1012,7 @@ export type Database = {
           nom?: string
           prenom?: string
           statut?: string
+          surveillances_a_deduire?: number | null
           telephone?: string | null
           telephone_gsm?: string | null
           type?: string
