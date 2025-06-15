@@ -2,10 +2,11 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, CheckSquare, Settings, Users, History } from "lucide-react";
+import { FileText, CheckSquare, Settings, Users, List } from "lucide-react";
 import { StandardExcelImporter } from "./StandardExcelImporter";
 import { ExamenValidationProcessor } from "./ExamenValidationProcessor";
 import { ExamenReviewManager } from "./ExamenReviewManager";
+import ExamenListeComplete from "./ExamenListeComplete";
 
 export const ExamenAdvancedManager = () => {
   const [activeTab, setActiveTab] = useState("import");
@@ -25,7 +26,7 @@ export const ExamenAdvancedManager = () => {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="import" className="flex items-center space-x-2">
             <FileText className="h-4 w-4" />
             <span>1. Import Standard</span>
@@ -38,8 +39,11 @@ export const ExamenAdvancedManager = () => {
             <Users className="h-4 w-4" />
             <span>3. Configuration</span>
           </TabsTrigger>
+          <TabsTrigger value="liste" className="flex items-center space-x-2">
+            <List className="h-4 w-4" />
+            <span>Liste complète</span>
+          </TabsTrigger>
         </TabsList>
-
         <TabsContent value="import" className="space-y-4">
           <StandardExcelImporter />
           <Card>
@@ -96,7 +100,12 @@ export const ExamenAdvancedManager = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="liste" className="space-y-4">
+          <ExamenListeComplete />
+        </TabsContent>
       </Tabs>
     </div>
   );
 };
+
