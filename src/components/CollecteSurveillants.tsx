@@ -18,6 +18,10 @@ import { CollecteHeader } from "./CollecteHeader";
 import { CollecteExplications } from "./CollecteExplications";
 import { CollecteDocumentation } from "./CollecteDocumentation";
 import { DisponibilitesSection } from "./DisponibilitesSection";
+import { SurveillantProfilePanel } from "./SurveillantProfilePanel";
+import { UnknownSurveillantForm } from "./UnknownSurveillantForm";
+import { CreneauRow } from "./CreneauRow";
+import { Input } from "@/components/ui/input";  // Ajouté ici
 
 interface ExamenSlot {
   id: string;
@@ -115,10 +119,6 @@ function groupCreneauxByWeek(
   // Retirer les semaines "vides" éventuellement (tous créneaux samedi/dimanche)
   return semaines.filter(s => s.creneaux.length > 0);
 }
-
-import { SurveillantProfilePanel } from "./SurveillantProfilePanel";
-import { UnknownSurveillantForm } from "./UnknownSurveillantForm";
-import { CreneauRow } from "./CreneauRow";
 
 export const CollecteSurveillants = () => {
   const [formData, setFormData] = useState({
@@ -247,6 +247,7 @@ export const CollecteSurveillants = () => {
         setTelephone={v => setFormData(f => ({ ...f, telephone: v }))}
         surveillancesADeduire={surveillancesADeduire}
         setSurveillancesADeduire={setSurveillancesADeduire}
+        onDemandeModif={() => {}}  // Correction : ajout du handler requis
       />
     );
   } else {
@@ -348,10 +349,10 @@ export const CollecteSurveillants = () => {
   // eslint-disable-next-line
   }, [surveillantId, activeSession?.id]); // (on surveille surveillantId seulement au premier rendu)
 
-  // Pour chaque créneau, options de dispo : dispo, type_choix, nom_examen_selectionne
+  // ----------------- Correction sur les handlers, regroupement pour éviter les redéfinitions -----------------------------
+  // On place ces fonctions à un seul endroit de la fonction composant.
   const [newDispos, setNewDispos] = useState<Record<string, { dispo: boolean, type_choix: string, nom_examen_selectionne: string }>>({});
 
-  // Gestion des changements pour chaque créneau
   const handleDisponibleChange = (key: string, checked: boolean) => {
     setNewDispos(d => ({
       ...d,
@@ -527,7 +528,7 @@ export const CollecteSurveillants = () => {
     }));
   };
 
-  const handleNomExamenChange = (examenId: string, nomExamen: string) => {
+  const handleNomExamenChange2 = (examenId: string, nomExamen: string) => {
     setFormData(prev => ({
       ...prev,
       noms_examens_obligatoires: {
