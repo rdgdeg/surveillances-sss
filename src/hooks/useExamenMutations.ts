@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 interface PersonneAmenee {
   nom: string;
   prenom: string;
+  est_assistant?: boolean;
 }
 
 interface UseExamenMutationsProps {
@@ -111,7 +112,7 @@ export const useExamenMutations = ({ onPersonneAdded }: UseExamenMutationsProps 
               examen_id: examenId,
               nom: personne.nom,
               prenom: personne.prenom,
-              est_assistant: false,
+              est_assistant: personne.est_assistant || false,
               compte_dans_quota: true,
               present_sur_place: true,
               ajoute_par: 'enseignant_amene'
