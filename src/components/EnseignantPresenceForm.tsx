@@ -30,7 +30,6 @@ export const EnseignantPresenceForm = ({
   surveillantsNecessaires,
   onPresenceSaved,
 }: EnseignantPresenceFormProps) => {
-  const [enseignantPresent] = useState(true); // Toujours présent par défaut
   const [personnesAmenees, setPersonnesAmenees] = useState(0);
   const [detailsPersonnesAmenees, setDetailsPersonnesAmenees] = useState<PersonneAmenee[]>([]);
   const queryClient = useQueryClient();
@@ -60,7 +59,7 @@ export const EnseignantPresenceForm = ({
   // Calculer les surveillants restants à attribuer
   const calculerSurveillantsRestants = () => {
     const theoriques = surveillantsTheoriques || 0;
-    const enseignant = enseignantPresent ? 1 : 0;
+    const enseignant = 1; // L'enseignant est toujours présent
     const amenes = personnesAmenees || 0;
     return Math.max(0, theoriques - enseignant - amenes);
   };
@@ -79,7 +78,7 @@ export const EnseignantPresenceForm = ({
   const handleSave = async () => {
     await updateEnseignantPresenceMutation.mutateAsync({
       examenId: selectedExamen.id,
-      enseignantPresent,
+      enseignantPresent: true, // Toujours présent
       personnesAmenees,
       detailsPersonnesAmenees,
     });
