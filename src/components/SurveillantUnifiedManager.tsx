@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { UploadCloud, Save, Plus, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CustomStatusModal } from "./CustomStatusModal";
+import { FacultesMultiSelect, FACULTES_FILTERED } from "./FacultesMultiSelect";
 
 // Liste FAUTES & AFFECTATIONS : inclus FSM + Autre
 const FACULTES = [
@@ -61,7 +62,7 @@ export function SurveillantUnifiedManager() {
   const [editValues, setEditValues] = useState<{
     etp?: number;
     quota?: number;
-    faculte_interdite?: string;
+    faculte_interdite?: string[];
     statut?: string;
     affectation_fac?: string;
   }>({});
@@ -103,7 +104,7 @@ export function SurveillantUnifiedManager() {
 
       if (error) throw error;
 
-      // Flat join for table
+      // Adaptation: stocke faculte_interdite comme tableau.
       return (data ?? []).map((row: any) => ({
         id: row.surveillants.id,
         nom: row.surveillants.nom,
@@ -111,13 +112,17 @@ export function SurveillantUnifiedManager() {
         email: row.surveillants.email,
         type: row.surveillants.type,
         statut: row.surveillants.statut,
-        faculte_interdite: row.surveillants.faculte_interdite,
+        // Le champ Supabase est string ou null, on convertit en tableau.
+        faculte_interdite:
+          row.surveillants.faculte_interdite && row.surveillants.faculte_interdite !== "NONE"
+            ? row.surveillants.faculte_interdite.split(",").map((x: string) => x.trim())
+            : [],
         affectation_fac: row.surveillants.affectation_fac,
         campus: row.surveillants.campus,
         eft: row.surveillants.eft ?? undefined,
         session_entry_id: row.id,
         quota: row.quota ?? null,
-      })) as SurveillantJoin[];
+      })) as (Omit<SurveillantJoin, "faculte_interdite"> & { faculte_interdite: string[] })[];
     },
     enabled: !!activeSession?.id,
   });
@@ -185,18 +190,23 @@ export function SurveillantUnifiedManager() {
     },
   });
 
-  // Nouvelle mutation : faculte_interdite
+  // Mise à jour pour accepter un tableau de facultés interdites et le convertir en string jointe
   const updateFaculteInterditeMutation = useMutation({
     mutationFn: async ({
       surveillantId,
       faculte_interdite
     }: {
       surveillantId: string;
-      faculte_interdite: string | null;
+      faculte_interdite: string[];
     }) => {
+      // Si aucune, stocker "NONE" ou null; sinon, join
+      const value =
+        !faculte_interdite || faculte_interdite.length === 0 || faculte_interdite.includes("NONE")
+          ? null
+          : faculte_interdite.join(",");
       const { error } = await supabase
         .from("surveillants")
-        .update({ faculte_interdite: faculte_interdite === "NONE" ? null : faculte_interdite })
+        .update({ faculte_interdite: value })
         .eq("id", surveillantId);
       if (error) throw error;
       return true;
@@ -218,12 +228,12 @@ export function SurveillantUnifiedManager() {
   });
 
   // 3. MODIFICATION des valeurs via édition par ligne
-  const handleEdit = (row: SurveillantJoin) => {
+  const handleEdit = (row: SurveillantJoin & { faculte_interdite: string[] }) => {
     setEditRow(row.id);
     setEditValues({
       etp: row.eft ?? 0,
       quota: row.quota ?? ((row.eft ?? 0) * 6),
-      faculte_interdite: row.faculte_interdite ?? "NONE",
+      faculte_interdite: row.faculte_interdite ?? ["NONE"],
       statut: row.statut,
       affectation_fac: row.affectation_fac ?? "",
     });
@@ -232,7 +242,9 @@ export function SurveillantUnifiedManager() {
     setEditRow(null);
     setEditValues({});
   };
-  const handleSave = async (row: SurveillantJoin) => {
+
+  // Quand on sauvegarde, envoyer la faculte_interdite comme un tableau
+  const handleSave = async (row: SurveillantJoin & { faculte_interdite: string[] }) => {
     // Update ETP si changé
     if (editValues.etp !== row.eft) {
       await updateSurveillantMutation.mutateAsync({ surveillantId: row.id, eft: editValues.etp ?? 0 });
@@ -244,12 +256,13 @@ export function SurveillantUnifiedManager() {
         quota: editValues.quota ?? 0,
       });
     }
-    // Update faculte_interdite
-    if ((editValues.faculte_interdite ?? "NONE") !== (row.faculte_interdite ?? "NONE")) {
+    // Faculté interdite
+    const curr = Array.isArray(row.faculte_interdite) ? row.faculte_interdite : [];
+    const next = editValues.faculte_interdite || [];
+    if (next.join(",") !== curr.join(",")) {
       await updateFaculteInterditeMutation.mutateAsync({
         surveillantId: row.id,
-        faculte_interdite:
-          editValues.faculte_interdite === "NONE" ? null : editValues.faculte_interdite,
+        faculte_interdite: next,
       });
     }
     setEditRow(null);
@@ -319,6 +332,12 @@ export function SurveillantUnifiedManager() {
                       if (statutL === "Jobiste") return 0;
                       return 0; // par défaut autres statuts
                     })();
+                    // Nouveau rendu pour la colonne Faculté interdite :
+                    const selectedFacs = isEdit
+                      ? editValues.faculte_interdite ?? ["NONE"]
+                      : row.faculte_interdite.length > 0
+                        ? row.faculte_interdite
+                        : ["NONE"];
 
                     return (
                       <TableRow key={row.id}>
@@ -412,39 +431,21 @@ export function SurveillantUnifiedManager() {
                         </TableCell>
                         <TableCell>
                           {isEdit ? (
-                            <select
-                              className="w-36 rounded-md border px-2 py-1 text-sm"
-                              value={editValues.faculte_interdite ?? "NONE"}
-                              onChange={e =>
-                                setEditValues(v => ({
-                                  ...v,
-                                  faculte_interdite: e.target.value
-                                }))
-                              }
-                            >
-                              {FACULTES.map(f => (
-                                <option key={f.value} value={f.value}>
-                                  {f.label}
-                                </option>
+                            <FacultesMultiSelect
+                              values={selectedFacs}
+                              onChange={(v) => setEditValues((vals) => ({ ...vals, faculte_interdite: v }))}
+                              disabled={updateFaculteInterditeMutation.isPending}
+                            />
+                          ) : selectedFacs && !selectedFacs.includes("NONE") ? (
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {selectedFacs.map((f) => (
+                                <span key={f} className="inline-block bg-red-100 text-red-700 rounded px-2 text-xs">
+                                  {FACULTES_FILTERED.find(x => x.value === f)?.label || f}
+                                </span>
                               ))}
-                            </select>
-                          ) : hasRestriction ? (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="destructive" className="cursor-help w-32 flex justify-center">
-                                    {row.faculte_interdite}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  Ce surveillant ne pourra pas être affecté aux examens de cette faculté.
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
+                            </div>
                           ) : (
-                            <Badge className="bg-gray-200 text-gray-600 w-32 flex justify-center">
-                              Aucune restriction
-                            </Badge>
+                            <span className="text-xs text-muted-foreground">Aucune restriction</span>
                           )}
                         </TableCell>
                         <TableCell>
