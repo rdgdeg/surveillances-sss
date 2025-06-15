@@ -20,6 +20,7 @@ interface Surveillant {
   telephone: string | null;
   quota: number;
   session_id: string;
+  eft?: number;
 }
 
 interface CreneauSimple {
@@ -37,9 +38,14 @@ export function SimpleSurveillantAvailabilityForm() {
   const [surveillant, setSurveillant] = useState<Surveillant | null>(null);
   const [telephone, setTelephone] = useState("");
   const [creneaux, setCreneaux] = useState<CreneauSimple[]>([]);
-  const [disponibilites, setDisponibilites] = useState<Record<string, boolean>>({});
+  const [disponibilites, setDisponibilites] = useState<Record<string, { dispo: boolean; type_choix: string; nom_examen: string }>>({});
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  
+  // États pour utilisateur inconnu
+  const [nom, setNom] = useState("");
+  const [prenom, setPrenom] = useState("");
+  const [isUnknownUser, setIsUnknownUser] = useState(false);
 
   // Charger le profil surveillant
   const chargerProfil = async () => {
@@ -49,7 +55,7 @@ export function SimpleSurveillantAvailabilityForm() {
     try {
       const { data: surveillantData, error } = await supabase
         .from("surveillants")
-        .select("id,email,nom,prenom,type,telephone")
+        .select("id,email,nom,prenom,type,telephone,eft")
         .eq("email", email.trim().toLowerCase())
         .maybeSingle();
 
@@ -85,13 +91,13 @@ export function SimpleSurveillantAvailabilityForm() {
           session_id: sessionData?.session_id ?? ""
         });
         setTelephone(surveillantData.telephone || "");
+        setIsUnknownUser(false);
         setEtape('profil');
       } else {
-        toast({
-          title: "Email non trouvé",
-          description: "Cet email n'est pas reconnu dans notre système de surveillance.",
-          variant: "destructive"
-        });
+        // Utilisateur inconnu - permettre de continuer
+        setIsUnknownUser(true);
+        setSurveillant(null);
+        setEtape('profil');
       }
     } catch (error: any) {
       console.error('Error loading profile:', error);
@@ -107,30 +113,34 @@ export function SimpleSurveillantAvailabilityForm() {
 
   // Charger les créneaux de surveillance
   useEffect(() => {
-    if (surveillant?.session_id) {
+    if ((surveillant?.session_id || isUnknownUser) && etape === 'disponibilites') {
       chargerCreneaux();
     }
-  }, [surveillant?.session_id]);
+  }, [surveillant?.session_id, isUnknownUser, etape]);
 
   const chargerCreneaux = async () => {
-    if (!surveillant?.session_id) return;
-
-    console.log('Loading surveillance slots for session:', surveillant.session_id);
-
     try {
-      // Debug: Check what exams exist in the session
-      const { data: allExams } = await supabase
-        .from('examens')
-        .select('id, code_examen, statut_validation, is_active, date_examen, heure_debut, heure_fin, matiere')
-        .eq('session_id', surveillant.session_id);
+      // Récupérer la session active
+      const { data: activeSession } = await supabase
+        .from('sessions')
+        .select('*')
+        .eq('is_active', true)
+        .single();
 
-      console.log('All exams in session:', allExams?.length || 0, allExams);
+      if (!activeSession) {
+        toast({
+          title: "Aucune session active",
+          description: "Aucune session d'examens n'est actuellement active.",
+          variant: "destructive"
+        });
+        return;
+      }
 
       // Récupérer les examens validés et actifs pour cette session
       const { data: examensData, error: examensError } = await supabase
         .from('examens')
         .select('id, date_examen, heure_debut, heure_fin, matiere')
-        .eq('session_id', surveillant.session_id)
+        .eq('session_id', activeSession.id)
         .eq('statut_validation', 'VALIDE')
         .eq('is_active', true)
         .order('date_examen')
@@ -144,18 +154,10 @@ export function SimpleSurveillantAvailabilityForm() {
       console.log('Found validated exams:', examensData?.length || 0, examensData);
 
       if (!examensData?.length) {
-        // Check if there are surveillance slots in the database
-        const { data: existingSlots } = await supabase
-          .from('creneaux_surveillance')
-          .select('*')
-          .order('date_surveillance');
-
-        console.log('Existing surveillance slots in DB:', existingSlots?.length || 0);
-
         setCreneaux([]);
         toast({
           title: "Aucun créneau disponible",
-          description: "Aucun examen validé n'a été trouvé pour cette session. Vérifiez que les examens ont été validés par l'administration.",
+          description: "Aucun examen validé n'a été trouvé pour cette session.",
           variant: "destructive"
         });
         return;
@@ -191,20 +193,26 @@ export function SimpleSurveillantAvailabilityForm() {
       console.log('Generated surveillance slots:', creneauxArray.length, creneauxArray);
       setCreneaux(creneauxArray);
 
-      // Charger les disponibilités existantes
-      const { data: dispoData } = await supabase
-        .from('disponibilites')
-        .select('date_examen, heure_debut, heure_fin')
-        .eq('surveillant_id', surveillant.id)
-        .eq('session_id', surveillant.session_id)
-        .eq('est_disponible', true);
+      // Charger les disponibilités existantes si utilisateur connu
+      if (surveillant?.id) {
+        const { data: dispoData } = await supabase
+          .from('disponibilites')
+          .select('date_examen, heure_debut, heure_fin, type_choix, nom_examen_selectionne')
+          .eq('surveillant_id', surveillant.id)
+          .eq('session_id', surveillant.session_id)
+          .eq('est_disponible', true);
 
-      const dispoObj: Record<string, boolean> = {};
-      (dispoData || []).forEach(d => {
-        const key = `${d.date_examen}_${d.heure_debut}_${d.heure_fin}`;
-        dispoObj[key] = true;
-      });
-      setDisponibilites(dispoObj);
+        const dispoObj: Record<string, { dispo: boolean; type_choix: string; nom_examen: string }> = {};
+        (dispoData || []).forEach(d => {
+          const key = `${d.date_examen}_${d.heure_debut}_${d.heure_fin}`;
+          dispoObj[key] = {
+            dispo: true,
+            type_choix: d.type_choix || 'souhaitee',
+            nom_examen: d.nom_examen_selectionne || ''
+          };
+        });
+        setDisponibilites(dispoObj);
+      }
 
     } catch (error: any) {
       console.error('Error loading surveillance slots:', error);
@@ -217,8 +225,6 @@ export function SimpleSurveillantAvailabilityForm() {
   };
 
   const sauvegarderDisponibilites = async () => {
-    if (!surveillant) return;
-
     // Correction de la regex pour valider le téléphone
     if (!telephone.match(/^[+]?[\d\s-()]+$/)) {
       toast({
@@ -231,33 +237,84 @@ export function SimpleSurveillantAvailabilityForm() {
 
     setLoading(true);
     try {
-      // Mettre à jour le téléphone
-      await supabase
-        .from("surveillants")
-        .update({ telephone })
-        .eq("id", surveillant.id);
+      let usedSurveillantId = surveillant?.id;
+
+      // Si utilisateur inconnu, créer le profil
+      if (isUnknownUser) {
+        if (!nom || !prenom) {
+          toast({
+            title: "Champs requis",
+            description: "Veuillez remplir le nom et prénom.",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        const { data: newSurveillant, error: createError } = await supabase
+          .from('surveillants')
+          .insert({
+            email: email.trim().toLowerCase(),
+            nom,
+            prenom,
+            telephone,
+            statut: 'candidat',
+            type: 'Candidat'
+          })
+          .select('id')
+          .single();
+
+        if (createError) throw createError;
+        usedSurveillantId = newSurveillant.id;
+      } else if (surveillant?.id) {
+        // Mettre à jour le téléphone pour utilisateur connu
+        await supabase
+          .from("surveillants")
+          .update({ telephone })
+          .eq("id", surveillant.id);
+      }
+
+      if (!usedSurveillantId) {
+        throw new Error("Impossible de déterminer l'ID du surveillant");
+      }
+
+      // Récupérer la session active
+      const { data: activeSession } = await supabase
+        .from('sessions')
+        .select('id')
+        .eq('is_active', true)
+        .single();
+
+      if (!activeSession) {
+        throw new Error("Aucune session active trouvée");
+      }
 
       // Supprimer les disponibilités existantes
       await supabase
         .from("disponibilites")
         .delete()
-        .eq("surveillant_id", surveillant.id)
-        .eq("session_id", surveillant.session_id);
+        .eq("surveillant_id", usedSurveillantId)
+        .eq("session_id", activeSession.id);
 
       // Insérer les nouvelles disponibilités
       const nouvellesDispos = creneaux
         .filter(creneau => {
           const key = `${creneau.date_surveillance}_${creneau.heure_debut_surveillance}_${creneau.heure_fin_surveillance}`;
-          return disponibilites[key];
+          return disponibilites[key]?.dispo;
         })
-        .map(creneau => ({
-          surveillant_id: surveillant.id,
-          session_id: surveillant.session_id,
-          date_examen: creneau.date_surveillance,
-          heure_debut: creneau.heure_debut_surveillance,
-          heure_fin: creneau.heure_fin_surveillance,
-          est_disponible: true
-        }));
+        .map(creneau => {
+          const key = `${creneau.date_surveillance}_${creneau.heure_debut_surveillance}_${creneau.heure_fin_surveillance}`;
+          const dispo = disponibilites[key];
+          return {
+            surveillant_id: usedSurveillantId,
+            session_id: activeSession.id,
+            date_examen: creneau.date_surveillance,
+            heure_debut: creneau.heure_debut_surveillance,
+            heure_fin: creneau.heure_fin_surveillance,
+            est_disponible: true,
+            type_choix: dispo.type_choix || 'souhaitee',
+            nom_examen_selectionne: dispo.nom_examen || ''
+          };
+        });
 
       if (nouvellesDispos.length > 0) {
         const { error } = await supabase
@@ -269,7 +326,9 @@ export function SimpleSurveillantAvailabilityForm() {
 
       toast({
         title: "Sauvegardé",
-        description: "Vos disponibilités ont été enregistrées avec succès.",
+        description: isUnknownUser 
+          ? "Votre candidature a été enregistrée avec succès."
+          : "Vos disponibilités ont été enregistrées avec succès.",
       });
       setEtape('termine');
 
@@ -308,36 +367,6 @@ export function SimpleSurveillantAvailabilityForm() {
       semaines[semaineKey].push(creneau);
     });
     return semaines;
-  };
-
-  // Debug function
-  const debugData = async () => {
-    if (!surveillant?.session_id) return;
-    
-    console.log('=== DEBUG DATA ===');
-    
-    const { data: allExams } = await supabase
-      .from('examens')
-      .select('*')
-      .eq('session_id', surveillant.session_id);
-    console.log('All exams:', allExams);
-    
-    const { data: validatedExams } = await supabase
-      .from('examens')
-      .select('*')
-      .eq('session_id', surveillant.session_id)
-      .eq('statut_validation', 'VALIDE');
-    console.log('Validated exams:', validatedExams);
-    
-    const { data: slots } = await supabase
-      .from('creneaux_surveillance')
-      .select('*');
-    console.log('Surveillance slots:', slots);
-    
-    toast({
-      title: "Debug",
-      description: `Examens: ${allExams?.length || 0}, Validés: ${validatedExams?.length || 0}, Créneaux: ${slots?.length || 0}`,
-    });
   };
 
   // Étape 1: Saisie email
@@ -380,7 +409,7 @@ export function SimpleSurveillantAvailabilityForm() {
   }
 
   // Étape 2: Profil et quota
-  if (etape === 'profil' && surveillant) {
+  if (etape === 'profil') {
     return (
       <div className="max-w-md mx-auto space-y-6">
         <Card>
@@ -388,27 +417,70 @@ export function SimpleSurveillantAvailabilityForm() {
             <div className="mx-auto mb-4 w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
               <CheckSquare className="h-8 w-8 text-green-600" />
             </div>
-            <CardTitle>Profil confirmé</CardTitle>
+            <CardTitle>
+              {isUnknownUser ? "Profil non trouvé - Candidature spontanée" : "Profil confirmé"}
+            </CardTitle>
             <CardDescription>
-              Étape 2/3 : Vérification des informations
+              Étape 2/3 : {isUnknownUser ? "Création de candidature" : "Vérification des informations"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-blue-50 p-4 rounded-lg space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="font-semibold">{surveillant.nom} {surveillant.prenom}</span>
-                <Badge variant="secondary">{surveillant.type}</Badge>
+            {surveillant && !isUnknownUser ? (
+              // Profil connu
+              <div className="bg-blue-50 p-4 rounded-lg space-y-3">
+                <div className="text-green-700 font-bold mb-2">✓ Profil trouvé dans notre base de données</div>
+                <div className="text-xs font-normal text-gray-600 mb-3">
+                  Voici vos informations enregistrées. Si elles ne sont pas correctes, vous pouvez demander une modification.
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">{surveillant.nom} {surveillant.prenom}</span>
+                  <Badge variant="secondary">{surveillant.type}</Badge>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Email: {surveillant.email}
+                </div>
+                {surveillant.eft && (
+                  <div className="text-sm text-gray-600">
+                    EFT: {(surveillant.eft * 100).toFixed(0)}%
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Quota théorique:</span>
+                  <Badge className="bg-orange-100 text-orange-800">
+                    {surveillant.quota} surveillance{surveillant.quota > 1 ? 's' : ''}
+                  </Badge>
+                </div>
+                
+                <div className="mt-3 text-xs text-gray-800 p-2 rounded bg-yellow-50 border border-yellow-300">
+                  <strong>⚠️ Informations incorrectes ?</strong> Si une information ne vous semble pas correcte 
+                  (nom, prénom, type, EFT, quota, etc.), cliquez sur le bouton 
+                  <span className="font-semibold"> "Demander une modification" </span>
+                  ci-dessous.
+                </div>
               </div>
-              <div className="text-sm text-gray-600">
-                Email: {surveillant.email}
+            ) : (
+              // Profil inconnu
+              <div className="border p-4 rounded mb-3 bg-yellow-50">
+                <div className="text-orange-700 font-bold mb-1">👤 Profil non trouvé - Candidature spontanée</div>
+                <div className="text-sm text-gray-600 mb-3">
+                  Votre email n'est pas dans notre base de données. Vous pouvez tout de même postuler en remplissant vos informations ci-dessous.
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium">Nom <span className="text-red-600">*</span></label>
+                    <Input value={nom} onChange={e => setNom(e.target.value)} placeholder="Votre nom" required />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium">Prénom <span className="text-red-600">*</span></label>
+                    <Input value={prenom} onChange={e => setPrenom(e.target.value)} placeholder="Votre prénom" required />
+                  </div>
+                </div>
+                <p className="text-sm text-green-700 mt-2 font-medium">
+                  ✓ Vos informations seront transmises à l'administration pour validation.
+                </p>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Quota théorique:</span>
-                <Badge className="bg-orange-100 text-orange-800">
-                  {surveillant.quota} surveillance{surveillant.quota > 1 ? 's' : ''}
-                </Badge>
-              </div>
-            </div>
+            )}
 
             <div>
               <Label htmlFor="telephone">Téléphone *</Label>
@@ -422,14 +494,16 @@ export function SimpleSurveillantAvailabilityForm() {
                     onChange={(e) => setTelephone(e.target.value)}
                   />
                 </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setModalOpen(true)}
-                  title="Demander une modification"
-                >
-                  <AlertCircle className="h-4 w-4" />
-                </Button>
+                {surveillant && !isUnknownUser && (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setModalOpen(true)}
+                    title="Demander une modification"
+                  >
+                    <AlertCircle className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -443,7 +517,7 @@ export function SimpleSurveillantAvailabilityForm() {
               </Button>
               <Button
                 onClick={() => setEtape('disponibilites')}
-                disabled={!telephone.match(/^[+]?[\d\s-()]+$/)}
+                disabled={!telephone.match(/^[+]?[\d\s-()]+$/) || (isUnknownUser && (!nom || !prenom))}
                 className="flex-1"
               >
                 Continuer
@@ -452,20 +526,22 @@ export function SimpleSurveillantAvailabilityForm() {
           </CardContent>
         </Card>
 
-        <DemandeModificationModal
-          open={modalOpen}
-          onClose={() => setModalOpen(false)}
-          surveillantId={surveillant.id}
-          email={email}
-        />
+        {surveillant && !isUnknownUser && (
+          <DemandeModificationModal
+            open={modalOpen}
+            onClose={() => setModalOpen(false)}
+            surveillantId={surveillant.id}
+            email={email}
+          />
+        )}
       </div>
     );
   }
 
   // Étape 3: Sélection des disponibilités
-  if (etape === 'disponibilites' && surveillant) {
+  if (etape === 'disponibilites') {
     const semainesGroupees = grouperParSemaine();
-    const nbSelectionnes = Object.values(disponibilites).filter(Boolean).length;
+    const nbSelectionnes = Object.values(disponibilites).filter(d => d.dispo).length;
 
     return (
       <div className="max-w-2xl mx-auto space-y-6">
@@ -490,13 +566,6 @@ export function SimpleSurveillantAvailabilityForm() {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Actualiser
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={debugData}
-              >
-                Debug données
-              </Button>
             </div>
 
             {Object.keys(semainesGroupees).length === 0 ? (
@@ -517,36 +586,95 @@ export function SimpleSurveillantAvailabilityForm() {
               Object.entries(semainesGroupees).map(([semaine, creneauxSemaine]) => (
                 <div key={semaine} className="space-y-3">
                   <h3 className="font-semibold text-gray-800 border-b pb-2">{semaine}</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-3">
                     {creneauxSemaine.map(creneau => {
                       const key = `${creneau.date_surveillance}_${creneau.heure_debut_surveillance}_${creneau.heure_fin_surveillance}`;
-                      const isSelected = disponibilites[key] || false;
+                      const dispo = disponibilites[key] || { dispo: false, type_choix: 'souhaitee', nom_examen: '' };
                       
                       return (
                         <div
                           key={creneau.id}
-                          className={`p-3 border rounded-lg transition-colors cursor-pointer ${
-                            isSelected ? 'bg-blue-50 border-blue-200' : 'bg-white hover:bg-gray-50'
+                          className={`p-4 border rounded-lg transition-colors ${
+                            dispo.dispo ? 'bg-blue-50 border-blue-200' : 'bg-white hover:bg-gray-50'
                           }`}
-                          onClick={() => setDisponibilites(prev => ({ ...prev, [key]: !prev[key] }))}
                         >
                           <div className="flex items-start space-x-3">
                             <Checkbox
-                              checked={isSelected}
-                              onChange={() => {}}
+                              checked={dispo.dispo}
+                              onCheckedChange={(checked) => 
+                                setDisponibilites(prev => ({
+                                  ...prev,
+                                  [key]: { ...prev[key], dispo: !!checked, type_choix: prev[key]?.type_choix || 'souhaitee', nom_examen: prev[key]?.nom_examen || '' }
+                                }))
+                              }
                               className="mt-1"
                             />
-                            <div className="flex-1 space-y-1">
-                              <div className="font-medium text-sm">
-                                {formatDate(creneau.date_surveillance)}
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center space-x-2 flex-wrap">
+                                <Badge variant="outline">
+                                  {formatDate(creneau.date_surveillance)}
+                                </Badge>
+                                <Badge variant="outline">
+                                  Surveillance: {creneau.heure_debut_surveillance} - {creneau.heure_fin_surveillance}
+                                </Badge>
                               </div>
                               <div className="text-sm text-gray-600">
-                                {creneau.heure_debut_surveillance} - {creneau.heure_fin_surveillance}
-                              </div>
-                              <div className="text-xs text-gray-500">
                                 {creneau.matiere}
                                 {creneau.nombre_examens > 1 && ` (+${creneau.nombre_examens - 1} autre${creneau.nombre_examens > 2 ? 's' : ''})`}
                               </div>
+
+                              {dispo.dispo && (
+                                <div className="bg-blue-50 p-3 rounded-md space-y-3">
+                                  <div className="flex items-center space-x-3">
+                                    <label className="flex items-center space-x-2">
+                                      <input
+                                        type="radio"
+                                        name={`type_${key}`}
+                                        checked={dispo.type_choix === "obligatoire"}
+                                        onChange={() => 
+                                          setDisponibilites(prev => ({
+                                            ...prev,
+                                            [key]: { ...prev[key], type_choix: "obligatoire" }
+                                          }))
+                                        }
+                                        className="accent-blue-500"
+                                      />
+                                      <span>Obligatoire</span>
+                                    </label>
+                                    <label className="flex items-center space-x-2">
+                                      <input
+                                        type="radio"
+                                        name={`type_${key}`}
+                                        checked={dispo.type_choix !== "obligatoire"}
+                                        onChange={() => 
+                                          setDisponibilites(prev => ({
+                                            ...prev,
+                                            [key]: { ...prev[key], type_choix: "souhaitee" }
+                                          }))
+                                        }
+                                        className="accent-green-500"
+                                      />
+                                      <span>Souhaité</span>
+                                    </label>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                      Nom de l'examen (optionnel)
+                                    </label>
+                                    <Input
+                                      placeholder="Ex: Math Analyse"
+                                      value={dispo.nom_examen || ""}
+                                      onChange={e => 
+                                        setDisponibilites(prev => ({
+                                          ...prev,
+                                          [key]: { ...prev[key], nom_examen: e.target.value }
+                                        }))
+                                      }
+                                      className="text-sm"
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -581,7 +709,7 @@ export function SimpleSurveillantAvailabilityForm() {
 
   // Étape finale: Confirmation
   if (etape === 'termine') {
-    const nbSelectionnes = Object.values(disponibilites).filter(Boolean).length;
+    const nbSelectionnes = Object.values(disponibilites).filter(d => d.dispo).length;
     
     return (
       <div className="max-w-md mx-auto space-y-6">
@@ -590,16 +718,23 @@ export function SimpleSurveillantAvailabilityForm() {
             <div className="mx-auto mb-4 w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
               <CheckSquare className="h-8 w-8 text-green-600" />
             </div>
-            <CardTitle className="text-green-800">Disponibilités enregistrées !</CardTitle>
+            <CardTitle className="text-green-800">
+              {isUnknownUser ? "Candidature enregistrée !" : "Disponibilités enregistrées !"}
+            </CardTitle>
             <CardDescription>
-              Vos {nbSelectionnes} disponibilité{nbSelectionnes > 1 ? 's ont' : ' a'} été enregistrée{nbSelectionnes > 1 ? 's' : ''} avec succès.
+              {isUnknownUser 
+                ? "Votre candidature a été transmise à l'administration."
+                : `Vos ${nbSelectionnes} disponibilité${nbSelectionnes > 1 ? 's ont' : ' a'} été enregistrée${nbSelectionnes > 1 ? 's' : ''} avec succès.`
+              }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-green-50 p-4 rounded-lg">
               <p className="text-sm text-green-800">
-                Merci d'avoir renseigné vos disponibilités. Vous recevrez une notification 
-                dès que vos attributions seront confirmées.
+                {isUnknownUser 
+                  ? "Merci pour votre candidature. L'administration examinera votre dossier et vous contactera."
+                  : "Merci d'avoir renseigné vos disponibilités. Vous recevrez une notification dès que vos attributions seront confirmées."
+                }
               </p>
             </div>
             <Button
@@ -609,6 +744,9 @@ export function SimpleSurveillantAvailabilityForm() {
                 setSurveillant(null);
                 setDisponibilites({});
                 setCreneaux([]);
+                setIsUnknownUser(false);
+                setNom('');
+                setPrenom('');
               }}
               className="w-full"
             >
