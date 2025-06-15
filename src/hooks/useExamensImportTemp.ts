@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
+import { parseFlexibleDate } from "@/lib/dateUtils";
 
 // Récupère tous les imports pour la session courante (filtre par batch si besoin)
 export function useExamensImportTemp(batchId?: string) {
@@ -146,25 +147,50 @@ export function useBatchValidateExamensImport() {
         const examensToCreate = examensToValidate.map(row => {
           const data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
           
+          // Validation et conversion de la date
+          const dateExamenRaw = data["Jour"] || data["Date"] || "";
+          const dateExamenFormatted = parseFlexibleDate(dateExamenRaw);
+          
+          if (!dateExamenFormatted) {
+            console.warn("Date invalide pour l'examen:", dateExamenRaw);
+          }
+          
+          // Conversion des heures (format Excel vers HH:MM)
+          const convertTimeValue = (timeValue: any): string => {
+            if (typeof timeValue === "number") {
+              const totalMinutes = Math.round(timeValue * 24 * 60);
+              const hours = Math.floor(totalMinutes / 60);
+              const minutes = totalMinutes % 60;
+              return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+            }
+            if (typeof timeValue === "string" && /^\d{1,2}:\d{2}$/.test(timeValue.trim())) {
+              return timeValue.trim();
+            }
+            return "08:00"; // Valeur par défaut
+          };
+          
           // Validation des champs obligatoires
           const codeExamen = data["Code"] || data["code"] || "";
-          const matiere = data["Activite"] || data["Matière"] || data["matiere"] || "";
-          const dateExamen = data["Jour"] || data["Date"] || "";
+          const matiere = data["Activite"] || data["Activité"] || data["Matière"] || data["matiere"] || "";
           const salle = data["Auditoires"] || data["Salle"] || "";
+          const faculte = data["Faculte"] || data["Faculté"] || data["faculte"] || "";
           
-          if (!codeExamen || !matiere || !dateExamen || !salle) {
-            console.warn("Données manquantes pour l'examen:", data);
+          const heureDebut = convertTimeValue(data["Debut"] || data["Heure"] || data["heure_debut"]);
+          const heureFin = convertTimeValue(data["Fin"] || data["heure_fin"]);
+          
+          if (!codeExamen || !dateExamenFormatted) {
+            console.warn("Données critiques manquantes pour l'examen:", data);
           }
           
           return {
             session_id: row.session_id,
             code_examen: codeExamen,
             matiere: matiere,
-            date_examen: dateExamen,
-            heure_debut: data["Heure"] || data["heure_debut"] || "08:00",
-            heure_fin: data["Fin"] || data["heure_fin"] || "10:00",
+            date_examen: dateExamenFormatted, // Format YYYY-MM-DD pour PostgreSQL
+            heure_debut: heureDebut,
+            heure_fin: heureFin,
             salle: salle,
-            faculte: data["Faculte"] || data["Faculté"] || data["faculte"] || "",
+            faculte: faculte,
             type_requis: "TOUS",
             nombre_surveillants: 1,
             statut_validation: "VALIDE"
