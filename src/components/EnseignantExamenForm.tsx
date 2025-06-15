@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,10 +9,8 @@ import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
 
 import { ExamenRecap } from "./ExamenRecap";
-import { EquipePedagogiqueForm } from "./EquipePedagogiqueForm";
 import { EnseignantPresenceForm } from "./EnseignantPresenceForm";
 import { ExamenAutocomplete } from "./ExamenAutocomplete";
-import { usePersonnesEquipe } from "@/hooks/usePersonnesEquipe";
 import { useExamenMutations } from "@/hooks/useExamenMutations";
 import { useExamenCalculations } from "@/hooks/useExamenCalculations";
 import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
@@ -38,20 +37,9 @@ export const EnseignantExamenForm = () => {
     enabled: !!activeSession?.id
   });
 
-  const { personnesEquipe, setPersonnesEquipe, nombrePersonnes, setNombrePersonnes } = usePersonnesEquipe();
-
   const { 
-    ajouterPersonneMutation, 
-    supprimerPersonneMutation, 
-    updateEnseignantPresenceMutation,
     confirmerExamenMutation 
-  } = useExamenMutations({
-    onPersonneAdded: () => {
-      setPersonnesEquipe(Array(nombrePersonnes).fill({
-        nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true
-      }));
-    }
-  });
+  } = useExamenMutations();
 
   // Get constraints for available auditoires
   const { data: contraintesAuditoires, isLoading: contraintesLoading } = useContraintesAuditoires();
@@ -60,25 +48,6 @@ export const EnseignantExamenForm = () => {
     calculerSurveillantsPedagogiques,
     calculerSurveillantsNecessaires
   } = useExamenCalculations(selectedExamen);
-
-  const handleAjouterPersonnes = () => {
-    if (!selectedExamen) return;
-    const personnesValides = personnesEquipe.every(p => p.nom && p.prenom);
-    if (!personnesValides) {
-      toast({
-        title: "Champs requis",
-        description: "Nom et prénom sont obligatoires pour chaque personne.",
-        variant: "destructive"
-      });
-      return;
-    }
-    personnesEquipe.forEach((personne) => {
-      ajouterPersonneMutation.mutate({
-        examenId: selectedExamen.id,
-        personne: personne
-      });
-    });
-  };
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('fr-FR', {
@@ -173,7 +142,7 @@ export const EnseignantExamenForm = () => {
 
           <EnseignantPresenceForm
             selectedExamen={selectedExamen}
-            updateEnseignantPresenceMutation={updateEnseignantPresenceMutation}
+            updateEnseignantPresenceMutation={useExamenMutations().updateEnseignantPresenceMutation}
             surveillantsTheoriques={getTheoreticalSurveillants()}
             surveillantsNecessaires={calculerSurveillantsNecessaires()}
             onPresenceSaved={() => refreshSelectedExamen(selectedExamen.id)}
@@ -181,16 +150,6 @@ export const EnseignantExamenForm = () => {
 
           <Card>
             <CardContent className="space-y-6 pt-6">
-              <EquipePedagogiqueForm
-                selectedExamen={selectedExamen}
-                ajouterPersonneMutation={ajouterPersonneMutation}
-                supprimerPersonneMutation={supprimerPersonneMutation}
-                personnesEquipe={personnesEquipe}
-                setPersonnesEquipe={setPersonnesEquipe}
-                nombrePersonnes={nombrePersonnes}
-                setNombrePersonnes={setNombrePersonnes}
-                handleAjouterPersonnes={handleAjouterPersonnes}
-              />
               <div className="flex justify-end space-x-2">
                 <Button
                   onClick={() => confirmerExamenMutation.mutate(selectedExamen.id)}

@@ -75,21 +75,30 @@ export const useExamenMutations = ({ onPersonneAdded }: UseExamenMutationsProps 
     mutationFn: async ({ 
       examenId, 
       enseignantPresent, 
+      nomEnseignant,
       personnesAmenees, 
       detailsPersonnesAmenees 
     }: { 
       examenId: string; 
       enseignantPresent: boolean; 
+      nomEnseignant?: string;
       personnesAmenees: number;
       detailsPersonnesAmenees?: PersonneAmenee[];
     }) => {
       // Mettre à jour les informations d'examen
+      const updateData: any = {
+        surveillants_enseignant: enseignantPresent ? 1 : 0,
+        surveillants_amenes: personnesAmenees
+      };
+      
+      // Ajouter le nom de l'enseignant s'il est fourni
+      if (nomEnseignant) {
+        updateData.enseignant_nom = nomEnseignant;
+      }
+
       const { error: updateError } = await supabase
         .from('examens')
-        .update({
-          surveillants_enseignant: enseignantPresent ? 1 : 0,
-          surveillants_amenes: personnesAmenees
-        })
+        .update(updateData)
         .eq('id', examenId);
 
       if (updateError) throw updateError;
