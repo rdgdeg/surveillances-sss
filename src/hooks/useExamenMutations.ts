@@ -59,8 +59,8 @@ export function useExamenMutations({ onPersonneAdded }: { onPersonneAdded?: () =
       const { error } = await supabase
         .from('examens')
         .update({
-          enseignant_present: enseignantPresent,
-          personnes_amenees: personnesAmenees
+          surveillants_enseignant: enseignantPresent ? 1 : 0,
+          surveillants_amenes: personnesAmenees
         })
         .eq('id', examenId);
       if (error) throw error;

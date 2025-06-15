@@ -18,8 +18,8 @@ export const EnseignantPresenceForm = ({ selectedExamen, updateEnseignantPresenc
 
   useEffect(() => {
     if (selectedExamen) {
-      setEnseignantPresent(selectedExamen.enseignant_present || false);
-      setPersonnesAmenees(selectedExamen.personnes_amenees || 0);
+      setEnseignantPresent((selectedExamen.surveillants_enseignant || 0) > 0);
+      setPersonnesAmenees(selectedExamen.surveillants_amenes || 0);
     }
   }, [selectedExamen]);
 
