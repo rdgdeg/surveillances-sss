@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +31,18 @@ export function SuiviConfirmationEnseignants() {
         .order("date_examen")
         .order("heure_debut");
       if (error) throw error;
+      
+      // Debug: Afficher les données pour voir le contenu du champ enseignants
+      console.log("Examens récupérés:", data);
+      data?.forEach((ex, index) => {
+        console.log(`Examen ${index}:`, {
+          code: ex.code_examen,
+          enseignants: ex.enseignants,
+          enseignant_nom: ex.enseignant_nom,
+          matiere: ex.matiere
+        });
+      });
+      
       return data || [];
     }
   });
@@ -190,6 +203,10 @@ export function SuiviConfirmationEnseignants() {
                         ? ex.enseignants
                         : <span className="text-gray-400">–</span>
                       }
+                      {/* Debug: afficher la valeur brute */}
+                      <div className="text-xs text-red-500">
+                        Debug: "{ex.enseignants}" (type: {typeof ex.enseignants})
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div>
