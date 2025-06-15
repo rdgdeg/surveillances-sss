@@ -1,4 +1,5 @@
 
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
@@ -23,7 +24,6 @@ interface ExamensImportTableRowProps {
   excelTimeToHHMM: (t: any) => string;
   excelDateString: (d: any) => string;
   getDureeAffichee: (val: any) => string;
-  // Ajouts :
   isSelected?: boolean;
   onSelect?: (id: string, checked: boolean) => void;
 }
@@ -33,7 +33,14 @@ export function ExamensImportTableRow({
   getExamProblem, getSurvTh, excelTimeToHHMM, excelDateString, getDureeAffichee,
   isSelected, onSelect
 }: ExamensImportTableRowProps) {
+  const [inlineEditSurvThId, setInlineEditSurvThId] = useState<string|null>(null);
+  const [inlineSurvThValue, setInlineSurvThValue] = useState<string>("");
+
   const problems = getExamProblem(row);
+
+  // Champs auditoire
+  const auditoireField = row.data?.["Auditoires"] || row.data?.["auditoires"] || row.data?.["salle"] || "";
+  const noAuditoire = !auditoireField;
 
   // On regarde s'il y a une valeur "forcée" dans les data
   const forcedSurvTh = row.data?.Surveillants_Th;
@@ -42,6 +49,7 @@ export function ExamensImportTableRow({
     ? Number(forcedSurvTh)
     : calculatedSurvTh;
 
+  // Début affichage
   return (
     <tr key={row.id} className={problems.length ? "bg-red-50" : ""}>
       <td>
@@ -75,6 +83,7 @@ export function ExamensImportTableRow({
         </td>
       ))}
       <td>
+        {/* Inline edit */}
         {editRow === row.id ? (
           <Input
             type="number"
@@ -86,20 +95,79 @@ export function ExamensImportTableRow({
                 : theorique ?? ""
             }
             onChange={(e: ChangeEvent<HTMLInputElement>) => {
-              // On autorise de mettre vide pour effacer le forçage
               const val = e.target.value === "" ? "" : Number(e.target.value);
               onChangeEdit("Surveillants_Th", val);
             }}
             placeholder="?"
           />
+        ) : inlineEditSurvThId === row.id ? (
+          <div className="flex items-center gap-1">
+            <Input
+              autoFocus
+              type="number"
+              min={noAuditoire ? 0 : 1}
+              className="text-xs w-16"
+              value={inlineSurvThValue}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                setInlineSurvThValue(e.target.value);
+              }}
+              onBlur={() => setInlineEditSurvThId(null)}
+              onKeyDown={async (e) => {
+                if (e.key === "Enter") {
+                  if (
+                    inlineSurvThValue !== "" &&
+                    !isNaN(Number(inlineSurvThValue))
+                  ) {
+                    onEdit(row.id, { ...row.data, Surveillants_Th: Number(inlineSurvThValue) });
+                    // Save immediately
+                    await onSave(row.id);
+                  }
+                  setInlineEditSurvThId(null);
+                }
+                if (e.key === "Escape") setInlineEditSurvThId(null);
+              }}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="px-2"
+              onClick={async () => {
+                if (
+                  inlineSurvThValue !== "" &&
+                  !isNaN(Number(inlineSurvThValue))
+                ) {
+                  onEdit(row.id, { ...row.data, Surveillants_Th: Number(inlineSurvThValue) });
+                  await onSave(row.id);
+                }
+                setInlineEditSurvThId(null);
+              }}
+            >
+              OK
+            </Button>
+          </div>
         ) : theorique !== null && theorique !== undefined ? (
-          <Badge className="bg-green-100 text-green-800">{theorique}</Badge>
+          <Badge
+            className="bg-green-100 text-green-800 cursor-pointer"
+            title="Cliquez pour éditer"
+            onClick={() => {
+              setInlineEditSurvThId(row.id);
+              setInlineSurvThValue(theorique?.toString() ?? "0");
+            }}
+          >
+            {theorique}
+          </Badge>
         ) : (
-          <span className="text-red-700">?</span>
+          <span className="text-red-700 cursor-pointer" title="Cliquez pour éditer"
+            onClick={() => {
+              setInlineEditSurvThId(row.id);
+              setInlineSurvThValue("");
+            }}>?</span>
         )}
       </td>
       <td>
-        {problems.length === 0
+        {noAuditoire ? (
+          <Badge className="bg-orange-100 text-orange-800">Auditoire à compléter</Badge>
+        ) : problems.length === 0
           ? <Badge className="bg-green-100 text-green-800">Prêt</Badge>
           : <Badge className="bg-orange-100 text-orange-800">À corriger: {problems.join(", ")}</Badge>
         }
