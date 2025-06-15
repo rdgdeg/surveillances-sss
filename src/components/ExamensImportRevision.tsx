@@ -15,6 +15,20 @@ import { excelTimeToHHMM, excelDateString, excelDurationToHM } from "@/utils/exa
 import { getExamProblem } from "@/utils/examensImportProblems";
 import { ExamensImportTable } from "./ExamensImportTable";
 
+// Champs à mapper explicitement dans un ordre idéal pour l’affichage
+const IDEAL_COL_ORDER = [
+  "Jour",
+  "Debut",
+  "Fin",
+  "Duree",
+  "Faculte",
+  "Code",
+  "Activite",
+  "Auditoires",
+  "Etudiants",
+  "Enseignants"
+];
+
 export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   const { data: rows = [], isLoading } = useExamensImportTemp(batchId);
   const updateMutation = useUpdateExamenImportTemp();
