@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,25 +20,29 @@ export function SuiviConfirmationEnseignants() {
     selectedExamen: null as any
   });
 
-  // Récupère tous les examens avec infos présence enseignant, personnes amenées, confirmation besoins
+  // Récupère tous les examens avec toutes les informations possibles d'enseignants
   const { data: examens, isLoading } = useQuery({
     queryKey: ["examens-admin-suivi-confirm", "enseignants"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("examens")
-        .select("id, code_examen, matiere, salle, date_examen, heure_debut, heure_fin, surveillants_enseignant, surveillants_amenes, besoins_confirmes_par_enseignant, enseignant_nom, enseignant_email, enseignants, nombre_surveillants")
+        .select("*")
         .order("date_examen")
         .order("heure_debut");
       if (error) throw error;
       
-      // Debug: Afficher les données pour voir le contenu du champ enseignants
-      console.log("Examens récupérés:", data);
-      data?.forEach((ex, index) => {
-        console.log(`Examen ${index}:`, {
-          code: ex.code_examen,
+      // Debug: Vérifier tous les champs liés aux enseignants
+      console.log("Examens avec tous les champs:", data?.slice(0, 3));
+      data?.slice(0, 3).forEach((ex, index) => {
+        console.log(`Examen ${index} - tous les champs enseignants:`, {
+          id: ex.id,
+          code_examen: ex.code_examen,
+          matiere: ex.matiere,
           enseignants: ex.enseignants,
           enseignant_nom: ex.enseignant_nom,
-          matiere: ex.matiere
+          enseignant_email: ex.enseignant_email,
+          // Vérifier s'il y a d'autres champs possibles
+          ...Object.keys(ex).filter(key => key.toLowerCase().includes('enseignant') || key.toLowerCase().includes('teacher')).reduce((obj, key) => ({...obj, [key]: ex[key]}), {})
         });
       });
       
@@ -79,6 +82,30 @@ export function SuiviConfirmationEnseignants() {
     return Math.max(0, theoriques - enseignantPresent - personnesAmenees);
   };
 
+  // Fonction pour extraire le nom d'enseignant depuis différents champs possibles
+  const getEnseignantNom = (examen: any) => {
+    // Vérifier plusieurs champs possibles où le nom pourrait être stocké
+    if (examen.enseignants && typeof examen.enseignants === 'string' && examen.enseignants.trim()) {
+      return examen.enseignants.trim();
+    }
+    
+    // Si enseignants est un objet, essayer d'extraire le nom
+    if (examen.enseignants && typeof examen.enseignants === 'object') {
+      if (examen.enseignants.nom) return examen.enseignants.nom;
+      if (examen.enseignants.name) return examen.enseignants.name;
+      if (Array.isArray(examen.enseignants) && examen.enseignants.length > 0) {
+        return examen.enseignants.map(e => e.nom || e.name || e).join(', ');
+      }
+    }
+    
+    // Fallback vers d'autres champs possibles
+    if (examen.enseignant_nom && examen.enseignant_nom.trim()) {
+      return examen.enseignant_nom.trim();
+    }
+    
+    return null;
+  };
+
   // Fonction pour filtrer et trier les examens
   const getFilteredAndSortedExamens = () => {
     if (!examens) return [];
@@ -96,8 +123,7 @@ export function SuiviConfirmationEnseignants() {
       filtered = filtered.filter(ex => 
         (ex.code_examen || "").toLowerCase().includes(term) ||
         (ex.matiere || "").toLowerCase().includes(term) ||
-        (ex.enseignant_nom || "").toLowerCase().includes(term) ||
-        (ex.enseignants || "").toLowerCase().includes(term) ||
+        (getEnseignantNom(ex) || "").toLowerCase().includes(term) ||
         (ex.enseignant_email || "").toLowerCase().includes(term)
       );
     }
@@ -126,8 +152,8 @@ export function SuiviConfirmationEnseignants() {
         case "matiere":
           return (a.matiere || "").localeCompare(b.matiere || "");
         case "enseignant":
-          const nameA = a.enseignant_nom || a.enseignants || "";
-          const nameB = b.enseignant_nom || b.enseignants || "";
+          const nameA = getEnseignantNom(a) || "";
+          const nameB = getEnseignantNom(b) || "";
           return nameA.localeCompare(nameB);
         case "status":
           const statusA = a.besoins_confirmes_par_enseignant ? "confirmed" : 
@@ -184,6 +210,7 @@ export function SuiviConfirmationEnseignants() {
               {!isLoading && filteredExamens.map((ex: any) => {
                 const surveillantsNecessaires = calculerSurveillantsNecessaires(ex);
                 const surveillantsAdaptes = calculerSurveillantsAdaptes(ex);
+                const enseignantNomImporte = getEnseignantNom(ex);
                 
                 return (
                   <TableRow key={ex.id}>
@@ -199,14 +226,11 @@ export function SuiviConfirmationEnseignants() {
                     </TableCell>
                     <TableCell>{ex.salle || ""}</TableCell>
                     <TableCell>
-                      {ex.enseignants && ex.enseignants.trim()
-                        ? ex.enseignants
-                        : <span className="text-gray-400">–</span>
-                      }
-                      {/* Debug: afficher la valeur brute */}
-                      <div className="text-xs text-red-500">
-                        Debug: "{ex.enseignants}" (type: {typeof ex.enseignants})
-                      </div>
+                      {enseignantNomImporte ? (
+                        <span className="font-medium">{enseignantNomImporte}</span>
+                      ) : (
+                        <span className="text-gray-400">Non renseigné</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div>
