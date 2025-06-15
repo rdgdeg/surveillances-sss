@@ -35,6 +35,7 @@ export const EnseignantPresenceForm = ({
   const [nomEnseignant, setNomEnseignant] = useState("");
   const [personnesAmenees, setPersonnesAmenees] = useState(0);
   const [detailsPersonnesAmenees, setDetailsPersonnesAmenees] = useState<PersonneAmenee[]>([]);
+  const [informationsMisesAJour, setInformationsMisesAJour] = useState(false);
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -59,6 +60,9 @@ export const EnseignantPresenceForm = ({
         } : { nom: "", prenom: "", est_assistant: false };
       });
       setDetailsPersonnesAmenees(initDetails);
+      
+      // Vérifier si les informations ont déjà été mises à jour
+      setInformationsMisesAJour(selectedExamen.surveillants_enseignant !== null || selectedExamen.surveillants_amenes > 0);
     }
   }, [selectedExamen]);
 
@@ -90,6 +94,7 @@ export const EnseignantPresenceForm = ({
       detailsPersonnesAmenees,
     });
     queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
+    setInformationsMisesAJour(true);
     toast({
       title: "Informations mises à jour",
       description: "Vos informations de présence ont été sauvegardées.",
@@ -137,12 +142,12 @@ export const EnseignantPresenceForm = ({
         </CardContent>
       </Card>
 
-      {/* Section personnes amenées */}
+      {/* Section personnes présentes sur place */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Users className="h-5 w-5" />
-            <span>Personnes que vous amenez</span>
+            <span>Personnes présentes sur place</span>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -154,7 +159,7 @@ export const EnseignantPresenceForm = ({
 
           <div className="space-y-2">
             <Label htmlFor="personnes-amenees">
-              Nombre de personnes que j'amène
+              Nombre de personnes présentes sur place (en plus de l'enseignant)
             </Label>
             <Input
               id="personnes-amenees"
@@ -166,14 +171,14 @@ export const EnseignantPresenceForm = ({
               className="w-32"
             />
             <p className="text-sm text-gray-600">
-              Indiquez le nombre de personnes (assistants, collègues) que vous amenez pour aider à la surveillance.
+              Indiquez le nombre de personnes (assistants, collègues) qui seront présentes sur place pour aider à la surveillance.
             </p>
           </div>
 
           {/* Champs dynamiques pour les noms/prénoms */}
           {personnesAmenees > 0 && (
             <div className="mt-4">
-              <Label className="block mb-2 font-medium">Détails des personnes amenées</Label>
+              <Label className="block mb-2 font-medium">Détails des personnes présentes sur place</Label>
               <AmenesSurveillantsFields 
                 nombre={personnesAmenees}
                 personnes={detailsPersonnesAmenees}
@@ -192,6 +197,15 @@ export const EnseignantPresenceForm = ({
           </Button>
         </CardContent>
       </Card>
+
+      {/* Indicateur si les informations ont été mises à jour */}
+      {informationsMisesAJour && (
+        <div className="px-3 py-2 rounded-lg bg-green-50 border border-green-200">
+          <span className="font-medium text-green-700">
+            ✓ Informations mises à jour - Vous pouvez maintenant confirmer vos besoins
+          </span>
+        </div>
+      )}
     </div>
   );
 };

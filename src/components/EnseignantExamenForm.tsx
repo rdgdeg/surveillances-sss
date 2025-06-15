@@ -18,6 +18,7 @@ import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
 export const EnseignantExamenForm = () => {
   const { data: activeSession } = useActiveSession();
   const [selectedExamen, setSelectedExamen] = useState<any>(null);
+  const [informationsMisesAJour, setInformationsMisesAJour] = useState(false);
 
   const { data: examensValides } = useQuery({
     queryKey: ['examens-enseignant', activeSession?.id],
@@ -78,7 +79,22 @@ export const EnseignantExamenForm = () => {
       .select(`*, personnes_aidantes (*), enseignant_nom, enseignant_email`)
       .eq('id', id)
       .maybeSingle();
-    if (data) setSelectedExamen(data);
+    if (data) {
+      setSelectedExamen(data);
+      // Vérifier si les informations ont été mises à jour
+      setInformationsMisesAJour(data.surveillants_enseignant !== null || data.surveillants_amenes > 0);
+    }
+  };
+
+  const handleSelectExamen = (examen: any) => {
+    setSelectedExamen(examen);
+    // Vérifier si les informations ont été mises à jour
+    setInformationsMisesAJour(examen.surveillants_enseignant !== null || examen.surveillants_amenes > 0);
+  };
+
+  const handlePresenceSaved = () => {
+    setInformationsMisesAJour(true);
+    refreshSelectedExamen(selectedExamen.id);
   };
 
   return (
@@ -97,7 +113,7 @@ export const EnseignantExamenForm = () => {
           <ExamenAutocomplete
             examens={examensValides || []}
             selectedExamen={selectedExamen}
-            onSelectExamen={setSelectedExamen}
+            onSelectExamen={handleSelectExamen}
             placeholder="Recherchez par code, matière, salle ou nom d'enseignant..."
           />
         </CardContent>
@@ -146,15 +162,27 @@ export const EnseignantExamenForm = () => {
             updateEnseignantPresenceMutation={updateEnseignantPresenceMutation}
             surveillantsTheoriques={getTheoreticalSurveillants()}
             surveillantsNecessaires={calculerSurveillantsNecessaires()}
-            onPresenceSaved={() => refreshSelectedExamen(selectedExamen.id)}
+            onPresenceSaved={handlePresenceSaved}
           />
 
           <Card>
             <CardContent className="space-y-6 pt-6">
+              {!informationsMisesAJour && (
+                <div className="px-3 py-2 rounded-lg bg-yellow-50 border border-yellow-200 mb-4">
+                  <span className="font-medium text-yellow-700">
+                    ⚠️ Vous devez mettre à jour vos informations avant de confirmer vos besoins
+                  </span>
+                </div>
+              )}
+              
               <div className="flex justify-end space-x-2">
                 <Button
                   onClick={() => confirmerExamenMutation.mutate(selectedExamen.id)}
-                  disabled={confirmerExamenMutation.isPending || selectedExamen.besoins_confirmes_par_enseignant}
+                  disabled={
+                    confirmerExamenMutation.isPending || 
+                    selectedExamen.besoins_confirmes_par_enseignant ||
+                    !informationsMisesAJour
+                  }
                 >
                   <Save className="mr-2 h-4 w-4" />
                   {selectedExamen.besoins_confirmes_par_enseignant ? "Déjà confirmé" : "Confirmer les besoins"}

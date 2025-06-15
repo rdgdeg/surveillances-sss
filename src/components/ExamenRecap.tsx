@@ -1,6 +1,6 @@
 
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, MapPin } from "lucide-react";
+import { Calendar, Clock, MapPin, User } from "lucide-react";
 
 type ExamenRecapProps = {
   selectedExamen: any;
@@ -32,6 +32,12 @@ export function ExamenRecap({ selectedExamen, formatDate }: ExamenRecapProps) {
           <MapPin className="h-3 w-3" />
           <span>{selectedExamen.salle}</span>
         </div>
+        {selectedExamen.enseignants && (
+          <div className="flex items-center space-x-1">
+            <User className="h-3 w-3" />
+            <span>Enseignant(s): {selectedExamen.enseignants}</span>
+          </div>
+        )}
       </div>
     </>
   );
