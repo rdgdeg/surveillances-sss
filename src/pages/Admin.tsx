@@ -1,4 +1,3 @@
-
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -75,7 +74,7 @@ export default function AdminPage() {
         <div className="min-h-screen flex w-full">
           <AppSidebar />
           <main className="flex-1 bg-gray-50 p-5 flex flex-col min-h-screen">
-            <div className="max-w-5xl mx-auto flex-1 w-full">
+            <div className="max-w-full w-full px-2 mx-auto flex-1">
               <h1 className="text-2xl font-bold mb-4">Administration</h1>
               <p className="mb-6">
                 Gérez toutes les fonctions d’administration : sessions, examens, surveillants, candidatures, validations, statistiques...
@@ -89,4 +88,3 @@ export default function AdminPage() {
     </>
   );
 }
-
