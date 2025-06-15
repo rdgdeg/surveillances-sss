@@ -236,34 +236,69 @@ export function ExamenReviewManager() {
     }
   });
 
-  const groupedExamens = examens ? examens.reduce((acc: Record<string, ExamenReview[]>, examen) => {
-    const key = `${examen.code_examen}-${examen.date_examen}`;
-    if (!acc[key]) {
-      acc[key] = [];
-    }
-    acc[key].push(examen);
-    return acc;
-  }, {}) : {};
+  // Construction des groupes d'examens (corrigé pour inclure tous les champs requis)
+  const groupedExamens = examens
+    ? examens.reduce((acc: Record<string, ExamenReview[]>, examen) => {
+        // auditoire_unifie pour key
+        const auditoire_unifie = examen.salle.trim().match(/^Neerveld\s+[A-Z]$/i)
+          ? "Neerveld"
+          : examen.salle.trim();
+        const key = `${examen.code_examen}-${examen.date_examen}-${examen.heure_debut}-${auditoire_unifie}`;
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(examen);
+        return acc;
+      }, {})
+    : {};
 
   const examenGroupsArray = Object.entries(groupedExamens).map(([key, examens]) => {
+    const first = examens[0];
     const totalStudents = examens.reduce((sum, examen) => sum + (examen.nombre_etudiants || 0), 0);
     const totalSurveillants = examens.reduce((sum, examen) => sum + (examen.nombre_surveillants || 0), 0);
     const totalEnseignants = examens.reduce((sum, examen) => sum + (examen.surveillants_enseignant || 0), 0);
     const totalAmenes = examens.reduce((sum, examen) => sum + (examen.surveillants_amenes || 0), 0);
     const totalPreAssignes = examens.reduce((sum, examen) => sum + (examen.surveillants_pre_assignes || 0), 0);
 
+    // Champs nécessaires pour ExamenGroupe
     return {
       id: key,
-      code_examen: examens[0].code_examen,
-      date_examen: examens[0].date_examen,
-      examens: examens,
+      code_examen: first.code_examen,
+      matiere: first.matiere,
+      date_examen: first.date_examen,
+      heure_debut: first.heure_debut,
+      heure_fin: first.heure_fin,
+      auditoire_unifie: first.salle.trim().match(/^Neerveld\s+[A-Z]$/i)
+        ? "Neerveld"
+        : first.salle.trim(),
+      examens,
       nombre_etudiants_total: totalStudents,
       nombre_surveillants_total: totalSurveillants,
       surveillants_enseignant_total: totalEnseignants,
       surveillants_amenes_total: totalAmenes,
       surveillants_pre_assignes_total: totalPreAssignes,
-    };
+      surveillants_a_attribuer_total: 0, // Ajustez selon besoin si valeur calculée nécessaire
+      personnes_aidantes_total: 0, // Ajustez selon besoin
+    } as ExamenGroupe;
   });
+
+  const {
+    isPending: isContraintesPending,
+    mutate: applyContraintes,
+  } = applquerContraintesAuditoiresMutation;
+
+  const {
+    isPending: isValidatePending,
+    mutateAsync: validateExamens,
+  } = validateExamensMutation;
+
+  const {
+    isPending: isToggleActivePending,
+    mutate: toggleActive,
+  } = toggleExamenActiveMutation;
+
+  const {
+    isPending: isUpdatePending,
+    mutateAsync: updateExamen,
+  } = updateExamenMutation;
 
   const handleToggleGroup = (groupId: string) => {
     setSelectedGroupes(prev => {
@@ -279,7 +314,7 @@ export function ExamenReviewManager() {
 
   const handleValidateSelected = async () => {
     const groupsToValidate = examenGroupsArray.filter(group => selectedGroupes.has(group.id));
-    await validateExamensMutation.mutateAsync(groupsToValidate);
+    await validateExamens(groupsToValidate);
   };
 
   return (
@@ -304,14 +339,14 @@ export function ExamenReviewManager() {
           <div className="flex items-center space-x-2 mb-4">
             <Button
               variant="outline"
-              onClick={applquerContraintesAuditoiresMutation.mutate}
-              disabled={applquerContraintesAuditoiresMutation.isLoading}
+              onClick={() => applyContraintes()}
+              disabled={isContraintesPending}
             >
               Appliquer les contraintes d'auditoires
             </Button>
             <Button
               onClick={handleValidateSelected}
-              disabled={validateExamensMutation.isLoading || selectedGroupes.size === 0}
+              disabled={isValidatePending || selectedGroupes.size === 0}
             >
               Valider la sélection ({selectedGroupes.size} groupes)
             </Button>
@@ -338,11 +373,11 @@ export function ExamenReviewManager() {
         <tbody>
           {isLoading ? (
             <tr>
-              <td colSpan={8}>Chargement...</td>
+              <td colSpan={11}>Chargement...</td>
             </tr>
           ) : examenGroupsArray.length === 0 ? (
             <tr>
-              <td colSpan={8}>Aucun examen à valider.</td>
+              <td colSpan={11}>Aucun examen à valider.</td>
             </tr>
           ) : (
             examenGroupsArray.map(groupe => (
@@ -371,8 +406,8 @@ export function ExamenReviewManager() {
                     }}
                     onBlur={async () => {
                       if (editingExamens[groupe.id]?.nombre_surveillants_total !== undefined) {
-                        await updateExamenMutation.mutateAsync({
-                          groupe: groupe,
+                        await updateExamen({
+                          groupe,
                           updates: { nombre_surveillants_total: editingExamens[groupe.id].nombre_surveillants_total },
                         });
                       }
@@ -394,8 +429,8 @@ export function ExamenReviewManager() {
                     }}
                     onBlur={async () => {
                       if (editingExamens[groupe.id]?.surveillants_enseignant_total !== undefined) {
-                        await updateExamenMutation.mutateAsync({
-                          groupe: groupe,
+                        await updateExamen({
+                          groupe,
                           updates: { surveillants_enseignant_total: editingExamens[groupe.id].surveillants_enseignant_total },
                         });
                       }
@@ -417,8 +452,8 @@ export function ExamenReviewManager() {
                     }}
                     onBlur={async () => {
                       if (editingExamens[groupe.id]?.surveillants_amenes_total !== undefined) {
-                        await updateExamenMutation.mutateAsync({
-                          groupe: groupe,
+                        await updateExamen({
+                          groupe,
                           updates: { surveillants_amenes_total: editingExamens[groupe.id].surveillants_amenes_total },
                         });
                       }
@@ -440,8 +475,8 @@ export function ExamenReviewManager() {
                     }}
                     onBlur={async () => {
                       if (editingExamens[groupe.id]?.surveillants_pre_assignes_total !== undefined) {
-                        await updateExamenMutation.mutateAsync({
-                          groupe: groupe,
+                        await updateExamen({
+                          groupe,
                           updates: { surveillants_pre_assignes_total: editingExamens[groupe.id].surveillants_pre_assignes_total },
                         });
                       }
@@ -457,11 +492,11 @@ export function ExamenReviewManager() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => toggleExamenActiveMutation.mutate({
+                        onClick={() => toggleActive({
                           examenId: examen.id,
                           isActive: !examen.is_active,
                         })}
-                        disabled={toggleExamenActiveMutation.isLoading}
+                        disabled={isToggleActivePending}
                       >
                         Basculer
                       </Button>
