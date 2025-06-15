@@ -92,6 +92,31 @@ export const StandardExcelImporter = () => {
       let totalOk = 0, totalFail = 0;
       for (let idx = 0; idx < parsedRows.length; idx++) {
         const row = parsedRows[idx];
+
+        // Vérification et parsing de la colonne "Début"
+        const parsedHeureDebut = formatTimeCell(row["Début"]);
+        if (!parsedHeureDebut) {
+          totalFail++;
+          toast({
+            title: `Heure de début manquante ou invalide`,
+            description: `Ligne ${idx + 2} : l'examen "${row["Activité"] || row["Code"] || "-"}" n'a pas d'heure de début correcte dans le fichier Excel. Veuillez corriger avant de réessayer.`,
+            variant: "destructive",
+          });
+          continue; // Ignore cette ligne
+        }
+
+        // Même chose pour "Fin" (pour éviter un autre bug possible)
+        const parsedHeureFin = formatTimeCell(row["Fin"]);
+        if (!parsedHeureFin) {
+          totalFail++;
+          toast({
+            title: `Heure de fin manquante ou invalide`,
+            description: `Ligne ${idx + 2} : l'examen "${row["Activité"] || row["Code"] || "-"}" n'a pas d'heure de fin correcte dans le fichier Excel. Veuillez corriger avant de réessayer.`,
+            variant: "destructive",
+          });
+          continue;
+        }
+
         // Gestion de la durée (possibles formats: nombre, texte, vide, virgule/fr)
         let rawDuree = row["Durée (h)"];
         let duree: number | null = null;
@@ -108,8 +133,8 @@ export const StandardExcelImporter = () => {
           session_id: activeSession.id,
           date_examen: formatDateCell(row["Jour"]),
           duree,
-          heure_debut: formatTimeCell(row["Début"]),
-          heure_fin: formatTimeCell(row["Fin"]),
+          heure_debut: parsedHeureDebut,
+          heure_fin: parsedHeureFin,
           faculte: row["Faculté / Secrétariat"] || null,
           code_examen: row["Code"] || null,
           salle: row["Auditoires"] || null,
