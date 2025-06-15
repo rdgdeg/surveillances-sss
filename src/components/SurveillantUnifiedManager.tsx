@@ -417,14 +417,14 @@ export function SurveillantUnifiedManager() {
   }, {});
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-0 md:px-6 max-w-[1700px] w-full mx-auto">
+      {/* --- Recap --- */}
       <SurveillantStatsRecap
         total={total}
         actifs={actifs}
         inactifs={inactifs}
         typeMap={typeMap}
       />
-
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div>

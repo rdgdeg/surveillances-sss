@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Save, X, Plus, RotateCcw } from "lucide-react";
+import { Save, X, Plus } from "lucide-react";
 import { FacultesMultiSelect, FACULTES_FILTERED } from "./FacultesMultiSelect";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -43,7 +43,7 @@ interface SurveillantTableProps {
   compact?: boolean;
 }
 
-/** Calcul quota théorique par type */
+// Calcul quota théorique par type (corrigé)
 function getTheoreticalQuota(type: string | undefined, etp: number | undefined | null): number {
   if (!type) return 0;
   const typeNorm = type.trim().toLowerCase();
@@ -59,30 +59,28 @@ export function SurveillantTable({
   hasSessionEntryId = true
 }: SurveillantTableProps) {
   return (
-    <div className="overflow-x-auto max-w-full">
-      <Table className="min-w-[900px] lg:min-w-[1000px] w-full">
+    <div className="w-full max-w-[1700px] mx-auto overflow-x-visible"> {/* Largeur max élargie */}
+      <Table className="w-full min-w-[1200px]">
         <TableHeader>
           <TableRow className="bg-blue-100 text-xs">
-            <TableHead className="w-7 px-1 py-1" />
-            <TableHead className="min-w-[105px] w-32 p-1">Nom</TableHead>
-            <TableHead className="hidden md:table-cell min-w-[100px] w-24 p-1">Email</TableHead>
-            <TableHead className="w-12 p-1">
+            <TableHead className="w-7 px-3 py-1" />
+            <TableHead className="min-w-[170px] w-48 p-2">Nom</TableHead>
+            <TableHead className="min-w-[200px] w-60 p-2">Email</TableHead>
+            <TableHead className="w-16 p-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span>Actif</span>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    Surveillant actif pour la session ou non
-                  </TooltipContent>
+                  <TooltipContent>Actif pour la session</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             </TableHead>
-            <TableHead className="w-10 p-1">Type</TableHead>
-            <TableHead className="w-14 p-1">Statut</TableHead>
-            <TableHead className="hidden sm:table-cell w-16 p-1">Affect.</TableHead>
-            <TableHead className="w-10 p-1">ETP</TableHead>
-            <TableHead className="w-10 p-1">
+            <TableHead className="w-14 p-2">Type</TableHead>
+            <TableHead className="w-20 p-2">Statut</TableHead>
+            <TableHead className="w-16 p-2">Affect.</TableHead>
+            <TableHead className="w-11 p-2">ETP</TableHead>
+            <TableHead className="w-11 p-2">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -94,10 +92,10 @@ export function SurveillantTable({
                 </Tooltip>
               </TooltipProvider>
             </TableHead>
-            <TableHead className="w-10 p-1">Quota</TableHead>
-            <TableHead className="w-24 p-1">Restrictions</TableHead>
-            <TableHead className="hidden md:table-cell w-20 p-1">Fin contrat</TableHead>
-            <TableHead className="w-12 p-1">Actions</TableHead>
+            <TableHead className="w-12 p-2">Quota</TableHead>
+            <TableHead className="w-28 p-2">Restrictions</TableHead>
+            <TableHead className="w-23 p-2">Fin contrat</TableHead>
+            <TableHead className="w-16 p-2">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -131,11 +129,11 @@ export function SurveillantTable({
                       className="h-4 w-4"
                     />
                   </TableCell>
-                  <TableCell className="font-medium p-1">
+                  <TableCell className="font-medium p-2">
                     {row.nom} <span className="text-xs">{row.prenom}</span>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell text-xs p-1">{row.email}</TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className="text-xs p-2">{row.email}</TableCell>
+                  <TableCell className="p-2">
                     {hasSessionEntryId && row.session_entry_id && row.quota !== undefined ? (
                       isEdit ? (
                         <span>{row.is_active ? "Actif" : "Désactivé"}</span>
@@ -143,7 +141,11 @@ export function SurveillantTable({
                         <Button
                           size="sm"
                           variant={row.is_active ? "secondary" : "outline"}
-                          className={row.is_active ? "bg-emerald-100 text-emerald-700 h-6 px-2" : "bg-red-100 text-red-700 h-6 px-2"}
+                          className={
+                            row.is_active
+                              ? "bg-emerald-100 text-emerald-700 h-7 px-4 font-semibold"
+                              : "bg-red-100 text-red-700 h-7 px-4 font-semibold"
+                          }
                           onClick={() => onToggleActive(row.session_entry_id!, !row.is_active)}
                         >
                           {row.is_active ? "Actif" : "Désactivé"}
@@ -151,13 +153,13 @@ export function SurveillantTable({
                       )
                     ) : (<span>-</span>)}
                   </TableCell>
-                  <TableCell className="p-1">
-                    <Badge variant="outline" className="p-0.5 text-xs">{row.type}</Badge>
+                  <TableCell className="p-2">
+                    <Badge variant="outline" className="px-2 py-0.5 text-xs">{row.type}</Badge>
                   </TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className="p-2">
                     {isEdit ? (
                       <select
-                        className="w-14 rounded border px-1 py-0.5 text-xs"
+                        className="w-20 rounded border px-1 py-0.5 text-xs"
                         value={editValues.statut ?? row.statut}
                         onChange={e => {
                           if (e.target.value === "Ajouter...") setModalOpen(true);
@@ -169,13 +171,13 @@ export function SurveillantTable({
                         ))}
                       </select>
                     ) : (
-                      <Badge variant="outline" className="p-0.5 text-xs">{row.statut}</Badge>
+                      <Badge variant="outline" className="px-2 py-0.5 text-xs">{row.statut}</Badge>
                     )}
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell p-1 text-xs">
+                  <TableCell className="p-2 text-xs">
                     {isEdit ? (
                       <select
-                        className="w-18 rounded border px-1 py-0.5 text-xs"
+                        className="w-20 rounded border px-1 py-0.5 text-xs"
                         value={editValues.affectation_fac ?? row.affectation_fac ?? ""}
                         onChange={e =>
                           onEditChange({ ...editValues, affectation_fac: e.target.value })
@@ -190,11 +192,11 @@ export function SurveillantTable({
                       row.affectation_fac || "-"
                     )}
                   </TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className="p-2">
                     {isEdit ? (
                       <Input
                         type="number"
-                        className="w-10 h-6 text-xs"
+                        className="w-11 h-7 text-xs"
                         value={editValues.etp ?? ""}
                         step="0.01"
                         min="0"
@@ -206,16 +208,16 @@ export function SurveillantTable({
                       row.eft ?? "-"
                     )}
                   </TableCell>
-                  <TableCell className="p-1">
-                    <span className="inline-block px-1 text-xs font-semibold bg-gray-100 text-gray-600 rounded min-w-[1.8rem] text-center">
+                  <TableCell className="p-2">
+                    <span className="inline-block px-2 text-xs font-bold bg-gray-100 text-gray-700 rounded min-w-[2.3rem] text-center">
                       {quotaTheorique}
                     </span>
                   </TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className="p-2">
                     {isEdit ? (
                       <Input
                         type="number"
-                        className="w-10 h-6 text-xs"
+                        className="w-12 h-7 text-xs"
                         value={editValues.quota ?? ""}
                         min="0"
                         onChange={e =>
@@ -226,14 +228,14 @@ export function SurveillantTable({
                       row.quota ?? "-"
                     )}
                   </TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className="p-2">
                     {isEdit ? (
                       <FacultesMultiSelect
                         values={selectedFacs}
                         onChange={v => onEditChange({ ...editValues, faculte_interdite: v })}
                       />
                     ) : Array.isArray(selectedFacs) && selectedFacs.length > 0 && !selectedFacs.includes("NONE") ? (
-                      <div className="flex flex-wrap gap-0.5 max-w-[7rem]">
+                      <div className="flex flex-wrap gap-0.5 max-w-[6rem]">
                         {selectedFacs.map((f) => (
                           <span key={f} className="bg-red-100 text-red-700 rounded px-1 text-xs">{FACULTES_FILTERED.find(x => x.value === f)?.label || f}</span>
                         ))}
@@ -242,10 +244,10 @@ export function SurveillantTable({
                       <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell p-1 text-xs">
+                  <TableCell className="p-2 text-xs">
                     {row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}
                   </TableCell>
-                  <TableCell className="p-1">
+                  <TableCell className="p-2">
                     {isEdit ? (
                       <>
                         <Button size="sm" variant="default" onClick={() => onSave(row)}>
