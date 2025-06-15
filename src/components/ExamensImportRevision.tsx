@@ -95,10 +95,10 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     }
   });
 
+  // On retire l'obligation sur l'auditoire (plus de contrainte dans la révision)
   function getExamProblem(row: any) {
     const { data } = row;
     const missing: string[] = [];
-    if (!data['Auditoires'] && !data['auditoires'] && !data['salle']) missing.push("auditoire");
     if (!data['Faculte'] && !data['Faculté'] && !data['faculte'] && !data['faculté']) missing.push("faculté");
     return missing;
   }
@@ -222,7 +222,9 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
 
   const handleBatchValidate = async () => {
     setValidating(true);
-    const rowsToValidate = rows.filter(r => getExamProblem(r).length === 0 && r.statut === "NON_TRAITE");
+    // On retire la contrainte "problème auditoire bloque la validation"
+    // Avant : rowsToValidate = rows.filter(r => getExamProblem(r).length === 0 && r.statut === "NON_TRAITE");
+    const rowsToValidate = rows.filter(r => r.statut === "NON_TRAITE"); // plus de check sur auditoire
     if (!rowsToValidate.length) {
       toast({ title: "Aucune ligne à valider", description: "Corrigez d'abord tous les examens." });
       setValidating(false);
@@ -238,7 +240,7 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
       <CardHeader>
         <CardTitle>Révision des examens importés</CardTitle>
         <CardDescription>
-          Corrigez les examens avec des champs obligatoires vides (ex : auditoire, faculté).<br />
+          Corrigez les examens avec des champs obligatoires vides (ex : faculté).<br />
         </CardDescription>
       </CardHeader>
       <CardContent>
