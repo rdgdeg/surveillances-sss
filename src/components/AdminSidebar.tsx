@@ -72,8 +72,7 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
       type: "section",
       children: [
         { id: "surveillants", label: "Surveillants", icon: Users },
-        { id: "surveillants-avance", label: "Gestion Avancée", icon: UserMinus },
-        { id: "candidatures", label: "Candidatures", icon: UserPlus },
+        { id: "candidatures", label: "Disponibilités envoyées", icon: UserPlus },
         { id: "disponibilites", label: "Collecte Disponibilités", icon: Clock },
         { id: "matrice-disponibilites", label: "Matrice Disponibilités", icon: Grid3X3 },
         { id: "suivi-disponibilites", label: "Suivi Disponibilités", icon: ClipboardCheck }

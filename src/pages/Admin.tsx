@@ -24,7 +24,6 @@ type ActiveTab =
   | "validation" 
   | "planning" 
   | "surveillants" 
-  | "surveillants-avance"
   | "contraintes" 
   | "candidatures" 
   | "disponibilites"
@@ -59,8 +58,6 @@ const Admin = () => {
         return <NewPlanningView />;
       case "surveillants":
         return <SimpleSurveillantManager />;
-      case "surveillants-avance":
-        return <SurveillantAdvancedManager />;
       case "contraintes":
         return <ContraintesAuditoires />;
       case "candidatures":

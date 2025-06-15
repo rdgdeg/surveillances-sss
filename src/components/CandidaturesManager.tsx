@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -157,7 +156,7 @@ export const CandidaturesManager = () => {
         <Card>
           <CardContent className="pt-6">
             <p className="text-center text-gray-500">
-              Aucune session active. Activez une session pour voir les candidatures.
+              Aucune session active. Activez une session pour voir les disponibilités envoyées.
             </p>
           </CardContent>
         </Card>
@@ -172,7 +171,7 @@ export const CandidaturesManager = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Users className="h-5 w-5" />
-              <span>Candidatures de Surveillance</span>
+              <span>Disponibilités envoyées</span>
             </div>
             <Button onClick={exportToExcel} className="flex items-center space-x-2">
               <Download className="h-4 w-4" />
@@ -180,7 +179,7 @@ export const CandidaturesManager = () => {
             </Button>
           </CardTitle>
           <CardDescription>
-            Session {activeSession.name} - {candidatures?.length || 0} candidature(s) reçue(s)
+            Session {activeSession.name} - {candidatures?.length || 0} formulaire(s) reçu(s)
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -242,7 +241,7 @@ export const CandidaturesManager = () => {
             </div>
           ) : (
             <p className="text-center text-gray-500">
-              Aucune candidature reçue pour cette session.
+              Aucune disponibilité envoyée pour cette session.
             </p>
           )}
         </CardContent>
