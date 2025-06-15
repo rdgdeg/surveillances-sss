@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, CheckCircle, Save, Check, AlertCircle, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle, Save, Check, AlertCircle, ShieldCheck, CheckCheck } from "lucide-react";
 import { useExamensImportTemp, useUpdateExamenImportTemp, useBatchValidateExamensImport } from "@/hooks/useExamensImportTemp";
 import { getExamProblem } from "@/utils/examensImportProblems";
 import { toast } from "@/hooks/use-toast";
@@ -67,6 +66,40 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
       newSelected.delete(rowId);
     }
     setSelectedRows(newSelected);
+  };
+
+  const handleMarkAllAsReady = async () => {
+    if (examensNonTraites.length === 0) {
+      toast({
+        title: "Aucun examen à traiter",
+        description: "Tous les examens ont déjà été traités.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Marquer tous les examens comme prêts (nettoyer les erreurs)
+      for (const row of examensNonTraites) {
+        await updateMutation.mutateAsync({
+          id: row.id,
+          statut: "NON_TRAITE",
+          erreurs: null
+        });
+      }
+
+      toast({
+        title: "Examens marqués comme prêts",
+        description: `${examensNonTraites.length} examen(s) marqué(s) comme prêt(s) pour validation.`
+      });
+    } catch (error) {
+      console.error("Erreur lors du marquage comme prêts:", error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de marquer tous les examens comme prêts.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleMarkSelectedAsReady = async () => {
@@ -258,6 +291,15 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
               <span className="font-medium text-red-600">{examensWithErrors.length}</span> avec erreurs •{" "}
               <span className="font-medium text-green-600">{examensWithoutErrors.length}</span> prêts
             </div>
+            <Button
+              onClick={handleMarkAllAsReady}
+              variant="outline"
+              className="border-green-300 text-green-700 hover:bg-green-50"
+              disabled={updateMutation.isPending || examensNonTraites.length === 0}
+            >
+              <CheckCheck className="h-4 w-4 mr-2" />
+              Marquer tout comme prêt ({examensNonTraites.length})
+            </Button>
             {selectedRows.size > 0 && (
               <div className="flex space-x-2">
                 <Button
@@ -314,7 +356,7 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
                 </div>
               </div>
               <p className="text-sm text-orange-700">
-                Vous pouvez corriger les erreurs ci-dessous, ou utiliser "Valider forcé" pour valider malgré les erreurs.
+                Vous pouvez corriger les erreurs ci-dessous, ou utiliser "Marquer tout comme prêt" pour nettoyer toutes les erreurs, ou "Valider forcé" pour valider malgré les erreurs.
               </p>
             </div>
           )}
