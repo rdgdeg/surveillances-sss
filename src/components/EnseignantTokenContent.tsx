@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
@@ -111,7 +110,7 @@ export function EnseignantTokenContent({ token }: { token?: string }) {
                     <TableCell>{examen.salle}</TableCell>
                     <TableCell>
                       {examen.besoins_confirmes_par_enseignant ? (
-                        <Badge variant="success">Confirmé</Badge>
+                        <Badge variant="default">Confirmé</Badge>
                       ) : (
                         <Badge variant="destructive">À confirmer</Badge>
                       )}
