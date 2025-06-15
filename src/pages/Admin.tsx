@@ -1,9 +1,11 @@
+
 import { useState } from "react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { SensitiveDataManager } from "@/components/SensitiveDataManager";
 import { SimpleSurveillantManager } from "@/components/SimpleSurveillantManager";
 import { SurveillantAdvancedManager } from "@/components/SurveillantAdvancedManager";
+import { SurveillantUnifiedManager } from "@/components/SurveillantUnifiedManager";
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
 import { ExamenWorkflowManager } from "@/components/ExamenWorkflowManager";
 import { NewPlanningView } from "@/components/NewPlanningView";
