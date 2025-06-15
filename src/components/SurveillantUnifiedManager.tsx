@@ -12,6 +12,7 @@ import { UploadCloud, Save, Plus, X } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CustomStatusModal } from "./CustomStatusModal";
 import { FacultesMultiSelect, FACULTES_FILTERED } from "./FacultesMultiSelect";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 // Liste FAUTES & AFFECTATIONS : inclus FSM + Autre
 const FACULTES = [
@@ -70,6 +71,7 @@ export function SurveillantUnifiedManager() {
   const [showUpload, setShowUpload] = useState(false);
   const [customStatuts, setCustomStatuts] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"actifs" | "desactives">("actifs");
 
   const statutsDisponibles = [...BASE_STATUTS, ...customStatuts, "Ajouter..."];
 
@@ -127,6 +129,14 @@ export function SurveillantUnifiedManager() {
     },
     enabled: !!activeSession?.id,
   });
+
+  // Calcule les surveillants actifs/désactivés pour affichage par onglet
+  const surveillantsActifs = Array.isArray(surveillants)
+    ? surveillants.filter(s => s.statut === "actif" || s.statut?.toLowerCase() === "assistant" || (s.quota ?? 0) > 0)
+    : [];
+  const surveillantsDesactives = Array.isArray(surveillants)
+    ? surveillants.filter(s => s.statut !== "actif" && (!["assistant", "PAT FASB"].includes((s.statut ?? "").toUpperCase())) && (s.quota ?? 0) === 0)
+    : [];
 
   // 2. MUTATIONS : update ETP OU quota session 
   const updateSurveillantMutation = useMutation({
@@ -292,211 +302,271 @@ export function SurveillantUnifiedManager() {
         </CardHeader>
 
         <CardContent>
-          <div className="overflow-x-auto border rounded-md">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>Prénom</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Affectation</TableHead>
-                  <TableHead>Campus</TableHead>
-                  <TableHead>ETP</TableHead>
-                  <TableHead>Quota théorique<br /><span className="text-xs text-gray-400">(ETP × 6)</span></TableHead>
-                  <TableHead>Quota session</TableHead>
-                  <TableHead>
-                    Faculté interdite
-                    <span className="block text-xs text-gray-400 font-normal">Blocages attrib.</span>
-                  </TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              {/* Affichage du tableau */}
-              <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={12}>Chargement...</TableCell>
-                  </TableRow>
-                ) : surveillants && surveillants.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={12} className="text-center">Aucun surveillant trouvé</TableCell>
-                  </TableRow>
-                ) : (
-                  surveillants?.map((row) => {
-                    const isEdit = editRow === row.id;
-
-                    // Calcul correctement le quota théorique selon le statut
-                    // (Assistant -> ETP * 6, PAT/Doctorant/Jobiste/Autres -> 0)
-                    let statut = isEdit ? editValues.statut ?? row.statut : row.statut;
-                    let etp = isEdit ? editValues.etp ?? row.eft ?? 0 : row.eft ?? 0;
-
-                    const quotaTheorique = (() => {
-                      if (!statut) return 0;
-                      // Normalisation minuscule pour plus de robustesse
-                      switch (statut.toLowerCase()) {
-                        case "assistant":
-                        case "pat fasb": // Certains statuts peuvent être PAT FASB (0, pour suivre consigne)
-                          return Math.round(Number(etp) * 6);
-                        case "pat":
-                        case "doctorant":
-                        case "jobiste":
-                          return 0;
-                        default:
-                          return 0; // Pour tout autre cas, à adapter si consignes changent
-                      }
-                    })();
-
-                    // Correction de la propagation du type pour handleEdit et handleSave
-                    const selectedFacs = isEdit
-                      ? editValues.faculte_interdite ?? ["NONE"]
-                      : row.faculte_interdite.length > 0
-                        ? row.faculte_interdite
-                        : ["NONE"];
-
-                    return (
-                      <TableRow key={row.id} className={isEdit ? 'bg-blue-50' : undefined}>
-                        <TableCell>{row.nom}</TableCell>
-                        <TableCell>{row.prenom}</TableCell>
-                        <TableCell>{row.email}</TableCell>
-                        <TableCell>
-                          {isEdit ? (
-                            <select
-                              className="w-28 rounded-md border px-2 py-1 text-sm"
-                              value={editValues.statut ?? row.statut}
-                              onChange={e => {
-                                if (e.target.value === "Ajouter...") {
-                                  setModalOpen(true);
-                                } else {
-                                  setEditValues(v => ({ ...v, statut: e.target.value }));
-                                }
-                              }}
-                            >
-                              {statutsDisponibles.map(s => (
-                                <option key={s} value={s}>{s}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            <Badge variant="outline">{row.statut}</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {isEdit ? (
-                            <select
-                              className="w-24 rounded-md border px-2 py-1 text-sm"
-                              value={editValues.affectation_fac ?? row.affectation_fac ?? ""}
-                              onChange={e =>
-                                setEditValues(v => ({
-                                  ...v,
-                                  affectation_fac: e.target.value
-                                }))
-                              }
-                            >
-                              <option value="">Aucune</option>
-                              {FACULTES.filter(f => f.value !== "NONE").map(f => (
-                                <option key={f.value} value={f.value}>{f.label}</option>
-                              ))}
-                            </select>
-                          ) : (
-                            row.affectation_fac || "-"
-                          )}
-                        </TableCell>
-                        <TableCell>{row.campus || "-"}</TableCell>
-                        <TableCell>
-                          {isEdit ? (
-                            <Input
-                              type="number"
-                              className="w-20"
-                              value={editValues.etp ?? ""}
-                              step="0.01"
-                              min="0"
-                              onChange={e =>
-                                setEditValues(v => ({
-                                  ...v,
-                                  etp: parseFloat(e.target.value),
-                                }))
-                              }
-                            />
-                          ) : (
-                            row.eft ?? "-"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <span className="inline-block px-3 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200 min-w-[2.7rem] text-center">
-                            {quotaTheorique}
-                          </span>
-                          <div className="text-[10px] text-gray-400 leading-tight text-center">ETP × 6</div>
-                        </TableCell>
-                        <TableCell>
-                          {isEdit ? (
-                            <Input
-                              type="number"
-                              className="w-20"
-                              value={editValues.quota ?? ""}
-                              min="0"
-                              onChange={e =>
-                                setEditValues(v => ({
-                                  ...v,
-                                  quota: parseInt(e.target.value) || 0,
-                                }))
-                              }
-                            />
-                          ) : (
-                            row.quota ?? "-"
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {isEdit ? (
-                            <FacultesMultiSelect
-                              values={selectedFacs}
-                              onChange={(v) => setEditValues((vals) => ({ ...vals, faculte_interdite: v }))}
-                              disabled={updateFaculteInterditeMutation.isPending}
-                            />
-                          ) : Array.isArray(selectedFacs) && selectedFacs.length > 0 && !selectedFacs.includes("NONE") ? (
-                            <div className="flex flex-wrap gap-1 max-w-xs">
-                              {selectedFacs.map((f) => (
-                                <span key={f} className="inline-block bg-red-100 text-red-700 rounded px-2 text-xs">
-                                  {FACULTES_FILTERED.find(x => x.value === f)?.label || f}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Aucune restriction</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {isEdit ? (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="default"
-                                onClick={() => handleSave(row)}
-                                disabled={updateSurveillantMutation.isPending || updateQuotaSessionMutation.isPending || updateFaculteInterditeMutation.isPending}
-                              >
-                                <Save className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={handleCancel}
-                                disabled={updateSurveillantMutation.isPending || updateQuotaSessionMutation.isPending || updateFaculteInterditeMutation.isPending}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <Button size="sm" variant="outline" onClick={() => handleEdit(row)}>
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
+          {/* Onglets "actifs"/"désactivés" */}
+          <Tabs value={activeTab} onValueChange={v => setActiveTab(v as "actifs" | "desactives")}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="actifs">Surveillants actifs</TabsTrigger>
+              <TabsTrigger value="desactives">Surveillants désactivés</TabsTrigger>
+            </TabsList>
+            <TabsContent value="actifs">
+              <div className="overflow-x-auto border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nom</TableHead>
+                      <TableHead>Prénom</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead>Affectation</TableHead>
+                      <TableHead>Campus</TableHead>
+                      <TableHead>ETP</TableHead>
+                      <TableHead>
+                        Quota théorique
+                        <br /><span className="text-xs text-gray-400">(ETP × 6)</span>
+                      </TableHead>
+                      <TableHead>Quota session<br /><span className="text-xs text-gray-400">(modifiable)</span></TableHead>
+                      <TableHead>
+                        Faculté(s) interdite(s)
+                        <span className="block text-xs text-gray-400 font-normal">Blocages attrib.</span>
+                      </TableHead>
+                      <TableHead>Fin de contrat</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  {/* Affichage du tableau */}
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={12}>Chargement...</TableCell>
                       </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                    ) : surveillantsActifs.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={12} className="text-center">Aucun surveillant actif</TableCell>
+                      </TableRow>
+                    ) : (
+                      surveillantsActifs?.map((row) => {
+                        const isEdit = editRow === row.id;
+
+                        // Calcul correctement le quota théorique selon le statut
+                        // (Assistant -> ETP * 6, PAT/Doctorant/Jobiste/Autres -> 0)
+                        let statut = isEdit ? editValues.statut ?? row.statut : row.statut;
+                        let etp = isEdit ? editValues.etp ?? row.eft ?? 0 : row.eft ?? 0;
+
+                        const quotaTheorique = (() => {
+                          if (!statut) return 0;
+                          // Normalisation minuscule pour plus de robustesse
+                          switch (statut.toLowerCase()) {
+                            case "assistant":
+                            case "pat fasb": // Certains statuts peuvent être PAT FASB (0, pour suivre consigne)
+                              return Math.round(Number(etp) * 6);
+                            case "pat":
+                            case "doctorant":
+                            case "jobiste":
+                              return 0;
+                            default:
+                              return 0; // Pour tout autre cas, à adapter si consignes changent
+                          }
+                        })();
+
+                        // Correction de la propagation du type pour handleEdit et handleSave
+                        const selectedFacs = isEdit
+                          ? editValues.faculte_interdite ?? ["NONE"]
+                          : row.faculte_interdite.length > 0
+                            ? row.faculte_interdite
+                            : ["NONE"];
+
+                        return (
+                          <TableRow key={row.id} className={isEdit ? 'bg-blue-50' : undefined}>
+                            <TableCell>{row.nom}</TableCell>
+                            <TableCell>{row.prenom}</TableCell>
+                            <TableCell>{row.email}</TableCell>
+                            <TableCell>
+                              {isEdit ? (
+                                <select
+                                  className="w-28 rounded-md border px-2 py-1 text-sm"
+                                  value={editValues.statut ?? row.statut}
+                                  onChange={e => {
+                                    if (e.target.value === "Ajouter...") {
+                                      setModalOpen(true);
+                                    } else {
+                                      setEditValues(v => ({ ...v, statut: e.target.value }));
+                                    }
+                                  }}
+                                >
+                                  {statutsDisponibles.map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <Badge variant="outline">{row.statut}</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {isEdit ? (
+                                <select
+                                  className="w-24 rounded-md border px-2 py-1 text-sm"
+                                  value={editValues.affectation_fac ?? row.affectation_fac ?? ""}
+                                  onChange={e =>
+                                    setEditValues(v => ({
+                                      ...v,
+                                      affectation_fac: e.target.value
+                                    }))
+                                  }
+                                >
+                                  <option value="">Aucune</option>
+                                  {FACULTES.filter(f => f.value !== "NONE").map(f => (
+                                    <option key={f.value} value={f.value}>{f.label}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                row.affectation_fac || "-"
+                              )}
+                            </TableCell>
+                            <TableCell>{row.campus || "-"}</TableCell>
+                            <TableCell>
+                              {isEdit ? (
+                                <Input
+                                  type="number"
+                                  className="w-20"
+                                  value={editValues.etp ?? ""}
+                                  step="0.01"
+                                  min="0"
+                                  onChange={e =>
+                                    setEditValues(v => ({
+                                      ...v,
+                                      etp: parseFloat(e.target.value),
+                                    }))
+                                  }
+                                />
+                              ) : (
+                                row.eft ?? "-"
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <span className="inline-block px-3 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200 min-w-[2.7rem] text-center">
+                                {quotaTheorique}
+                              </span>
+                              <div className="text-[10px] text-gray-400 leading-tight text-center">ETP × 6</div>
+                            </TableCell>
+                            <TableCell>
+                              {isEdit ? (
+                                <Input
+                                  type="number"
+                                  className="w-20"
+                                  value={editValues.quota ?? ""}
+                                  min="0"
+                                  onChange={e =>
+                                    setEditValues(v => ({
+                                      ...v,
+                                      quota: parseInt(e.target.value) || 0,
+                                    }))
+                                  }
+                                />
+                              ) : (
+                                row.quota ?? "-"
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {isEdit ? (
+                                <FacultesMultiSelect
+                                  values={selectedFacs}
+                                  onChange={(v) => setEditValues((vals) => ({ ...vals, faculte_interdite: v }))}
+                                  disabled={updateFaculteInterditeMutation.isPending}
+                                />
+                              ) : Array.isArray(selectedFacs) && selectedFacs.length > 0 && !selectedFacs.includes("NONE") ? (
+                                <div className="flex flex-wrap gap-1 max-w-xs">
+                                  {selectedFacs.map((f) => (
+                                    <span key={f} className="inline-block bg-red-100 text-red-700 rounded px-2 text-xs">
+                                      {FACULTES_FILTERED.find(x => x.value === f)?.label || f}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Aucune restriction</span>
+                              )}
+                            </TableCell>
+                            <TableCell>{row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}</TableCell>
+                            <TableCell>
+                              {isEdit ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() => handleSave(row)}
+                                    disabled={updateSurveillantMutation.isPending || updateQuotaSessionMutation.isPending || updateFaculteInterditeMutation.isPending}
+                                  >
+                                    <Save className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={handleCancel}
+                                    disabled={updateSurveillantMutation.isPending || updateQuotaSessionMutation.isPending || updateFaculteInterditeMutation.isPending}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button size="sm" variant="outline" onClick={() => handleEdit(row)}>
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+            <TabsContent value="desactives">
+              <div className="overflow-x-auto border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nom</TableHead>
+                      <TableHead>Prénom</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Statut</TableHead>
+                      <TableHead>ETP</TableHead>
+                      <TableHead>Quota théorique</TableHead>
+                      <TableHead>Quota session</TableHead>
+                      <TableHead>Fin de contrat</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={8}>Chargement...</TableCell>
+                      </TableRow>
+                    ) : surveillantsDesactives.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center">Aucun surveillant désactivé</TableCell>
+                      </TableRow>
+                    ) : (
+                      surveillantsDesactives.map(row => {
+                        let etp = row.eft ?? 0;
+                        const quotaTheorique = Math.round(Number(etp || 0) * 6);
+                        return (
+                          <TableRow key={row.id}>
+                            <TableCell>{row.nom}</TableCell>
+                            <TableCell>{row.prenom}</TableCell>
+                            <TableCell>{row.email}</TableCell>
+                            <TableCell>{row.statut}</TableCell>
+                            <TableCell>{etp}</TableCell>
+                            <TableCell>{quotaTheorique}</TableCell>
+                            <TableCell>{row.quota ?? "-"}</TableCell>
+                            <TableCell>{row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}</TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
 
         {/* Section Import - à brancher avec l'import Excel existant si souhaité */}
