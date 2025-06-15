@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -326,7 +327,7 @@ export function SimpleSurveillantAvailabilityForm() {
       toast({
         title: "Sauvegardé",
         description: isUnknownUser 
-          ? "Votre candidature a été enregistrée avec succès."
+          ? "Votre envoi de disponibilités a été enregistré avec succès."
           : "Vos disponibilités ont été enregistrées avec succès.",
       });
       setEtape('termine');
@@ -471,7 +472,8 @@ export function SimpleSurveillantAvailabilityForm() {
                   <Button
                     variant="outline"
                     onClick={() => setModalOpen(true)}
-                    className="w-full border-orange-500 text-orange-700 hover:bg-orange-50"
+                    className="w-full border-orange-500 text-orange-700 hover:bg-orange-50 font-medium"
+                    size="lg"
                   >
                     <Edit className="h-4 w-4 mr-2" />
                     Demander une modification de mes informations
@@ -650,7 +652,7 @@ export function SimpleSurveillantAvailabilityForm() {
                                         }
                                       }}
                                     />
-                                    <Label htmlFor={`specify-${key}`} className="text-sm font-medium">
+                                    <Label htmlFor={`specify-${key}`} className="text-sm font-medium cursor-pointer">
                                       Ce créneau est une surveillance obligatoire ou souhaitée
                                     </Label>
                                   </div>
@@ -658,7 +660,7 @@ export function SimpleSurveillantAvailabilityForm() {
                                   {(dispo.type_choix !== 'souhaitee' || !!dispo.nom_examen) && (
                                     <div className="space-y-3 ml-6">
                                       <div className="flex items-center space-x-3">
-                                        <label className="flex items-center space-x-2">
+                                        <label className="flex items-center space-x-2 cursor-pointer">
                                           <input
                                             type="radio"
                                             name={`type_${key}`}
@@ -673,7 +675,7 @@ export function SimpleSurveillantAvailabilityForm() {
                                           />
                                           <span>Obligatoire</span>
                                         </label>
-                                        <label className="flex items-center space-x-2">
+                                        <label className="flex items-center space-x-2 cursor-pointer">
                                           <input
                                             type="radio"
                                             name={`type_${key}`}
@@ -753,11 +755,11 @@ export function SimpleSurveillantAvailabilityForm() {
               <CheckSquare className="h-8 w-8 text-green-600" />
             </div>
             <CardTitle className="text-green-800">
-              {isUnknownUser ? "Candidature enregistrée !" : "Disponibilités enregistrées !"}
+              {isUnknownUser ? "Disponibilités enregistrées !" : "Disponibilités enregistrées !"}
             </CardTitle>
             <CardDescription>
               {isUnknownUser 
-                ? "Votre candidature a été transmise à l'administration."
+                ? "Vos disponibilités ont été transmises à l'administration."
                 : `Vos ${nbSelectionnes} disponibilité${nbSelectionnes > 1 ? 's ont' : ' a'} été enregistrée${nbSelectionnes > 1 ? 's' : ''} avec succès.`
               }
             </CardDescription>
@@ -766,7 +768,7 @@ export function SimpleSurveillantAvailabilityForm() {
             <div className="bg-green-50 p-4 rounded-lg">
               <p className="text-sm text-green-800">
                 {isUnknownUser 
-                  ? "Merci pour votre candidature. L'administration examinera votre dossier et vous contactera."
+                  ? "Merci pour votre envoi de disponibilités. L'administration examinera votre dossier et vous contactera."
                   : "Merci d'avoir renseigné vos disponibilités. Vous recevrez une notification dès que vos attributions seront confirmées."
                 }
               </p>
