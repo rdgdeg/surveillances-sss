@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +30,7 @@ interface ExamenWithTeam {
   code_examen: string | null;
   faculte: string | null;
   statut_validation: string | null;
+  type_requis: string;
   surveillants_enseignant: number | null;
   surveillants_amenes: number | null;
   surveillants_pre_assignes: number | null;
@@ -110,7 +110,6 @@ export const EnseignantViewManager = () => {
     return examensFiltres.map(examen => ({
       ...examen,
       nombre_surveillants: 1, // Default value if missing
-      type_requis: examen.type_requis || 'E',
       session_id: activeSession?.id || '',
       auditoire_original: examen.salle,
       besoins_confirmes_par_enseignant: false,
