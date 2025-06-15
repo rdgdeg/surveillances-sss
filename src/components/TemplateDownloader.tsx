@@ -93,39 +93,34 @@ export const TemplateDownloader = () => {
     createExcelTemplate("surveillants", templateData, "template_surveillants_complet.xlsx");
   };
 
-  // Correction du template d'examens avec format de date JJMMAAAA,
-  // suppression de nombre_surveillants et type_requis
+  // Nouveau template conforme à l'exemple fourni
   const downloadExamenTemplate = () => {
     const templateData = [
       {
-        date_examen: "15012024", // Format JJMMAAAA
-        heure_debut: "08:30",
-        heure_fin: "11:30", 
-        matiere: "LPHYS1201 - Physique générale",
-        salle: "HALL01",
-        faculte: "FASB",
-        auditoire_original: "HALL01, HALL02",
+        "Jour": "15012024",
+        "Durée (h)": 3,
+        "Début": "08:30",
+        "Fin": "11:30",
+        "Activité": "LPHYS1201 - Physique générale",
+        "Faculté / Secrétariat": "FASB",
+        "Code": "LPHYS1201",
+        "Auditoires": "HALL01, HALL02",
+        "Etudiants": "BA2-ING",
+        "Enseignants": "JEAN DUPONT, MARIE LEROY"
       },
       {
-        date_examen: "15012024",
-        heure_debut: "08:30", 
-        heure_fin: "11:30",
-        matiere: "LPHYS1201 - Physique générale",
-        salle: "HALL02",
-        faculte: "FASB",
-        auditoire_original: "HALL01, HALL02",
-      },
-      {
-        date_examen: "16012024",
-        heure_debut: "13:30",
-        heure_fin: "16:30",
-        matiere: "LMECA2170 - Mécanique des fluides", 
-        salle: "HALL03",
-        faculte: "EPL",
-        auditoire_original: "",
+        "Jour": "16012024",
+        "Durée (h)": 2,
+        "Début": "13:30",
+        "Fin": "15:30",
+        "Activité": "LMECA2170 - Mécanique des fluides",
+        "Faculté / Secrétariat": "EPL",
+        "Code": "LMECA2170",
+        "Auditoires": "HALL03",
+        "Etudiants": "BA3-ING",
+        "Enseignants": "PIERRE MARTIN"
       }
     ];
-    
     createExcelTemplate(
       "examens",
       templateData,
@@ -195,16 +190,19 @@ export const TemplateDownloader = () => {
     {
       id: "examens", 
       title: "Template Examens",
-      description: "Planning des examens - la date doit être au format JJMMAAAA (ex: 15012024). Le nombre de surveillants sera calculé automatiquement selon les contraintes d'auditoires.",
+      description: "Planning complet des examens. Date au format JJMMAAAA, toutes les colonnes sont obligatoires sauf 'Auditoires', 'Etudiants', 'Enseignants' qui peuvent rester vides si non connus.",
       icon: Calendar,
       columns: [
-        "date_examen (JJMMAAAA)",
-        "heure_debut",
-        "heure_fin",
-        "matiere",
-        "salle",
-        "faculte",
-        "auditoire_original"
+        "Jour (JJMMAAAA)",
+        "Durée (h)",
+        "Début",
+        "Fin",
+        "Activité",
+        "Faculté / Secrétariat",
+        "Code",
+        "Auditoires",
+        "Etudiants",
+        "Enseignants"
       ],
       action: downloadExamenTemplate,
       color: "bg-green-50 border-green-200 text-green-800"
