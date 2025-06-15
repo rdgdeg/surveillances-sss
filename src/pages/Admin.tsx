@@ -6,6 +6,7 @@ import { SuiviDisponibilitesAdmin } from "@/components/SuiviDisponibilitesAdmin"
 import { UCLouvainHeader } from "@/components/UCLouvainHeader";
 import { Footer } from "@/components/Footer";
 import { PreAssignmentManager } from "@/components/PreAssignmentManager";
+import { SuiviConfirmationEnseignants } from "@/components/SuiviConfirmationEnseignants";
 
 // Import des principaux modules admin
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";

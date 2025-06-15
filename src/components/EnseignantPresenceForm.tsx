@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ interface EnseignantPresenceFormProps {
   updateEnseignantPresenceMutation: any;
   surveillantsTheoriques?: number;
   surveillantsNecessaires?: number;
+  onPresenceSaved?: () => void; // <---- NEW
 }
 
 export const EnseignantPresenceForm = ({
@@ -21,6 +23,7 @@ export const EnseignantPresenceForm = ({
   updateEnseignantPresenceMutation,
   surveillantsTheoriques,
   surveillantsNecessaires,
+  onPresenceSaved, // <---- NEW
 }: EnseignantPresenceFormProps) => {
   const [enseignantPresent, setEnseignantPresent] = useState(false);
   const [personnesAmenees, setPersonnesAmenees] = useState(0);
@@ -46,6 +49,7 @@ export const EnseignantPresenceForm = ({
       description: "Vos informations ont bien été sauvegardées.",
       variant: "default"
     });
+    if (onPresenceSaved) onPresenceSaved(); // <---- NEW: trigger refresh
   };
 
   return (

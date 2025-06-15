@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -102,6 +101,16 @@ export const EnseignantExamenForm = () => {
     );
   }
 
+  // Refetch examen by id, update selectedExamen in state
+  const refreshSelectedExamen = async (id: string) => {
+    const { data, error } = await supabase
+      .from('examens')
+      .select(`*, personnes_aidantes (*)`)
+      .eq('id', id)
+      .maybeSingle();
+    if (data) setSelectedExamen(data);
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -167,6 +176,7 @@ export const EnseignantExamenForm = () => {
             updateEnseignantPresenceMutation={updateEnseignantPresenceMutation}
             surveillantsTheoriques={getTheoreticalSurveillants()}
             surveillantsNecessaires={calculerSurveillantsNecessaires()}
+            onPresenceSaved={() => refreshSelectedExamen(selectedExamen.id)}
           />
 
           <Card>
