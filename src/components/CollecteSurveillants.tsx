@@ -22,6 +22,7 @@ import { SurveillantProfilePanel } from "./SurveillantProfilePanel";
 import { UnknownSurveillantForm } from "./UnknownSurveillantForm";
 import { CreneauRow } from "./CreneauRow";
 import { Input } from "@/components/ui/input";
+import { AmenesSurveillantsFields } from "./AmenesSurveillantsFields";
 
 interface ExamenSlot {
   id: string;
@@ -283,6 +284,10 @@ export const CollecteSurveillants = () => {
   const [isPresentSelf, setIsPresentSelf] = useState(true); // Présence par défaut = true 
   const [nbAmenes, setNbAmenes] = useState(0);
   const [personnesAmenes, setPersonnesAmenes] = useState([]);
+
+  // Calcule le nombre total de surveillants à trouver (DÉMO - À AJUSTER en fonction de la logique métier attendue)
+  // Ici, on suppose un surveillant par créneau comme valeur de base.
+  const nombreSurveillantsTotaux = uniqueCreneaux?.length || 0;
 
   // Affichage conditionnel
   if (!email) {
