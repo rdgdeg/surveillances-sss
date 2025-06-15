@@ -197,7 +197,7 @@ export const SurveillantListEditor = () => {
       if (aValue === null) return sortDirection === 'asc' ? 1 : -1;
       if (bValue === null) return sortDirection === 'asc' ? -1 : 1;
 
-      // Correction : forcer conversion en nombre pour quota pour éviter TS2367
+      // Correction : conversion explicite en nombre pour quota
       if (sortField === 'quota') {
         const numA = safeNumber(aValue);
         const numB = safeNumber(bValue);
@@ -683,17 +683,14 @@ export const SurveillantListEditor = () => {
 
                     // Quota calc
                     const quotaTheorique = calculateQuotaTheorique(surveillant);
-                    // Correction stricte du typage pour éviter la comparaison number/string
-                    const assignedQuota =
-                      surveillant.quota !== undefined &&
+                    // Correction stricte : conversion explicite en nombre pour éviter les erreurs TS2367
+                    const assignedQuotaRaw = surveillant.quota !== undefined &&
                       surveillant.quota !== null &&
                       surveillant.quota !== "" ? surveillant.quota : quotaTheorique;
-                    const numAssignedQuota = safeNumber(assignedQuota);
+                    const numAssignedQuota = safeNumber(assignedQuotaRaw);
                     const numQuotaTheorique = safeNumber(quotaTheorique);
-                    // Correction explicite ici pour la comparaison
-                    const quotaDiffers = Number.isFinite(numAssignedQuota) && Number.isFinite(numQuotaTheorique)
-                      ? numAssignedQuota !== numQuotaTheorique
-                      : false;
+                    // Correction : comparaison uniquement entre nombres
+                    const quotaDiffers = numAssignedQuota !== numQuotaTheorique;
 
                     return (
                       <TableRow 
@@ -910,7 +907,7 @@ export const SurveillantListEditor = () => {
                         <TableCell>
                           {editingId === surveillant.id ? (
                             <EditableCell
-                              value={assignedQuota}
+                              value={numAssignedQuota}
                               type="number"
                               min={0}
                               step="1"
@@ -923,7 +920,7 @@ export const SurveillantListEditor = () => {
                               }
                             />
                           ) : (
-                            <span className={quotaDiffers ? "font-bold text-yellow-700" : ""}>{assignedQuota}</span>
+                            <span className={quotaDiffers ? "font-bold text-yellow-700" : ""}>{numAssignedQuota}</span>
                           )}
                           {quotaDiffers && (
                             <span className="text-xs text-yellow-600 ml-1">(≠ {quotaTheorique})</span>
