@@ -95,14 +95,6 @@ export const StandardExcelImporter = () => {
         const examenData: any = {
           session_id: activeSession.id,
           date_examen: formatDateCell(row["Jour"]),
-          duree: 
-            row["Durée (h)"] !== undefined && row["Durée (h)"] !== ""
-              ? typeof row["Durée (h)"] === 'number'
-                ? row["Durée (h)"]
-                : typeof row["Durée (h)"] === 'string'
-                  ? parseFloat(row["Durée (h)"].replace(",", "."))
-                  : null
-              : null,
           heure_debut: formatTimeCell(row["Début"]),
           heure_fin: formatTimeCell(row["Fin"]),
           faculte: row["Faculté / Secrétariat"] || null,
