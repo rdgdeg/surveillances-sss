@@ -19,7 +19,7 @@ export const FACULTES_FILTERED = [
 ];
 
 interface FacultesMultiSelectProps {
-  values: string[];
+  values: string[] | undefined | null;
   onChange: (values: string[]) => void;
   disabled?: boolean;
 }
@@ -31,13 +31,25 @@ export function FacultesMultiSelect({
 }: FacultesMultiSelectProps) {
   const [open, setOpen] = useState(false);
 
-  // Gestion du 'NONE' : doit être seul si sélectionné
+  // Normalisation : on s’assure toujours d’avoir un tableau
+  const selectedValues = Array.isArray(values)
+    ? values
+    : values
+    ? [values]
+    : [];
+
   function handleCheck(val: string) {
+    let current = Array.isArray(values)
+      ? values
+      : values
+      ? [values]
+      : [];
+    // Gestion du 'NONE' : doit être seul si sélectionné
     if (val === "NONE") {
-      onChange(values.includes("NONE") ? [] : ["NONE"]);
+      onChange(current.includes("NONE") ? [] : ["NONE"]);
     } else {
-      let newVals = values.filter((v) => v !== "NONE");
-      if (values.includes(val)) {
+      let newVals = current.filter((v) => v !== "NONE");
+      if (current.includes(val)) {
         newVals = newVals.filter((v) => v !== val);
       } else {
         newVals = [...newVals, val];
@@ -51,12 +63,14 @@ export function FacultesMultiSelect({
   }
 
   let buttonLabel =
-    values.length === 0 || values.includes("NONE")
+    selectedValues.length === 0 || selectedValues.includes("NONE")
       ? "Aucune restriction"
-      : values.map(
-          (val) =>
-            FACULTES_FILTERED.find((f) => f.value === val)?.label ?? val
-        ).join(", ");
+      : selectedValues
+          .map(
+            (val) =>
+              FACULTES_FILTERED.find((f) => f.value === val)?.label ?? val
+          )
+          .join(", ");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -78,13 +92,13 @@ export function FacultesMultiSelect({
               className="flex items-center gap-2 cursor-pointer"
             >
               <Checkbox
-                checked={values.includes(fac.value)}
+                checked={selectedValues.includes(fac.value)}
                 onCheckedChange={() => handleCheck(fac.value)}
                 disabled={
                   fac.value === "NONE"
-                    ? values.length > 0 &&
-                      !values.includes("NONE")
-                    : values.includes("NONE")
+                    ? selectedValues.length > 0 &&
+                      !selectedValues.includes("NONE")
+                    : selectedValues.includes("NONE")
                 }
               />
               <span>{fac.label}</span>
