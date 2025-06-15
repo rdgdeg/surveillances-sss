@@ -16,6 +16,44 @@ export const StandardExcelImporter = () => {
   const [importing, setImporting] = useState(false);
   const { data: activeSession } = useActiveSession();
 
+  // Fonction utilitaire pour convertir une date Excel/chaîne en YYYY-MM-DD
+  function formatDateCell(value: any): string | null {
+    if (!value) return null;
+    // Format Excel date (numérique)
+    if (typeof value === 'number') {
+      const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+      return date.toISOString().slice(0, 10);
+    }
+    // Format string déjà en ISO ou FR : 2024-06-12 ou 12/06/2024
+    if (typeof value === 'string') {
+      if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+      if (/^\d{2}\/\d{2}\/\d{4}/.test(value)) {
+        const [d, m, y] = value.split('/');
+        return `${y}-${m}-${d}`;
+      }
+      // Sinon, renvoie null si aucun pattern reconnu
+    }
+    return null;
+  }
+
+  // Fonction utilitaire pour convertir heure Excel/chaîne en HH:MM
+  function formatTimeCell(value: any): string | null {
+    if (!value) return null;
+    // Cas nombre Excel = fraction de jour (ex: 0.75 = 18:00)
+    if (typeof value === 'number') {
+      const totalMinutes = Math.round(value * 24 * 60);
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    }
+    // Cas string
+    if (typeof value === 'string') {
+      const m = value.trim().match(/^(\d{1,2}):(\d{2})/);
+      if (m) return `${m[1].padStart(2, '0')}:${m[2]}`;
+    }
+    return null;
+  }
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     setFile(selected || null);
@@ -52,12 +90,11 @@ export const StandardExcelImporter = () => {
     setImporting(true);
     try {
       let totalOk = 0, totalFail = 0;
-      for (const row of parsedRows) {
-        // Assumons le mapping d’après ton import
-        // ['Jour', 'Durée (h)', 'Début', 'Fin', 'Activité', 'Faculté / Secrétariat', 'Code', 'Auditoires', 'Etudiants', 'Enseignants']
+      for (let idx = 0; idx < parsedRows.length; idx++) {
+        const row = parsedRows[idx];
         const examenData: any = {
           session_id: activeSession.id,
-          date_examen: row["Jour"] || null,
+          date_examen: formatDateCell(row["Jour"]),
           duree: 
             row["Durée (h)"] !== undefined && row["Durée (h)"] !== ""
               ? typeof row["Durée (h)"] === 'number'
@@ -66,8 +103,8 @@ export const StandardExcelImporter = () => {
                   ? parseFloat(row["Durée (h)"].replace(",", "."))
                   : null
               : null,
-          heure_debut: row["Début"] || null,
-          heure_fin: row["Fin"] || null,
+          heure_debut: formatTimeCell(row["Début"]),
+          heure_fin: formatTimeCell(row["Fin"]),
           activite: row["Activité"] || null,
           faculte: row["Faculté / Secrétariat"] || null,
           code_examen: row["Code"] || null,
@@ -76,18 +113,28 @@ export const StandardExcelImporter = () => {
           enseignants: row["Enseignants"] || null,
           statut_validation: "NON_TRAITE",
           is_active: true,
-          matiere: row["Activité"] || null, // fallback if tu veux remplir aussi matiere
-          type_requis: "Assistant", // défaut, à ajuster si tu as une colonne de type requis
+          matiere: row["Activité"] || null,
+          type_requis: "Assistant",
         };
-        // Supprimer les champs inutiles, Supabase n’acceptera pas des colonnes inattendues
+        // Supprimer 'undefined' (évite soucis sur columns non nullables)
         Object.keys(examenData).forEach(key => {
           if (examenData[key] === undefined) examenData[key] = null;
         });
 
         const { error } = await supabase.from("examens").insert(examenData);
 
-        if (!error) totalOk++;
-        else totalFail++;
+        if (!error) {
+          totalOk++;
+        } else {
+          totalFail++;
+          // Logguez l'erreur et affichez un toast pour savoir quel examen a échoué
+          console.error(`Erreur à la ligne ${idx + 2} (code: ${examenData.code_examen}):`, error);
+          toast({
+            title: `Échec pour "${examenData.code_examen || '-'}"`,
+            description: `Ligne ${idx + 2} du fichier (${error.message})`,
+            variant: "destructive",
+          });
+        }
       }
       toast({
         title: "Import terminé",
