@@ -1,7 +1,9 @@
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { ChangeEvent } from "react";
 import { Delete } from "lucide-react";
 
 interface ExamensImportTableRowProps {
@@ -27,7 +29,13 @@ export function ExamensImportTableRow({
   getExamProblem, getSurvTh, excelTimeToHHMM, excelDateString, getDureeAffichee
 }: ExamensImportTableRowProps) {
   const problems = getExamProblem(row);
-  const theorique = getSurvTh(row.data);
+
+  // On regarde s'il y a une valeur "forcée" dans les data
+  const forcedSurvTh = row.data?.Surveillants_Th;
+  const calculatedSurvTh = getSurvTh(row.data);
+  const theorique = forcedSurvTh !== undefined && forcedSurvTh !== null && forcedSurvTh !== ""
+    ? Number(forcedSurvTh)
+    : calculatedSurvTh;
 
   return (
     <tr key={row.id} className={problems.length ? "bg-red-50" : ""}>
@@ -43,7 +51,6 @@ export function ExamensImportTableRow({
               />
             )
             : (
-              // Colonne Durée = format hh:mm !
               col === "Duree" || col === "Durée" || col === "duree"
                 ? getDureeAffichee(row.data?.[col])
                 : ["Debut", "Heure_debut", "heure_debut"].includes(col)
@@ -57,10 +64,28 @@ export function ExamensImportTableRow({
         </td>
       ))}
       <td>
-        {theorique !== null && theorique !== undefined
-          ? <Badge className="bg-green-100 text-green-800">{theorique}</Badge>
-          : <span className="text-red-700">?</span>
-        }
+        {editRow === row.id ? (
+          <Input
+            type="number"
+            min={0}
+            className="text-xs w-16"
+            value={
+              editData.Surveillants_Th !== undefined && editData.Surveillants_Th !== null
+                ? editData.Surveillants_Th
+                : theorique ?? ""
+            }
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              // On autorise de mettre vide pour effacer le forçage
+              const val = e.target.value === "" ? "" : Number(e.target.value);
+              onChangeEdit("Surveillants_Th", val);
+            }}
+            placeholder="?"
+          />
+        ) : theorique !== null && theorique !== undefined && theorique !== "" ? (
+          <Badge className="bg-green-100 text-green-800">{theorique}</Badge>
+        ) : (
+          <span className="text-red-700">?</span>
+        )}
       </td>
       <td>
         {problems.length === 0
