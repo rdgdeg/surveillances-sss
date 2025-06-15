@@ -14,7 +14,7 @@ import { useSurveillantSensitiveData } from "@/hooks/useSurveillantSensitiveData
 import { SensitiveDataManager } from "./SensitiveDataManager";
 import { EditableCell } from "./EditableCell";
 import { supabase } from "@/integrations/supabase/client";
-import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin, Search, Filter, SortAsc, SortDesc, CheckSquare, Square, ArrowUpDown } from "lucide-react";
+import { Edit, Save, X, Users, AlertTriangle, Calendar, MapPin, Search, Filter, SortAsc, SortDesc, CheckSquare, X as XIcon, ArrowUpDown } from "lucide-react";
 import { safeNumber } from "@/lib/utils";
 
 interface SurveillantData {
@@ -595,7 +595,7 @@ export const SurveillantListEditor = () => {
                       setSelectAll(false);
                     }}
                   >
-                    <X className="h-4 w-4" />
+                    <XIcon className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -661,12 +661,12 @@ export const SurveillantListEditor = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[50px]">
+                    <TableCell className="w-[50px]">
                       <Checkbox
                         checked={selectAll}
                         onCheckedChange={handleSelectAll}
                       />
-                    </TableHead>
+                    </TableCell>
                     <SortableHeader field="nom">Nom</SortableHeader>
                     <SortableHeader field="prenom">Prénom</SortableHeader>
                     <SortableHeader field="email">Email</SortableHeader>
