@@ -24,6 +24,7 @@ interface Surveillant {
   type: string;
   telephone: string | null;
   quota: number;
+  session_id: string; // <-- on enrichit le type
 }
 
 export function SurveillantDisponibilitesForm() {
@@ -34,7 +35,6 @@ export function SurveillantDisponibilitesForm() {
   const [telephone, setTelephone] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Récupère le surveillant à partir de l'email
   useEffect(() => {
     if (email.includes("@")) {
       supabase
@@ -44,16 +44,18 @@ export function SurveillantDisponibilitesForm() {
         .maybeSingle()
         .then(async ({ data, error }) => {
           if (!error && data) {
-            // Cherche son quota dans surveillant_sessions active
+            // Cherche quota et session_id dans surveillant_sessions active
             let quota = 0;
-            const { data: sessionData } = await supabase
+            let session_id = "";
+            const { data: sessionRow } = await supabase
               .from("surveillant_sessions")
-              .select("quota")
+              .select("quota,session_id")
               .eq("surveillant_id", data.id)
               .eq("is_active", true)
               .maybeSingle();
-            quota = sessionData?.quota ?? 0;
-            setSurveillant({ ...data, quota });
+            quota = sessionRow?.quota ?? 0;
+            session_id = sessionRow?.session_id ?? "";
+            setSurveillant({ ...data, quota, session_id });
             setTelephone(data.telephone || "");
           } else {
             setSurveillant(null);
@@ -66,7 +68,6 @@ export function SurveillantDisponibilitesForm() {
     }
   }, [email]);
 
-  // Charger les créneaux fusionnés (creneaux_surveillance uniques)
   useEffect(() => {
     supabase
       .from("creneaux_surveillance")
@@ -78,7 +79,6 @@ export function SurveillantDisponibilitesForm() {
       });
   }, []);
 
-  // Charger les dispos déjà existantes si surveillant identifié
   useEffect(() => {
     if (surveillant) {
       supabase
@@ -138,6 +138,7 @@ export function SurveillantDisponibilitesForm() {
       const d = dispos[key] || { dispo: false, obligatoire: false, examenCode: "" };
       return {
         surveillant_id: surveillant.id,
+        session_id: surveillant.session_id ?? "", // session_id nécessaire !
         date_examen: cr.date_surveillance,
         heure_debut: cr.heure_debut_surveillance,
         heure_fin: cr.heure_fin_surveillance,
@@ -146,7 +147,6 @@ export function SurveillantDisponibilitesForm() {
         nom_examen_obligatoire: d.examenCode || null,
       };
     });
-    // Efface anciennes dispos puis insert toutes
     await supabase.from("disponibilites").delete().eq("surveillant_id", surveillant.id);
     const { error } = await supabase.from("disponibilites").insert(updates);
     if (error) {
