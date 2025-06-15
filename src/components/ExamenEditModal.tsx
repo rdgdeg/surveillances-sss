@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, ChangeEvent } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,7 @@ export function ExamenEditModal({ examen, open, onClose, onSaved, faculteOptions
   }));
   const [loading, setLoading] = useState(false);
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleChange(e: ChangeEvent<HTMLInputElement> | ChangeEvent<HTMLSelectElement>) {
     setFields(f => ({
       ...f,
       [e.target.name]: e.target.value,
@@ -72,31 +72,51 @@ export function ExamenEditModal({ examen, open, onClose, onSaved, faculteOptions
           <DialogTitle>Modifier l’examen</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3">
-          <Input label="Libellé/Matière" name="matiere" value={fields.matiere} onChange={handleChange} />
-          <Input label="Code examen" name="code_examen" value={fields.code_examen} onChange={handleChange} />
-          <Input
-            label="Date"
-            type="date"
-            name="date_examen"
-            value={fields.date_examen ? format(new Date(fields.date_examen), "yyyy-MM-dd") : ""}
-            onChange={handleChange}
-          />
+          <label>
+            Libellé/Matière
+            <Input name="matiere" value={fields.matiere} onChange={handleChange} />
+          </label>
+          <label>
+            Code examen
+            <Input name="code_examen" value={fields.code_examen} onChange={handleChange} />
+          </label>
+          <label>
+            Date
+            <Input
+              type="date"
+              name="date_examen"
+              value={fields.date_examen ? format(new Date(fields.date_examen), "yyyy-MM-dd") : ""}
+              onChange={handleChange}
+            />
+          </label>
           <div className="flex gap-2">
-            <Input label="Heure début" type="time" name="heure_debut" value={fields.heure_debut} onChange={handleChange} />
-            <Input label="Heure fin" type="time" name="heure_fin" value={fields.heure_fin} onChange={handleChange} />
+            <label className="flex-1">
+              Heure début
+              <Input type="time" name="heure_debut" value={fields.heure_debut} onChange={handleChange} />
+            </label>
+            <label className="flex-1">
+              Heure fin
+              <Input type="time" name="heure_fin" value={fields.heure_fin} onChange={handleChange} />
+            </label>
           </div>
-          <Input label="Auditoire(s)" name="salle" value={fields.salle} onChange={handleChange} />
-          <select
-            name="faculte"
-            value={fields.faculte}
-            onChange={handleChange}
-            className="border rounded px-2 py-1 mt-1"
-          >
-            <option value="">Sélectionnez une faculté</option>
-            {faculteOptions.map(f => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </select>
+          <label>
+            Auditoire(s)
+            <Input name="salle" value={fields.salle} onChange={handleChange} />
+          </label>
+          <label>
+            Faculté
+            <select
+              name="faculte"
+              value={fields.faculte}
+              onChange={handleChange}
+              className="border rounded px-2 py-1 mt-1 w-full"
+            >
+              <option value="">Sélectionnez une faculté</option>
+              {faculteOptions.map(f => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
+          </label>
         </div>
         <DialogFooter>
           <Button onClick={onClose} variant="secondary">Annuler</Button>

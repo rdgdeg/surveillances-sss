@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExamenEditModal } from "./ExamenEditModal";
-import { useState } from "react";
 
 export function ExamenReviewManager() {
   const { data: activeSession } = useActiveSession();
