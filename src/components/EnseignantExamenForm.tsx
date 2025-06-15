@@ -1,58 +1,58 @@
+
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Save, Search, Users, Calendar, Clock, MapPin, Trash2, ListFilter } from "lucide-react";
+import { Save, Search, Users, Calendar, Clock, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar as ShadcnCalendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { format } from "date-fns";
 
-import { RechercheExamenSection } from "./RechercheExamenSection";
 import { ExamenRecap } from "./ExamenRecap";
 import { EquipePedagogiqueForm } from "./EquipePedagogiqueForm";
-import { useExamenManagement } from "@/hooks/useExamenManagement";
+import { EnseignantPresenceForm } from "./EnseignantPresenceForm";
+import { ExamenAutocomplete } from "./ExamenAutocomplete";
 import { usePersonnesEquipe } from "@/hooks/usePersonnesEquipe";
 import { useExamenMutations } from "@/hooks/useExamenMutations";
 import { useExamenCalculations } from "@/hooks/useExamenCalculations";
 
 export const EnseignantExamenForm = () => {
-  // --------- GESTION DES ETATS ET HOOKS OPTIMISES ---------
-  const {
-    activeSession,
-    searchCode,
-    setSearchCode,
-    selectedExamen,
-    setSelectedExamen,
-    faculteFilter,
-    setFaculteFilter,
-    dateFilter,
-    setDateFilter,
-    examensValides,
-    faculteList,
-    filteredExamens,
-    examenTrouve,
-  } = useExamenManagement();
+  const { data: activeSession } = useActiveSession();
+  const [selectedExamen, setSelectedExamen] = useState<any>(null);
+
+  const { data: examensValides } = useQuery({
+    queryKey: ['examens-enseignant', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession?.id) return [];
+      const { data, error } = await supabase
+        .from('examens')
+        .select(`*, personnes_aidantes (*)`)
+        .eq('session_id', activeSession.id)
+        .eq('statut_validation', 'VALIDE')
+        .eq('is_active', true)
+        .order('date_examen')
+        .order('heure_debut');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!activeSession?.id
+  });
 
   const { personnesEquipe, setPersonnesEquipe, nombrePersonnes, setNombrePersonnes } = usePersonnesEquipe();
 
-  // Remise à zéro du formulaire si ajout réussi
-  const { ajouterPersonneMutation, supprimerPersonneMutation, confirmerExamenMutation } =
-    useExamenMutations({
-      onPersonneAdded: () => {
-        setPersonnesEquipe(Array(nombrePersonnes).fill({
-          nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true
-        }));
-      }
-    });
+  const { 
+    ajouterPersonneMutation, 
+    supprimerPersonneMutation, 
+    updateEnseignantPresenceMutation,
+    confirmerExamenMutation 
+  } = useExamenMutations({
+    onPersonneAdded: () => {
+      setPersonnesEquipe(Array(nombrePersonnes).fill({
+        nom: "", prenom: "", email: "", est_assistant: false, compte_dans_quota: true, present_sur_place: true
+      }));
+    }
+  });
 
   const { calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires } = useExamenCalculations(selectedExamen);
 
@@ -84,7 +84,6 @@ export const EnseignantExamenForm = () => {
     });
   };
 
-  // --------- AFFICHAGE UI ---------
   if (!activeSession) {
     return (
       <Card>
@@ -102,78 +101,90 @@ export const EnseignantExamenForm = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <span>
-              <span className="inline-block align-middle">{/* icon slot */}</span>
-            </span>
+            <Search className="h-5 w-5" />
             <span>Rechercher votre examen</span>
           </CardTitle>
           <CardDescription>
-            Entrez le code de votre examen ou sélectionnez-le ci-dessous pour renseigner vos besoins de surveillance
+            Utilisez la recherche pour trouver votre examen et renseigner vos besoins de surveillance
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <RechercheExamenSection
-            searchCode={searchCode}
-            setSearchCode={setSearchCode}
-            examenTrouve={examenTrouve}
-            setSelectedExamen={setSelectedExamen}
-            filteredExamens={filteredExamens}
-            faculteFilter={faculteFilter}
-            setFaculteFilter={setFaculteFilter}
-            dateFilter={dateFilter}
-            setDateFilter={setDateFilter}
-            faculteList={faculteList}
+        <CardContent>
+          <ExamenAutocomplete
+            examens={examensValides || []}
             selectedExamen={selectedExamen}
+            onSelectExamen={setSelectedExamen}
+            placeholder="Recherchez par code, matière ou salle..."
           />
         </CardContent>
       </Card>
 
       {selectedExamen && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <ExamenRecap selectedExamen={selectedExamen} formatDate={formatDate} />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex justify-between items-stretch bg-gray-50 rounded-xl px-2 py-2 mb-2">
-              <BlocResume
-                nombre={selectedExamen.nombre_surveillants}
-                titre="Surveillants théoriques"
-                color="text-blue-700"
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <ExamenRecap selectedExamen={selectedExamen} formatDate={formatDate} />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between items-stretch bg-gray-50 rounded-xl px-2 py-2 mb-4">
+                <BlocResume
+                  nombre={selectedExamen.nombre_surveillants}
+                  titre="Surveillants théoriques"
+                  color="text-blue-700"
+                />
+                <BlocResume
+                  nombre={calculerSurveillantsPedagogiques()}
+                  titre="Équipe pédagogique"
+                  color="text-green-700"
+                />
+                <BlocResume
+                  nombre={calculerSurveillantsNecessaires()}
+                  titre="Surveillants à attribuer"
+                  color="text-orange-600"
+                />
+              </div>
+
+              {/* Affichage des auditoires */}
+              <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <MapPin className="h-4 w-4 text-blue-600" />
+                  <span className="font-medium text-blue-800">Auditoires prévus</span>
+                </div>
+                <p className="text-blue-700">{selectedExamen.salle || "Non spécifié"}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <EnseignantPresenceForm
+            selectedExamen={selectedExamen}
+            updateEnseignantPresenceMutation={updateEnseignantPresenceMutation}
+          />
+
+          <Card>
+            <CardContent className="space-y-6 pt-6">
+              <EquipePedagogiqueForm
+                selectedExamen={selectedExamen}
+                ajouterPersonneMutation={ajouterPersonneMutation}
+                supprimerPersonneMutation={supprimerPersonneMutation}
+                personnesEquipe={personnesEquipe}
+                setPersonnesEquipe={setPersonnesEquipe}
+                nombrePersonnes={nombrePersonnes}
+                setNombrePersonnes={setNombrePersonnes}
+                handleAjouterPersonnes={handleAjouterPersonnes}
               />
-              <BlocResume
-                nombre={calculerSurveillantsPedagogiques()}
-                titre="Équipe pédagogique"
-                color="text-green-700"
-              />
-              <BlocResume
-                nombre={calculerSurveillantsNecessaires()}
-                titre="Surveillants à attribuer"
-                color="text-orange-600"
-              />
-            </div>
-            <EquipePedagogiqueForm
-              selectedExamen={selectedExamen}
-              ajouterPersonneMutation={ajouterPersonneMutation}
-              supprimerPersonneMutation={supprimerPersonneMutation}
-              personnesEquipe={personnesEquipe}
-              setPersonnesEquipe={setPersonnesEquipe}
-              nombrePersonnes={nombrePersonnes}
-              setNombrePersonnes={setNombrePersonnes}
-              handleAjouterPersonnes={handleAjouterPersonnes}
-            />
-            <div className="flex justify-end space-x-2">
-              <Button
-                onClick={() => confirmerExamenMutation.mutate(selectedExamen.id)}
-                disabled={confirmerExamenMutation.isPending || selectedExamen.besoins_confirmes_par_enseignant}
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {selectedExamen.besoins_confirmes_par_enseignant ? "Déjà confirmé" : "Confirmer les besoins"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  onClick={() => confirmerExamenMutation.mutate(selectedExamen.id)}
+                  disabled={confirmerExamenMutation.isPending || selectedExamen.besoins_confirmes_par_enseignant}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {selectedExamen.besoins_confirmes_par_enseignant ? "Déjà confirmé" : "Confirmer les besoins"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );

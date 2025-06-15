@@ -11,7 +11,12 @@ export function useExamenCalculations(selectedExamen: any) {
   // Calcule le nombre de surveillants supplémentaires à attribuer
   const calculerSurveillantsNecessaires = () => {
     const pedagogiques = calculerSurveillantsPedagogiques();
-    const necessaires = Math.max(0, selectedExamen?.nombre_surveillants - pedagogiques);
+    const enseignantPresent = selectedExamen?.enseignant_present ? 1 : 0;
+    const personnesAmenees = selectedExamen?.personnes_amenees || 0;
+    
+    const necessaires = Math.max(0, 
+      (selectedExamen?.nombre_surveillants || 0) - pedagogiques - enseignantPresent - personnesAmenees
+    );
     return necessaires;
   };
 

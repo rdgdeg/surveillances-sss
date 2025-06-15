@@ -1,9 +1,9 @@
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Calendar, FileText, Settings, ClipboardList, GraduationCap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Footer } from "@/components/Footer";
-import { EnseignantExamenForm } from "@/components/EnseignantExamenForm";
 
 const Index = () => {
   return (
@@ -50,11 +50,6 @@ const Index = () => {
           <p className="text-base sm:text-xl text-gray-600 max-w-xl sm:max-w-3xl mx-auto">
             Plateforme unique pour l'organisation des examens : confirmations, assistants, attributions et disponibilités.
           </p>
-        </div>
-
-        {/* Section spéciale pour les enseignants */}
-        <div className="mb-8 md:mb-12">
-          <EnseignantExamenForm />
         </div>
 
         {/* Cards Grid alignés pour mobile */}
@@ -119,7 +114,7 @@ const Index = () => {
             <div className="flex justify-center w-full">
               <Link to="/admin" className="w-full flex justify-center">
                 <Button variant="outline" className="w-[90%] max-w-xs text-base sm:text-lg font-semibold rounded-lg h-11 sm:h-12 mt-2 border-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-blue-grey hover:text-uclouvain-blue transition-colors">
-                  Accéder à l’administration
+                  Accéder à l'administration
                 </Button>
               </Link>
             </div>

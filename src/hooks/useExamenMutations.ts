@@ -50,6 +50,30 @@ export function useExamenMutations({ onPersonneAdded }: { onPersonneAdded?: () =
     }
   });
 
+  const updateEnseignantPresenceMutation = useMutation({
+    mutationFn: async ({ examenId, enseignantPresent, personnesAmenees }: { 
+      examenId: string; 
+      enseignantPresent: boolean; 
+      personnesAmenees: number;
+    }) => {
+      const { error } = await supabase
+        .from('examens')
+        .update({
+          enseignant_present: enseignantPresent,
+          personnes_amenees: personnesAmenees
+        })
+        .eq('id', examenId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
+      toast({
+        title: "Présence mise à jour",
+        description: "Les informations de présence ont été sauvegardées."
+      });
+    }
+  });
+
   const confirmerExamenMutation = useMutation({
     mutationFn: async (examenId: string) => {
       const { error } = await supabase
@@ -73,7 +97,7 @@ export function useExamenMutations({ onPersonneAdded }: { onPersonneAdded?: () =
   return {
     ajouterPersonneMutation,
     supprimerPersonneMutation,
+    updateEnseignantPresenceMutation,
     confirmerExamenMutation,
   }
 }
-
