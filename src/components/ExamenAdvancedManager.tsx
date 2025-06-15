@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,6 +10,7 @@ import ExamenListeComplete from "./ExamenListeComplete";
 import { DeleteAllExamensButton } from "./DeleteAllExamensButton";
 import { ExamensImportPermissif } from "./ExamensImportPermissif";
 import { ExamensImportRevision } from "./ExamensImportRevision";
+import { ForceCleanImportsButton } from "./ForceCleanImportsButton";
 
 export const ExamenAdvancedManager = () => {
   const [activeTab, setActiveTab] = useState("import");
@@ -27,7 +29,12 @@ export const ExamenAdvancedManager = () => {
           </CardDescription>
         </CardHeader>
       </Card>
-      <DeleteAllExamensButton />
+      
+      <div className="flex gap-4">
+        <DeleteAllExamensButton />
+        <ForceCleanImportsButton />
+      </div>
+      
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="import" className="flex items-center space-x-2">
@@ -53,7 +60,7 @@ export const ExamenAdvancedManager = () => {
           <ExamensImportRevision batchId={lastBatchId || undefined} />
         </TabsContent>
         <TabsContent value="validation" className="space-y-4">
-          <span className="text-gray-600 italic">À venir : création effective des examens à partir des imports validés.</span>
+          <span className="text-gray-600 italic">À venir : création effective des examens à partir des imports validés.</span>
         </TabsContent>
       </Tabs>
     </div>
