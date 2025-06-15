@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -136,8 +135,8 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
               </tbody>
             </table>
             <div className="mt-4">
-              <Button onClick={handleBatchValidate} loading={validating} disabled={validating}>
-                Valider tous les examens prêts
+              <Button onClick={handleBatchValidate} disabled={validating}>
+                {validating ? "Validation en cours..." : "Valider tous les examens prêts"}
               </Button>
             </div>
           </div>
