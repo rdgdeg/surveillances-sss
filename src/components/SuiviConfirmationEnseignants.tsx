@@ -31,20 +31,12 @@ export function SuiviConfirmationEnseignants() {
         .order("heure_debut");
       if (error) throw error;
       
-      // Debug: Vérifier tous les champs liés aux enseignants
-      console.log("Examens avec tous les champs:", data?.slice(0, 3));
-      data?.slice(0, 3).forEach((ex, index) => {
-        console.log(`Examen ${index} - tous les champs enseignants:`, {
-          id: ex.id,
-          code_examen: ex.code_examen,
-          matiere: ex.matiere,
-          enseignants: ex.enseignants,
-          enseignant_nom: ex.enseignant_nom,
-          enseignant_email: ex.enseignant_email,
-          // Vérifier s'il y a d'autres champs possibles
-          ...Object.keys(ex).filter(key => key.toLowerCase().includes('enseignant') || key.toLowerCase().includes('teacher')).reduce((obj, key) => ({...obj, [key]: ex[key]}), {})
-        });
-      });
+      console.log("Examens récupérés - aperçu des champs enseignants:", data?.slice(0, 3).map(ex => ({
+        id: ex.id,
+        code_examen: ex.code_examen,
+        enseignants: ex.enseignants,
+        enseignant_nom: ex.enseignant_nom
+      })));
       
       return data || [];
     }
@@ -82,27 +74,12 @@ export function SuiviConfirmationEnseignants() {
     return Math.max(0, theoriques - enseignantPresent - personnesAmenees);
   };
 
-  // Fonction pour extraire le nom d'enseignant depuis différents champs possibles
-  const getEnseignantNom = (examen: any) => {
-    // Vérifier plusieurs champs possibles où le nom pourrait être stocké
+  // Fonction pour extraire le nom d'enseignant depuis le champ enseignants importé
+  const getEnseignantsDuCours = (examen: any) => {
+    // Le champ enseignants contient les données importées du fichier Excel
     if (examen.enseignants && typeof examen.enseignants === 'string' && examen.enseignants.trim()) {
       return examen.enseignants.trim();
     }
-    
-    // Si enseignants est un objet, essayer d'extraire le nom
-    if (examen.enseignants && typeof examen.enseignants === 'object') {
-      if (examen.enseignants.nom) return examen.enseignants.nom;
-      if (examen.enseignants.name) return examen.enseignants.name;
-      if (Array.isArray(examen.enseignants) && examen.enseignants.length > 0) {
-        return examen.enseignants.map(e => e.nom || e.name || e).join(', ');
-      }
-    }
-    
-    // Fallback vers d'autres champs possibles
-    if (examen.enseignant_nom && examen.enseignant_nom.trim()) {
-      return examen.enseignant_nom.trim();
-    }
-    
     return null;
   };
 
@@ -123,7 +100,8 @@ export function SuiviConfirmationEnseignants() {
       filtered = filtered.filter(ex => 
         (ex.code_examen || "").toLowerCase().includes(term) ||
         (ex.matiere || "").toLowerCase().includes(term) ||
-        (getEnseignantNom(ex) || "").toLowerCase().includes(term) ||
+        (getEnseignantsDuCours(ex) || "").toLowerCase().includes(term) ||
+        (ex.enseignant_nom || "").toLowerCase().includes(term) ||
         (ex.enseignant_email || "").toLowerCase().includes(term)
       );
     }
@@ -152,8 +130,8 @@ export function SuiviConfirmationEnseignants() {
         case "matiere":
           return (a.matiere || "").localeCompare(b.matiere || "");
         case "enseignant":
-          const nameA = getEnseignantNom(a) || "";
-          const nameB = getEnseignantNom(b) || "";
+          const nameA = getEnseignantsDuCours(a) || "";
+          const nameB = getEnseignantsDuCours(b) || "";
           return nameA.localeCompare(nameB);
         case "status":
           const statusA = a.besoins_confirmes_par_enseignant ? "confirmed" : 
@@ -210,7 +188,7 @@ export function SuiviConfirmationEnseignants() {
               {!isLoading && filteredExamens.map((ex: any) => {
                 const surveillantsNecessaires = calculerSurveillantsNecessaires(ex);
                 const surveillantsAdaptes = calculerSurveillantsAdaptes(ex);
-                const enseignantNomImporte = getEnseignantNom(ex);
+                const enseignantsDuCours = getEnseignantsDuCours(ex);
                 
                 return (
                   <TableRow key={ex.id}>
@@ -226,10 +204,10 @@ export function SuiviConfirmationEnseignants() {
                     </TableCell>
                     <TableCell>{ex.salle || ""}</TableCell>
                     <TableCell>
-                      {enseignantNomImporte ? (
-                        <span className="font-medium">{enseignantNomImporte}</span>
+                      {enseignantsDuCours ? (
+                        <span className="font-medium">{enseignantsDuCours}</span>
                       ) : (
-                        <span className="text-gray-400">Non renseigné</span>
+                        <span className="text-gray-400">—</span>
                       )}
                     </TableCell>
                     <TableCell>

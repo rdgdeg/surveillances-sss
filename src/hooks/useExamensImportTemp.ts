@@ -176,6 +176,33 @@ export function useBatchValidateExamensImport() {
           const salle = data["Auditoires"] || data["Salle"] || "";
           const faculte = data["Faculte"] || data["Faculté"] || data["faculte"] || "";
           
+          // CORRECTION: Récupérer les enseignants depuis les données d'import
+          const enseignants = data["Enseignants"] || data["enseignants"] || data["Enseignant"] || data["enseignant"] || "";
+          const etudiants = data["Etudiants"] || data["etudiants"] || data["Etudiant"] || data["etudiant"] || "";
+          const dureeRaw = data["Duree"] || data["Durée"] || data["duree"] || "";
+          
+          // Conversion de la durée en nombre décimal
+          let duree = null;
+          if (dureeRaw) {
+            if (typeof dureeRaw === "number") {
+              duree = dureeRaw;
+            } else if (typeof dureeRaw === "string") {
+              // Essayer de parser "02:00" en 2.0 heures
+              const timeMatch = dureeRaw.match(/^(\d{1,2}):(\d{2})$/);
+              if (timeMatch) {
+                const hours = parseInt(timeMatch[1]);
+                const minutes = parseInt(timeMatch[2]);
+                duree = hours + (minutes / 60);
+              } else {
+                // Essayer de parser comme nombre décimal
+                const parsed = parseFloat(dureeRaw.replace(',', '.'));
+                if (!isNaN(parsed)) {
+                  duree = parsed;
+                }
+              }
+            }
+          }
+          
           const heureDebut = convertTimeValue(data["Debut"] || data["Heure"] || data["heure_debut"]);
           const heureFin = convertTimeValue(data["Fin"] || data["heure_fin"]);
           
@@ -195,6 +222,8 @@ export function useBatchValidateExamensImport() {
             typeRequis = "Assistant"; // Même si 0 surveillant, on garde une valeur valide
           }
           
+          console.log("Mapping enseignants pour examen", codeExamen, ":", enseignants);
+          
           return {
             session_id: row.session_id,
             code_examen: codeExamen,
@@ -206,7 +235,11 @@ export function useBatchValidateExamensImport() {
             faculte: faculte,
             type_requis: typeRequis,
             nombre_surveillants: nombreSurveillants,
-            statut_validation: "VALIDE"
+            statut_validation: "VALIDE",
+            // CORRECTION: Inclure les champs enseignants, etudiants et duree
+            enseignants: enseignants || null,
+            etudiants: etudiants || null,
+            duree: duree
           };
         });
 
