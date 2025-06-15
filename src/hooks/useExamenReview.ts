@@ -23,7 +23,12 @@ export const useExamenReview = () => {
           personnes_aidantes (*)
         `)
         .eq('session_id', activeSession.id)
-        .in('statut_validation', ['NON_TRAITE', 'EN_COURS'])
+        .in('statut_validation', [
+          'NON_TRAITE', 
+          'EN_COURS',
+          'REJETE',
+          'NECESSITE_VALIDATION'
+        ])
         .eq('is_active', true)
         .order('date_examen', { ascending: true })
         .order('heure_debut', { ascending: true })
