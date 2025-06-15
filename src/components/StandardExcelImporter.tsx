@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -9,6 +10,38 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
+// Utilitaire pour normaliser les noms de colonnes (retire accents, casse, espaces)
+function normalizeCol(s: string) {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // retirer accents
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+// Map de toutes les variations connues pour chaque champ
+const COLUMN_MAP = {
+  jour: ["jour", "date", "dateexamen"],
+  debut: ["debut", "heuredebut", "debutheure", "heuredebutexamen"],
+  fin: ["fin", "heurefin", "finheure", "heurefinexamen"],
+  duree: ["duree(h)", "duree", "dureeexamen"],
+  activite: ["activite", "matiere", "nomexamen"],
+  faculte: ["faculte/secreteriat", "faculte", "secreteriat", "faculte/secrétariat", "faculte / secreteriat", "faculte / secrétariat", "faculté/secrétariat", "faculté/secreteriat", "faculté / secrétariat", "faculté / secreteriat"],
+  code: ["code", "codeexamen"],
+  auditoires: ["auditoires", "auditoire", "salle"],
+  etudiants: ["etudiants", "etudiant", "effectif", "nombreetudiants"],
+  enseignants: ["enseignants", "enseignant"]
+};
+
+// Trouve le nom réel de colonne dans l'Excel qui correspond à un des champs clés
+function findColKey(keys: string[], wanted: string[]): string | null {
+  for (const k of keys) {
+    const norm = normalizeCol(k);
+    if (wanted.includes(norm)) return k;
+  }
+  return null;
+}
+
 export const StandardExcelImporter = () => {
   const [file, setFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<any[]>([]);
@@ -16,22 +49,23 @@ export const StandardExcelImporter = () => {
   const [importing, setImporting] = useState(false);
   const { data: activeSession } = useActiveSession();
 
+  // Les clés réelles trouvées
+  const [detectedColumns, setDetectedColumns] = useState<any | null>(null);
+
   // Fonction utilitaire pour convertir une date Excel/chaîne en YYYY-MM-DD
   function formatDateCell(value: any): string | null {
     if (!value) return null;
-    // Format Excel date (numérique)
     if (typeof value === 'number') {
+      // Excel number
       const date = new Date(Math.round((value - 25569) * 86400 * 1000));
       return date.toISOString().slice(0, 10);
     }
-    // Format string déjà en ISO ou FR : 2024-06-12 ou 12/06/2024
     if (typeof value === 'string') {
       if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
       if (/^\d{2}\/\d{2}\/\d{4}/.test(value)) {
         const [d, m, y] = value.split('/');
         return `${y}-${m}-${d}`;
       }
-      // Sinon, renvoie null si aucun pattern reconnu
     }
     return null;
   }
@@ -39,14 +73,12 @@ export const StandardExcelImporter = () => {
   // Fonction utilitaire pour convertir heure Excel/chaîne en HH:MM
   function formatTimeCell(value: any): string | null {
     if (!value) return null;
-    // Cas nombre Excel = fraction de jour (ex: 0.75 = 18:00)
     if (typeof value === 'number') {
       const totalMinutes = Math.round(value * 24 * 60);
       const h = Math.floor(totalMinutes / 60);
       const m = totalMinutes % 60;
       return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     }
-    // Cas string
     if (typeof value === 'string') {
       const m = value.trim().match(/^(\d{1,2}):(\d{2})/);
       if (m) return `${m[1].padStart(2, '0')}:${m[2]}`;
@@ -58,7 +90,6 @@ export const StandardExcelImporter = () => {
     const selected = e.target.files?.[0];
     setFile(selected || null);
     if (selected) {
-      // Parse & preview
       const reader = new FileReader();
       reader.onload = (evt) => {
         try {
@@ -66,8 +97,33 @@ export const StandardExcelImporter = () => {
           const workbook = XLSX.read(data, { type: 'binary' });
           const worksheet = workbook.Sheets[workbook.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+          // Détermination dynamique des colonnes
+          const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
+          // Pour chaque champ attendu, on cherche la colonne correspondante (plus tolérant)
+          const colMap: Record<string, string | null> = {};
+          Object.entries(COLUMN_MAP).forEach(([field, variations]) => {
+            // Ajoute la version normalisée pour matcher plus large
+            const wanted = variations.map(normalizeCol);
+            const found = findColKey(cols, wanted);
+            colMap[field] = found;
+          });
+          setDetectedColumns(colMap);
+
+          // Teste si colonnes essentielles sont bien détectées
+          const missing = ["jour", "debut", "fin"].filter(field => !colMap[field]);
+          if (missing.length > 0) {
+            toast({
+              title: "Colonnes obligatoires manquantes",
+              description: `Les colonnes suivantes sont manquantes ou mal orthographiées : ${missing.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(', ')}.\nColonnes Excel trouvées : ${cols.join(', ')}`,
+              variant: "destructive"
+            });
+            setParsedRows([]);
+            setPreviewRows([]);
+            return;
+          }
+
           setParsedRows(rows);
-          setPreviewRows(rows.slice(0, 5)); // Preview only first 5
+          setPreviewRows(rows.slice(0, 5));
         } catch (e) {
           toast({
             title: "Erreur de lecture",
@@ -89,63 +145,73 @@ export const StandardExcelImporter = () => {
     if (!file || importing || !activeSession?.id) return;
     setImporting(true);
     try {
+      if (!detectedColumns) {
+        toast({
+          title: "Aucun fichier chargé ou mapping colonnes invalide.",
+          description: "Veuillez sélectionner un fichier Excel valide.",
+          variant: "destructive"
+        });
+        setImporting(false);
+        return;
+      }
+
       let totalOk = 0, totalFail = 0;
       for (let idx = 0; idx < parsedRows.length; idx++) {
         const row = parsedRows[idx];
 
+        // Utilise mapping des colonnes
+        const col = (key: string) => detectedColumns[key] ? row[detectedColumns[key]] : null;
+
         // Vérification et parsing de la colonne "Début"
-        const parsedHeureDebut = formatTimeCell(row["Début"]);
+        const parsedHeureDebut = formatTimeCell(col("debut"));
         if (!parsedHeureDebut) {
           totalFail++;
           toast({
             title: `Heure de début manquante ou invalide`,
-            description: `Ligne ${idx + 2} : l'examen "${row["Activité"] || row["Code"] || "-"}" n'a pas d'heure de début correcte dans le fichier Excel. Veuillez corriger avant de réessayer.`,
-            variant: "destructive",
-          });
-          continue; // Ignore cette ligne
-        }
-
-        // Même chose pour "Fin" (pour éviter un autre bug possible)
-        const parsedHeureFin = formatTimeCell(row["Fin"]);
-        if (!parsedHeureFin) {
-          totalFail++;
-          toast({
-            title: `Heure de fin manquante ou invalide`,
-            description: `Ligne ${idx + 2} : l'examen "${row["Activité"] || row["Code"] || "-"}" n'a pas d'heure de fin correcte dans le fichier Excel. Veuillez corriger avant de réessayer.`,
+            description: `Ligne ${idx + 2} : l'examen "${col("activite") || col("code") || "-"}" n'a pas d'heure de début correcte dans le fichier Excel (valeur originale "${col("debut")}").`,
             variant: "destructive",
           });
           continue;
         }
 
-        // Gestion de la durée (possibles formats: nombre, texte, vide, virgule/fr)
-        let rawDuree = row["Durée (h)"];
+        const parsedHeureFin = formatTimeCell(col("fin"));
+        if (!parsedHeureFin) {
+          totalFail++;
+          toast({
+            title: `Heure de fin manquante ou invalide`,
+            description: `Ligne ${idx + 2} : l'examen "${col("activite") || col("code") || "-"}" n'a pas d'heure de fin correcte dans le fichier Excel (valeur originale "${col("fin")}").`,
+            variant: "destructive",
+          });
+          continue;
+        }
+
+        let rawDuree = col("duree");
         let duree: number | null = null;
         if (rawDuree !== undefined && rawDuree !== "") {
           if (typeof rawDuree === "number") {
             duree = rawDuree;
           } else if (typeof rawDuree === "string") {
-            // Remplace virugule par point pour prise en charge française
             const parsed = parseFloat(rawDuree.replace(",", "."));
             duree = isNaN(parsed) ? null : parsed;
           }
         }
         const examenData: any = {
           session_id: activeSession.id,
-          date_examen: formatDateCell(row["Jour"]),
+          date_examen: formatDateCell(col("jour")),
           duree,
           heure_debut: parsedHeureDebut,
           heure_fin: parsedHeureFin,
-          faculte: row["Faculté / Secrétariat"] || null,
-          code_examen: row["Code"] || null,
-          salle: row["Auditoires"] || null,
-          etudiants: row["Etudiants"] || null,
-          enseignants: row["Enseignants"] || null,
+          faculte: col("faculte") || null,
+          code_examen: col("code") || null,
+          salle: col("auditoires") || null,
+          etudiants: col("etudiants") || null,
+          enseignants: col("enseignants") || null,
           statut_validation: "NON_TRAITE",
           is_active: true,
-          matiere: row["Activité"] || null,
+          matiere: col("activite") || null,
           type_requis: "Assistant",
         };
-        // Supprimer 'undefined'
+
         Object.keys(examenData).forEach(key => {
           if (examenData[key] === undefined) examenData[key] = null;
         });
@@ -156,7 +222,6 @@ export const StandardExcelImporter = () => {
           totalOk++;
         } else {
           totalFail++;
-          // Log l’erreur et affiche un toast
           console.error(`Erreur à la ligne ${idx + 2} (code: ${examenData.code_examen}):`, error);
           toast({
             title: `Échec pour "${examenData.code_examen || '-'}"`,
