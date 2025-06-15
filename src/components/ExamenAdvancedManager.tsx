@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,6 +6,7 @@ import { StandardExcelImporter } from "./StandardExcelImporter";
 import { ExamenValidationProcessor } from "./ExamenValidationProcessor";
 import { ExamenReviewManager } from "./ExamenReviewManager";
 import ExamenListeComplete from "./ExamenListeComplete";
+import { DeleteAllExamensButton } from "./DeleteAllExamensButton";
 
 export const ExamenAdvancedManager = () => {
   const [activeTab, setActiveTab] = useState("import");
@@ -24,6 +24,9 @@ export const ExamenAdvancedManager = () => {
           </CardDescription>
         </CardHeader>
       </Card>
+
+      {/* Bouton suppression ajouté ici, visible sur tous les onglets */}
+      <DeleteAllExamensButton />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
@@ -108,4 +111,3 @@ export const ExamenAdvancedManager = () => {
     </div>
   );
 };
-
