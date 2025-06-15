@@ -51,6 +51,7 @@ interface SurveillantJoin {
   // Session fields
   session_entry_id?: string;
   quota?: number | null;
+  is_active?: boolean;
 }
 
 // On reconstruit partout en interne avec ce type (toujours un tableau pour faculte_interdite)
@@ -58,6 +59,7 @@ type SurveillantJoinWithArray = Omit<SurveillantJoin, "faculte_interdite"> & {
   faculte_interdite: string[];
   /** AJOUT date_fin_contrat pour TypeScript */
   date_fin_contrat?: string | null;
+  is_active: boolean;
 };
 
 export function SurveillantUnifiedManager() {
@@ -94,6 +96,7 @@ export function SurveillantUnifiedManager() {
           id,
           surveillant_id,
           quota,
+          is_active,
           surveillants (
             id,
             nom,
@@ -133,18 +136,25 @@ export function SurveillantUnifiedManager() {
         date_fin_contrat: row.surveillants.date_fin_contrat ?? null, // AJOUT
         session_entry_id: row.id,
         quota: row.quota ?? null,
+        is_active: row.is_active === undefined ? true : row.is_active, // NOUVEAU: récupère statut session
       })) as SurveillantJoinWithArray[];
     },
     enabled: !!activeSession?.id,
   });
 
-  // Calcule les surveillants actifs/désactivés pour affichage par onglet
+  // 2. Calcule les surveillants actifs/désactivés pour affichage par onglet
   const surveillantsActifs = Array.isArray(surveillants)
-    ? surveillants.filter(s => s.statut === "actif" || s.statut?.toLowerCase() === "assistant" || (s.quota ?? 0) > 0)
+    ? surveillants.filter(s => s.is_active)
     : [];
   const surveillantsDesactives = Array.isArray(surveillants)
-    ? surveillants.filter(s => s.statut !== "actif" && (!["assistant", "PAT FASB"].includes((s.statut ?? "").toUpperCase())) && (s.quota ?? 0) === 0)
+    ? surveillants.filter(s => !s.is_active)
     : [];
+
+  // 3. Sélection selon onglet actif
+  const currentRows =
+    activeTab === "actifs"
+      ? surveillantsActifs
+      : surveillantsDesactives;
 
   // 2. MUTATIONS : update ETP OU quota session 
   const updateSurveillantMutation = useMutation({
@@ -294,24 +304,6 @@ export function SurveillantUnifiedManager() {
   const handleOpenUpload = () => setShowUpload(true);
 
   // --- SÉLECTION MULTIPLE ---
-  const currentRows =
-    activeTab === "actifs"
-      ? Array.isArray(surveillants)
-        ? surveillants.filter(
-            (s) =>
-              s.statut === "actif" ||
-              s.statut?.toLowerCase() === "assistant" ||
-              (s.quota ?? 0) > 0
-          )
-        : []
-      : Array.isArray(surveillants)
-      ? surveillants.filter(
-          (s) =>
-            s.statut !== "actif" &&
-            !["assistant", "PAT FASB"].includes((s.statut ?? "").toUpperCase()) &&
-            (s.quota ?? 0) === 0
-        )
-      : [];
   // Gestion du bouton tout sélectionner
   const handleSelectAll = (checked: boolean) => {
     setSelectAll(checked);
@@ -554,26 +546,26 @@ export function SurveillantUnifiedManager() {
                             <TableCell className="px-2 py-2">{row.nom}</TableCell>
                             <TableCell className="px-2 py-2">{row.prenom}</TableCell>
                             <TableCell className="px-2 py-2">{row.email}</TableCell>
-                            {/* --- COLONNE ACTIF --- */}
+                            {/* --- COLONNE ACTIF (MàJ : Affichage via is_active !) --- */}
                             <TableCell className="px-2 py-2">
                               {row.session_entry_id && row.quota !== undefined ? (
                                 isEdit ? (
                                   <span>
-                                    {row.statut /* Dans ce contexte, on modifie uniquement le quota/ETP/affect, le statut d'activation par session reste géré via le badge ou l'action directe. */}
+                                    {row.is_active ? "Actif" : "Désactivé"}
                                   </span>
                                 ) : (
                                   <Button
                                     size="sm"
-                                    variant={row.quota! > 0 ? (row.statut === "actif" ? "secondary" : "outline") : "outline"}
-                                    className={row.statut === "actif" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}
+                                    variant={row.is_active ? "secondary" : "outline"}
+                                    className={row.is_active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}
                                     onClick={() =>
                                       toggleActiveMutation.mutate({
                                         sessionEntryId: row.session_entry_id!,
-                                        is_active: row.statut !== "actif",
+                                        is_active: !row.is_active,
                                       })
                                     }
                                   >
-                                    {row.statut === "actif" ? "Actif" : "Désactivé"}
+                                    {row.is_active ? "Actif" : "Désactivé"}
                                   </Button>
                                 )
                               ) : (
@@ -606,7 +598,6 @@ export function SurveillantUnifiedManager() {
                                 <Badge variant="outline">{row.statut}</Badge>
                               )}
                             </TableCell>
-                            {/* ... keep existing code (affect, etp, quotas, facs...) the same ... */}
                             <TableCell className="px-2 py-2">
                               {isEdit ? (
                                 <select
