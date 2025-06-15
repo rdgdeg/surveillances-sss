@@ -105,6 +105,38 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     return {};
   }
 
+  // Helper pour parser une valeur date et la transformer en Date JS (pour tri)
+  function parseDateChrono(val: any): Date | null {
+    if (!val) return null;
+    // Gérer différents formats (Excel serial, YYYY-MM-DD, etc.)
+    if (typeof val === "number" || /^\d+(\.\d+)?$/.test(val)) {
+      // Excel serial date (nombre)
+      // Excel epoch = 1899-12-30
+      const excelEpoch = new Date(1899, 11, 30);
+      return new Date(excelEpoch.getTime() + Number(val) * 24 * 60 * 60 * 1000);
+    }
+    if (typeof val === "string") {
+      // YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+        return new Date(val);
+      }
+      // DD/MM/YYYY
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(val)) {
+        const [d, m, y] = val.split("/");
+        return new Date(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+      }
+      // DD-MM-YYYY
+      if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(val)) {
+        const [d, m, y] = val.split("-");
+        return new Date(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+      }
+      // cas fallback : tente de parser
+      const date = new Date(val);
+      if (!isNaN(date.getTime())) return date;
+    }
+    return null;
+  }
+
   let columns: string[] = [];
   if (rows[0]) {
     const dataCols = Object.keys(asRowDataObject(rows[0].data || {}));
@@ -146,6 +178,22 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     if (!sortBy) return 0;
     const dataA = asRowDataObject(a.data);
     const dataB = asRowDataObject(b.data);
+
+    // DÉTECTION DU TRI PAR DATE CHRONOLOGIQUE
+    if (
+      ["Jour", "Date", "date_examen"].includes(sortBy)
+      // On pourrait étendre ici selon le mapping
+    ) {
+      const dateA = parseDateChrono(dataA?.[sortBy]);
+      const dateB = parseDateChrono(dataB?.[sortBy]);
+      if (dateA && dateB) {
+        return sortAsc ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+      }
+      if (dateA && !dateB) return sortAsc ? -1 : 1;
+      if (!dateA && dateB) return sortAsc ? 1 : -1;
+      return 0;
+    }
+
     const valA =
       sortBy === "État"
         ? getExamProblem(a).join("")
