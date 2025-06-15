@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, CheckCircle, Save, Check } from "lucide-react";
+import { AlertTriangle, CheckCircle, Save, Check, AlertCircle, ShieldCheck } from "lucide-react";
 import { useExamensImportTemp, useUpdateExamenImportTemp, useBatchValidateExamensImport } from "@/hooks/useExamensImportTemp";
 import { getExamProblem } from "@/utils/examensImportProblems";
 import { toast } from "@/hooks/use-toast";
@@ -37,21 +37,23 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
     return {};
   }
 
-  // Filtrer uniquement les examens avec des erreurs
-  const examensWithErrors = rows.filter(row => {
+  // Filtrer les examens non traités
+  const examensNonTraites = rows.filter(row => row.statut === "NON_TRAITE");
+  
+  // Séparer les examens avec et sans erreurs
+  const examensWithErrors = examensNonTraites.filter(row => {
     const problems = getExamProblem(row);
-    return problems.length > 0 && row.statut === "NON_TRAITE";
+    return problems.length > 0;
   });
 
-  // Compter les examens sans erreur
-  const examensWithoutErrors = rows.filter(row => {
+  const examensWithoutErrors = examensNonTraites.filter(row => {
     const problems = getExamProblem(row);
-    return problems.length === 0 && row.statut === "NON_TRAITE";
+    return problems.length === 0;
   });
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedRows(new Set(examensWithErrors.map(row => row.id)));
+      setSelectedRows(new Set(examensNonTraites.map(row => row.id)));
     } else {
       setSelectedRows(new Set());
     }
@@ -78,28 +80,11 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
     }
 
     try {
-      // Vérifier que les examens sélectionnés n'ont plus d'erreurs
-      const stillHasErrors = Array.from(selectedRows).some(rowId => {
-        const row = rows.find(r => r.id === rowId);
-        if (!row) return false;
-        const problems = getExamProblem(row);
-        return problems.length > 0;
-      });
-
-      if (stillHasErrors) {
-        toast({
-          title: "Erreurs détectées",
-          description: "Certains examens sélectionnés ont encore des erreurs. Corrigez-les d'abord.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Marquer comme prêts (statut reste NON_TRAITE mais considérés comme corrects)
+      // Marquer comme prêts (nettoyer les erreurs)
       for (const rowId of selectedRows) {
         await updateMutation.mutateAsync({
           id: rowId,
-          statut: "NON_TRAITE", // Garde le statut pour la validation finale
+          statut: "NON_TRAITE",
           erreurs: null
         });
       }
@@ -113,6 +98,36 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
       toast({
         title: "Erreur",
         description: "Impossible de marquer les examens comme prêts.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleForceValidateSelected = async () => {
+    if (selectedRows.size === 0) {
+      toast({
+        title: "Aucune sélection",
+        description: "Veuillez sélectionner au moins un examen à valider.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      await batchValidate.mutateAsync({
+        rowIds: Array.from(selectedRows),
+        statut: "VALIDE"
+      });
+      
+      setSelectedRows(new Set());
+      toast({
+        title: "Validation forcée réussie",
+        description: `${selectedRows.size} examen(s) validé(s) avec succès. Les créneaux et listes enseignants sont en cours de génération.`
+      });
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de valider les examens sélectionnés.",
         variant: "destructive"
       });
     }
@@ -162,22 +177,7 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
   };
 
   const handleValidateAll = async () => {
-    // Vérifier qu'il n'y a plus d'erreurs
-    const stillHasErrors = rows.some(row => {
-      const problems = getExamProblem(row);
-      return problems.length > 0 && row.statut === "NON_TRAITE";
-    });
-
-    if (stillHasErrors) {
-      toast({
-        title: "Erreurs restantes",
-        description: "Corrigez d'abord tous les examens avec des erreurs.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const rowsToValidate = rows.filter(r => r.statut === "NON_TRAITE");
+    const rowsToValidate = examensNonTraites;
     if (rowsToValidate.length === 0) {
       toast({
         title: "Aucun examen à valider",
@@ -216,13 +216,34 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
     );
   }
 
+  if (examensNonTraites.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            <span>Tous les examens sont traités</span>
+          </CardTitle>
+          <CardDescription>
+            Aucun examen en attente de validation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-gray-500 py-8">
+            Tous les examens ont été validés. Consultez l'onglet "Validation finale" pour voir les résultats.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
-            <span>Correction et Validation des Examens</span>
+            <span>Validation et Correction des Examens</span>
           </div>
           <div className="flex items-center space-x-4">
             <div className="text-sm text-gray-600">
@@ -230,189 +251,201 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
               <span className="font-medium text-green-600">{examensWithoutErrors.length}</span> prêts
             </div>
             {selectedRows.size > 0 && (
-              <Button
-                onClick={handleMarkSelectedAsReady}
-                variant="outline"
-                className="border-blue-300 text-blue-700 hover:bg-blue-50"
-              >
-                <Check className="h-4 w-4 mr-2" />
-                Marquer comme prêts ({selectedRows.size})
-              </Button>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={handleMarkSelectedAsReady}
+                  variant="outline"
+                  className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  Marquer comme prêts ({selectedRows.size})
+                </Button>
+                <Button
+                  onClick={handleForceValidateSelected}
+                  variant="outline"
+                  className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                >
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                  Valider forcé ({selectedRows.size})
+                </Button>
+              </div>
             )}
             <Button
               onClick={handleValidateAll}
-              disabled={examensWithErrors.length > 0 || batchValidate.isPending}
+              disabled={examensNonTraites.length === 0 || batchValidate.isPending}
               className="bg-green-600 hover:bg-green-700"
             >
               <CheckCircle className="h-4 w-4 mr-2" />
-              {batchValidate.isPending ? "Validation..." : `Valider tout (${examensWithoutErrors.length})`}
+              {batchValidate.isPending ? "Validation..." : `Valider tout (${examensNonTraites.length})`}
             </Button>
           </div>
         </CardTitle>
         <CardDescription>
-          Corrigez les champs manquants ou incorrects, puis validez l'ensemble pour générer les créneaux et listes enseignants.
+          Corrigez les champs manquants, marquez comme prêts ou validez directement pour générer les créneaux et listes enseignants.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {examensWithErrors.length === 0 ? (
-          <div className="text-center py-8">
-            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-green-600 mb-2">
-              Tous les examens sont prêts !
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Aucune erreur détectée. Vous pouvez maintenant valider l'ensemble.
-            </p>
-            <Button
-              onClick={handleValidateAll}
-              disabled={examensWithoutErrors.length === 0 || batchValidate.isPending}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Valider {examensWithoutErrors.length} examens
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4">
+        <div className="space-y-4">
+          {examensWithErrors.length > 0 && (
             <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center space-x-2">
                   <AlertTriangle className="h-5 w-5 text-orange-600" />
                   <span className="font-medium text-orange-800">
-                    {examensWithErrors.length} examen(s) nécessitent une correction
+                    {examensWithErrors.length} examen(s) avec des erreurs
                   </span>
                 </div>
-                {examensWithErrors.length > 0 && (
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      checked={selectedRows.size === examensWithErrors.length && examensWithErrors.length > 0}
-                      onCheckedChange={handleSelectAll}
-                    />
-                    <span className="text-sm text-orange-700">Tout sélectionner</span>
-                  </div>
-                )}
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    checked={selectedRows.size === examensNonTraites.length && examensNonTraites.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                  <span className="text-sm text-orange-700">Tout sélectionner</span>
+                </div>
               </div>
               <p className="text-sm text-orange-700">
-                Corrigez les champs manquants ci-dessous ou sélectionnez les examens à marquer comme prêts une fois corrigés.
+                Vous pouvez corriger les erreurs ci-dessous, ou utiliser "Valider forcé" pour valider malgré les erreurs.
               </p>
             </div>
+          )}
 
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={selectedRows.size === examensWithErrors.length && examensWithErrors.length > 0}
-                        onCheckedChange={handleSelectAll}
-                      />
-                    </TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Matière</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Salle</TableHead>
-                    <TableHead>Faculté</TableHead>
-                    <TableHead>Erreurs</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {examensWithErrors.map((row) => {
-                    const data = asRowDataObject(row.data);
-                    const editData = editingRows[row.id] || data;
-                    const isEditing = !!editingRows[row.id];
-                    const problems = getExamProblem(row);
-                    const isSelected = selectedRows.has(row.id);
+          {examensWithoutErrors.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 mb-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <span className="font-medium text-green-800">
+                  {examensWithoutErrors.length} examen(s) prêt(s) pour validation
+                </span>
+              </div>
+              <p className="text-sm text-green-700">
+                Ces examens n'ont aucune erreur et peuvent être validés directement.
+              </p>
+            </div>
+          )}
 
-                    return (
-                      <TableRow key={row.id} className={isSelected ? "bg-blue-50" : ""}>
-                        <TableCell>
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={(checked) => handleSelectRow(row.id, checked as boolean)}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedRows.size === examensNonTraites.length && examensNonTraites.length > 0}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Matière</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Salle</TableHead>
+                  <TableHead>Faculté</TableHead>
+                  <TableHead>État</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {examensNonTraites.map((row) => {
+                  const data = asRowDataObject(row.data);
+                  const editData = editingRows[row.id] || data;
+                  const isEditing = !!editingRows[row.id];
+                  const problems = getExamProblem(row);
+                  const isSelected = selectedRows.has(row.id);
+
+                  return (
+                    <TableRow key={row.id} className={isSelected ? "bg-blue-50" : ""}>
+                      <TableCell>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => handleSelectRow(row.id, checked as boolean)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {data["Code"] || data["code"] || "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        {data["Activite"] || data["Matière"] || data["matiere"] || "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        {data["Jour"] || data["Date"] || "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        {data["Auditoires"] || data["Salle"] || "N/A"}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <Input
+                            value={editData["Faculte"] || editData["Faculté"] || ""}
+                            onChange={(e) => handleEditChange(row.id, "Faculte", e.target.value)}
+                            placeholder="Entrer la faculté"
+                            className="w-32"
                           />
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {data["Code"] || data["code"] || "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          {data["Activite"] || data["Matière"] || data["matiere"] || "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          {data["Jour"] || data["Date"] || "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          {data["Auditoires"] || data["Salle"] || "N/A"}
-                        </TableCell>
-                        <TableCell>
-                          {isEditing ? (
-                            <Input
-                              value={editData["Faculte"] || editData["Faculté"] || ""}
-                              onChange={(e) => handleEditChange(row.id, "Faculte", e.target.value)}
-                              placeholder="Entrer la faculté"
-                              className="w-32"
-                            />
-                          ) : (
-                            <span className={problems.includes("faculté") ? "text-red-600 font-medium" : ""}>
-                              {data["Faculte"] || data["Faculté"] || data["faculte"] || (
-                                <Badge variant="destructive" className="text-xs">Manquant</Badge>
-                              )}
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>
+                        ) : (
+                          <span className={problems.includes("faculté") ? "text-red-600 font-medium" : ""}>
+                            {data["Faculte"] || data["Faculté"] || data["faculte"] || (
+                              <Badge variant="destructive" className="text-xs">Manquant</Badge>
+                            )}
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {problems.length === 0 ? (
+                          <Badge className="bg-green-100 text-green-800">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Prêt
+                          </Badge>
+                        ) : (
                           <div className="space-y-1">
                             {problems.map((problem, idx) => (
                               <Badge key={idx} variant="destructive" className="text-xs">
+                                <AlertCircle className="h-3 w-3 mr-1" />
                                 {problem}
                               </Badge>
                             ))}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          {isEditing ? (
-                            <div className="flex space-x-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleSaveRow(row.id)}
-                                disabled={updateMutation.isPending}
-                              >
-                                <Save className="h-4 w-4 mr-1" />
-                                Sauver
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setEditingRows(prev => {
-                                  const newState = { ...prev };
-                                  delete newState[row.id];
-                                  return newState;
-                                })}
-                              >
-                                Annuler
-                              </Button>
-                            </div>
-                          ) : (
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {isEditing ? (
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              onClick={() => handleSaveRow(row.id)}
+                              disabled={updateMutation.isPending}
+                            >
+                              <Save className="h-4 w-4 mr-1" />
+                              Sauver
+                            </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setEditingRows(prev => ({
-                                ...prev,
-                                [row.id]: data
-                              }))}
+                              onClick={() => setEditingRows(prev => {
+                                const newState = { ...prev };
+                                delete newState[row.id];
+                                return newState;
+                              })}
                             >
-                              Corriger
+                              Annuler
                             </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                          </div>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingRows(prev => ({
+                              ...prev,
+                              [row.id]: data
+                            }))}
+                          >
+                            Corriger
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   );
