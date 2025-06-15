@@ -1,7 +1,3 @@
-// Un manager unifié : jointure surveillants x surveillant_sessions,
-// édition ETP, quotas, import Excel surveillants, session active.
-
-// Dépendances
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,7 +41,7 @@ interface SurveillantJoin {
   email: string;
   type: string;
   statut: string;
-  faculte_interdite?: string;
+  faculte_interdite?: string; // du Supabase (pour join), on reconstruit après en tableau
   affectation_fac?: string;
   campus?: string;
   eft?: number;
@@ -53,6 +49,11 @@ interface SurveillantJoin {
   session_entry_id?: string;
   quota?: number | null;
 }
+
+// On reconstruit partout en interne avec ce type (toujours un tableau pour faculte_interdite)
+type SurveillantJoinWithArray = Omit<SurveillantJoin, "faculte_interdite"> & {
+  faculte_interdite: string[];
+};
 
 export function SurveillantUnifiedManager() {
   const { data: activeSession } = useActiveSession();
@@ -112,7 +113,7 @@ export function SurveillantUnifiedManager() {
         email: row.surveillants.email,
         type: row.surveillants.type,
         statut: row.surveillants.statut,
-        // Le champ Supabase est string ou null, on convertit en tableau.
+        // string|null > tableau (filtre "NONE" => [])
         faculte_interdite:
           row.surveillants.faculte_interdite && row.surveillants.faculte_interdite !== "NONE"
             ? row.surveillants.faculte_interdite.split(",").map((x: string) => x.trim())
@@ -122,7 +123,7 @@ export function SurveillantUnifiedManager() {
         eft: row.surveillants.eft ?? undefined,
         session_entry_id: row.id,
         quota: row.quota ?? null,
-      })) as (Omit<SurveillantJoin, "faculte_interdite"> & { faculte_interdite: string[] })[];
+      })) as SurveillantJoinWithArray[];
     },
     enabled: !!activeSession?.id,
   });
@@ -194,7 +195,7 @@ export function SurveillantUnifiedManager() {
   const updateFaculteInterditeMutation = useMutation({
     mutationFn: async ({
       surveillantId,
-      faculte_interdite
+      faculte_interdite,
     }: {
       surveillantId: string;
       faculte_interdite: string[];
@@ -228,12 +229,12 @@ export function SurveillantUnifiedManager() {
   });
 
   // 3. MODIFICATION des valeurs via édition par ligne
-  const handleEdit = (row: SurveillantJoin & { faculte_interdite: string[] }) => {
+  const handleEdit = (row: SurveillantJoinWithArray) => {
     setEditRow(row.id);
     setEditValues({
       etp: row.eft ?? 0,
       quota: row.quota ?? ((row.eft ?? 0) * 6),
-      faculte_interdite: row.faculte_interdite ?? ["NONE"],
+      faculte_interdite: row.faculte_interdite.length > 0 ? row.faculte_interdite : ["NONE"],
       statut: row.statut,
       affectation_fac: row.affectation_fac ?? "",
     });
@@ -243,8 +244,8 @@ export function SurveillantUnifiedManager() {
     setEditValues({});
   };
 
-  // Quand on sauvegarde, envoyer la faculte_interdite comme un tableau
-  const handleSave = async (row: SurveillantJoin & { faculte_interdite: string[] }) => {
+  // handleSave adapté avec tableau
+  const handleSave = async (row: SurveillantJoinWithArray) => {
     // Update ETP si changé
     if (editValues.etp !== row.eft) {
       await updateSurveillantMutation.mutateAsync({ surveillantId: row.id, eft: editValues.etp ?? 0 });
@@ -311,6 +312,7 @@ export function SurveillantUnifiedManager() {
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
+              {/* Affichage du tableau */}
               <TableBody>
                 {isLoading ? (
                   <TableRow>
@@ -322,8 +324,12 @@ export function SurveillantUnifiedManager() {
                   </TableRow>
                 ) : (
                   surveillants?.map((row) => {
+                    // row: SurveillantJoinWithArray
                     const isEdit = editRow === row.id;
-                    const hasRestriction = !!row.faculte_interdite && row.faculte_interdite !== "NONE";
+
+                    // Correction ici : hasRestriction sur le tableau
+                    const hasRestriction = Array.isArray(row.faculte_interdite) && row.faculte_interdite.length > 0 && !row.faculte_interdite.includes("NONE");
+                    
                     // Détection du quota théorique selon le statut
                     let quotaTheorique = (() => {
                       const statutL = (isEdit ? editValues.statut : row.statut) || "";
@@ -332,7 +338,8 @@ export function SurveillantUnifiedManager() {
                       if (statutL === "Jobiste") return 0;
                       return 0; // par défaut autres statuts
                     })();
-                    // Nouveau rendu pour la colonne Faculté interdite :
+                    // Correction de la propagation du type pour handleEdit et handleSave
+                    // Correction selection value pour FacultesMultiSelect
                     const selectedFacs = isEdit
                       ? editValues.faculte_interdite ?? ["NONE"]
                       : row.faculte_interdite.length > 0
@@ -436,7 +443,7 @@ export function SurveillantUnifiedManager() {
                               onChange={(v) => setEditValues((vals) => ({ ...vals, faculte_interdite: v }))}
                               disabled={updateFaculteInterditeMutation.isPending}
                             />
-                          ) : selectedFacs && !selectedFacs.includes("NONE") ? (
+                          ) : hasRestriction ? (
                             <div className="flex flex-wrap gap-1 max-w-xs">
                               {selectedFacs.map((f) => (
                                 <span key={f} className="inline-block bg-red-100 text-red-700 rounded px-2 text-xs">
