@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +18,9 @@ export const EnseignantViewManager = () => {
   const [searchTerm, setSearchTerm] = useState('');
   // Ajout du filtre de statut (ALL/VALIDE)
   const [statutFilter, setStatutFilter] = useState<'ALL' | 'VALIDE'>('VALIDE');
+  // Ajout des filtres faculté et code
+  const [faculteFilter, setFaculteFilter] = useState('');
+  const [codeFilter, setCodeFilter] = useState('');
 
   // Requête pour TOUS les examens actifs
   const { data: allExamens, isLoading } = useQuery({
@@ -51,13 +53,17 @@ export const EnseignantViewManager = () => {
     }
   });
 
+  // Extraction des facultés possibles pour le sélecteur
+  const faculteOptions = Array.from(new Set((allExamens || []).map((e: any) => e.faculte).filter(Boolean)));
+
   // Deux filtres : statut filteré (VALIDE) ou non
   const examensFiltres = useMemo(() => {
-    if (!allExamens) return [];
-    return statutFilter === 'VALIDE'
-      ? allExamens.filter((e: any) => e.statut_validation === 'VALIDE')
-      : allExamens;
-  }, [allExamens, statutFilter]);
+    let res = allExamens || [];
+    if (statutFilter === 'VALIDE') res = res.filter((e: any) => e.statut_validation === 'VALIDE');
+    if (faculteFilter) res = res.filter((e: any) => e.faculte === faculteFilter);
+    if (codeFilter) res = res.filter((e: any) => (e.code_examen || "").includes(codeFilter));
+    return res;
+  }, [allExamens, statutFilter, faculteFilter, codeFilter]);
   // Comptes pour l’UX
   const totalExamens = allExamens?.length || 0;
   const totalValidés = allExamens?.filter((e: any) => e.statut_validation === 'VALIDE').length || 0;
@@ -125,18 +131,39 @@ export const EnseignantViewManager = () => {
         <CardContent className="space-y-4">
           {/* Filtres */}
           <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center space-x-2 flex-1 min-w-[280px]">
+            <div className="flex items-center space-x-2 flex-1 min-w-[220px]">
               <Search className="h-4 w-4 text-gray-500" />
               <Input
-                placeholder="Rechercher par code d'examen, matière ou auditoire..."
+                placeholder="Rechercher matière ou auditoire..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="flex-1"
               />
             </div>
             <div>
+              <Input
+                placeholder="Filtrer par code examen..."
+                value={codeFilter}
+                onChange={e => setCodeFilter(e.target.value)}
+                className="w-44"
+              />
+            </div>
+            <div>
+              <Select value={faculteFilter} onValueChange={setFaculteFilter}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Filtrer par faculté..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Toutes les facultés</SelectItem>
+                  {faculteOptions.map(fac => (
+                    <SelectItem key={fac} value={fac}>{fac}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Select value={statutFilter} onValueChange={(val) => setStatutFilter(val as 'ALL' | 'VALIDE')}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-44">
                   <SelectValue placeholder="Afficher..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -284,4 +311,3 @@ export const EnseignantViewManager = () => {
     </div>
   );
 };
-

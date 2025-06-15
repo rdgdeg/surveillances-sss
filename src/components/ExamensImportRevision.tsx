@@ -322,6 +322,38 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     }
   });
 
+  // Nouvelle mutation pour vider tous les imports temporaire de la session
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      if (!batchId) {
+        // Vider pour la session active tout
+        const { error } = await supabase.from("examens_import_temp").delete()
+          .eq("session_id", useActiveSession().data?.id);
+        if (error) throw error;
+      } else {
+        // Vider que le batch
+        const { error } = await supabase.from("examens_import_temp").delete()
+          .eq("import_batch_id", batchId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["examens-import-temp"] });
+      toast({
+        title: "Suppression réussie",
+        description: batchId ? "Tous les examens de ce batch ont été supprimés." : "Tous les imports temporaires ont été supprimés.",
+        variant: "default"
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Suppression impossible",
+        variant: "destructive"
+      });
+    }
+  });
+
   // Sélection/désélection d'une ligne
   function handleSelectRow(id: string, checked: boolean) {
     setSelectedRows(prev =>
@@ -348,6 +380,14 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
           {batchId && (
             <DeleteBatchExamensImportButton batchId={batchId} disabled={isLoading || rows.length === 0} />
           )}
+          <Button
+            variant="outline"
+            className="ml-2"
+            disabled={clearAllMutation.isPending || rows.length === 0}
+            onClick={() => clearAllMutation.mutate()}
+          >
+            Vider tous les imports<span className="ml-1">({rows.length})</span>
+          </Button>
         </div>
       </CardHeader>
       <CardContent>

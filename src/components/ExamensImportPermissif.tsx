@@ -1,4 +1,3 @@
-
 import { useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +20,6 @@ export function ExamensImportPermissif({ onImportComplete }: { onImportComplete?
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setImporting(true);
     try {
       const reader = new FileReader();
@@ -31,6 +29,27 @@ export function ExamensImportPermissif({ onImportComplete }: { onImportComplete?
           const workbook = XLSX.read(data, { type: "binary" });
           const worksheet = workbook.Sheets[workbook.SheetNames[0]];
           const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+          // Détection doubon
+          const doublonSet = new Set<string>();
+          const doublons: any[] = [];
+          rows.forEach((row) => {
+            // On utilise code + date + salle comme clé de doublon
+            const code = (row["Code"] || row["code"] || "").toString().trim();
+            const date = (row["Jour"] || row["Date"] || row["date_examen"] || "").toString().trim();
+            const salle = (row["Auditoires"] || row["auditoires"] || row["salle"] || "").toString().trim();
+            const key = `${code}__${date}__${salle}`;
+            if (doublonSet.has(key)) doublons.push(row);
+            doublonSet.add(key);
+          });
+          if (doublons.length > 0) {
+            toast({
+              title: "Doublons détectés",
+              description: `${doublons.length} doublon(s) détecté(s) sur le code/date/salle. Merci de vérifier votre fichier.`,
+              variant: "destructive"
+            });
+          }
+
           setPreviewRows(rows.slice(0, 5));
           if (!rows.length) {
             toast({ title: "Fichier vide", description: "Aucune donnée trouvée.", variant: "destructive" });
@@ -54,7 +73,11 @@ export function ExamensImportPermissif({ onImportComplete }: { onImportComplete?
           inputRef.current?.value && (inputRef.current.value = "");
           onImportComplete && onImportComplete(batchId);
         } catch (err) {
-          toast({ title: "Erreur d'import", description: err.message || "Erreur lors de l'import du fichier.", variant: "destructive" });
+          toast({
+            title: "Erreur d'import",
+            description: err instanceof Error ? err.message : "Erreur lors de l'import du fichier.",
+            variant: "destructive"
+          });
         }
         setImporting(false);
       };
