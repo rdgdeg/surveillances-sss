@@ -111,16 +111,24 @@ export const StandardExcelImporter = () => {
                   </tr>
                 </thead>
                 <tbody>
-                {previewRows.map((row, i) => (
-                  <tr key={i} className="border-b">
-                    {Object.values(row).map((cell, j) =>
-                      <td className="px-2 py-1" key={j}>{cell}</td>
-                    )}
-                  </tr>
-                ))}
+                  {previewRows.map((row, i) => (
+                    <tr key={i} className="border-b">
+                      {Object.values(row).map((cell, j) => (
+                        <td className="px-2 py-1" key={j}>
+                          {typeof cell === "string" || typeof cell === "number" || typeof cell === "boolean"
+                            ? cell.toString()
+                            : cell === null || cell === undefined
+                              ? ""
+                              : JSON.stringify(cell)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
-              <div className="text-xs text-blue-600 mt-1">Vérifiez les colonnes et leur contenu avant de poursuivre.</div>
+              <div className="text-xs text-blue-600 mt-1">
+                Vérifiez les colonnes et leur contenu avant de poursuivre.
+              </div>
             </div>
           </div>
         )}
