@@ -214,6 +214,34 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     }
   });
 
+  // Nouvelle mutation pour mettre surveillants à 0 pour la sélection
+  const setSurvThZeroMutation = useMutation({
+    mutationFn: async (rowIds: string[]) => {
+      // Pour chaque ligne, upsert/patch data.Surveillants_Th à 0 en base
+      for (const id of rowIds) {
+        const { data: rowObj } = rows.find(r => r.id === id) ?? {};
+        const updatedData = {
+          ...(rowObj?.data || {}),
+          Surveillants_Th: 0
+        };
+        const { error } = await supabase
+          .from("examens_import_temp")
+          .update({ data: updatedData, statut: "NON_TRAITE", erreurs: null })
+          .eq("id", id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["examens-import-temp"] });
+      toast({ title: "Mise à jour réalisée", description: "Les surveillants ont été mis à 0 pour la sélection." });
+      setSelectedRows([]);
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de mettre à zéro la sélection." });
+      setSelectedRows([]);
+    }
+  });
+
   // Sélection/désélection d'une ligne
   function handleSelectRow(id: string, checked: boolean) {
     setSelectedRows(prev =>
@@ -264,14 +292,22 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
           onSelectAll={handleSelectAll}
           allRowIds={sortedRows.map(r => r.id)}
         />
-        {/* Bouton de suppression en masse */}
-        <div className="mt-4">
+        {/* Boutons action de masse */}
+        <div className="mt-4 flex gap-4">
           <Button
             variant="destructive"
             disabled={selectedRows.length === 0}
             onClick={() => setBulkDeleteOpen(true)}
           >
             Supprimer la sélection ({selectedRows.length})
+          </Button>
+          {/* Action mettre surveillants à 0 */}
+          <Button
+            variant="outline"
+            disabled={selectedRows.length === 0 || setSurvThZeroMutation.isPending}
+            onClick={() => setSurvThZeroMutation.mutate(selectedRows)}
+          >
+            Mettre surveillants à 0
           </Button>
         </div>
         {/* Dialog de confirmation */}

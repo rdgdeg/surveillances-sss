@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,7 +86,7 @@ export function ExamensImportTableRow({
         {editRow === row.id ? (
           <Input
             type="number"
-            min={0}
+            min={noAuditoire ? 0 : 1}
             className="text-xs w-16"
             value={
               editData.Surveillants_Th !== undefined && editData.Surveillants_Th !== null
@@ -111,15 +110,24 @@ export function ExamensImportTableRow({
               onChange={(e: ChangeEvent<HTMLInputElement>) => {
                 setInlineSurvThValue(e.target.value);
               }}
-              onBlur={() => setInlineEditSurvThId(null)}
+              onBlur={async () => {
+                setInlineEditSurvThId(null);
+                // On applique la modification et sauvegarde si valeur changée
+                if (
+                  inlineSurvThValue !== "" &&
+                  !isNaN(Number(inlineSurvThValue))
+                ) {
+                  await onEdit(row.id, { ...row.data, Surveillants_Th: Number(inlineSurvThValue) });
+                  await onSave(row.id);
+                }
+              }}
               onKeyDown={async (e) => {
                 if (e.key === "Enter") {
                   if (
                     inlineSurvThValue !== "" &&
                     !isNaN(Number(inlineSurvThValue))
                   ) {
-                    onEdit(row.id, { ...row.data, Surveillants_Th: Number(inlineSurvThValue) });
-                    // Save immediately
+                    await onEdit(row.id, { ...row.data, Surveillants_Th: Number(inlineSurvThValue) });
                     await onSave(row.id);
                   }
                   setInlineEditSurvThId(null);
@@ -136,7 +144,7 @@ export function ExamensImportTableRow({
                   inlineSurvThValue !== "" &&
                   !isNaN(Number(inlineSurvThValue))
                 ) {
-                  onEdit(row.id, { ...row.data, Surveillants_Th: Number(inlineSurvThValue) });
+                  await onEdit(row.id, { ...row.data, Surveillants_Th: Number(inlineSurvThValue) });
                   await onSave(row.id);
                 }
                 setInlineEditSurvThId(null);

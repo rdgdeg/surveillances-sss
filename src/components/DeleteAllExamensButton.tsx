@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -31,14 +30,20 @@ export const DeleteAllExamensButton = () => {
       }
 
       // Supprimer les validations d'examens
-      const { data: examensToDelete } = await supabase
+      const { data: examensToDelete, error: selectExamensError } = await supabase
         .from('examens')
         .select('id')
         .eq('session_id', activeSession.id);
 
+      if (selectExamensError) {
+        throw new Error("Erreur lors de la récupération des examens à supprimer");
+      }
+
+      let deletedCount = 0;
       if (examensToDelete && examensToDelete.length > 0) {
         const examenIds = examensToDelete.map(e => e.id);
         
+        // Supprimer les validations
         const { error: validationsError } = await supabase
           .from('examens_validation')
           .delete()
@@ -70,20 +75,22 @@ export const DeleteAllExamensButton = () => {
           console.error('Erreur suppression personnes aidantes:', aidantesError);
           throw new Error("Erreur lors de la suppression des personnes aidantes");
         }
+
+        // Enfin, suppression des examens
+        const { error: examensError, count } = await supabase
+          .from('examens')
+          .delete()
+          .eq('session_id', activeSession.id);
+
+        if (examensError) {
+          console.error('Erreur suppression examens:', examensError);
+          throw new Error("Erreur lors de la suppression des examens");
+        }
+
+        deletedCount = examenIds.length;
       }
 
-      // Enfin supprimer les examens
-      const { error: examensError } = await supabase
-        .from('examens')
-        .delete()
-        .eq('session_id', activeSession.id);
-
-      if (examensError) {
-        console.error('Erreur suppression examens:', examensError);
-        throw new Error("Erreur lors de la suppression des examens");
-      }
-
-      return { deleted: examensToDelete?.length || 0 };
+      return { deleted: deletedCount };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['examens'] });
