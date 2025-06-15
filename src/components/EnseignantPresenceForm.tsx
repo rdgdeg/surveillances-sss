@@ -6,7 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Save, Users } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 
+// Rafraîchit l’examen après modif pour avoir feedback immédiat
 interface EnseignantPresenceFormProps {
   selectedExamen: any;
   updateEnseignantPresenceMutation: any;
@@ -14,9 +17,15 @@ interface EnseignantPresenceFormProps {
   surveillantsNecessaires?: number;
 }
 
-export const EnseignantPresenceForm = ({ selectedExamen, updateEnseignantPresenceMutation, surveillantsTheoriques, surveillantsNecessaires }: EnseignantPresenceFormProps) => {
+export const EnseignantPresenceForm = ({
+  selectedExamen,
+  updateEnseignantPresenceMutation,
+  surveillantsTheoriques,
+  surveillantsNecessaires,
+}: EnseignantPresenceFormProps) => {
   const [enseignantPresent, setEnseignantPresent] = useState(false);
   const [personnesAmenees, setPersonnesAmenees] = useState(0);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (selectedExamen) {
@@ -25,11 +34,18 @@ export const EnseignantPresenceForm = ({ selectedExamen, updateEnseignantPresenc
     }
   }, [selectedExamen]);
 
-  const handleSave = () => {
-    updateEnseignantPresenceMutation.mutate({
+  const handleSave = async () => {
+    await updateEnseignantPresenceMutation.mutateAsync({
       examenId: selectedExamen.id,
       enseignantPresent,
-      personnesAmenees
+      personnesAmenees,
+    });
+    // Rafraîchir les examens pour avoir la donnée à jour
+    queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
+    toast({
+      title: "Présence enregistrée",
+      description: "Vos informations ont bien été sauvegardées.",
+      variant: "success"
     });
   };
 
@@ -55,7 +71,7 @@ export const EnseignantPresenceForm = ({ selectedExamen, updateEnseignantPresenc
           <Checkbox
             id="enseignant-present"
             checked={enseignantPresent}
-            onCheckedChange={(checked) => setEnseignantPresent(checked as boolean)}
+            onCheckedChange={(checked) => setEnseignantPresent(!!checked)}
           />
           <Label htmlFor="enseignant-present">
             Je serai présent pour la surveillance

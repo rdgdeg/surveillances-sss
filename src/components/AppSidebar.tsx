@@ -1,4 +1,3 @@
-
 import {
   Sidebar,
   SidebarContent,
@@ -64,7 +63,8 @@ const menu = [
       { label: "Disponibilités envoyées", icon: UserPlus, route: "/admin?tab=candidatures" },
       { label: "Collecte Disponibilités", icon: Clock, route: "/admin?tab=disponibilites" },
       { label: "Matrice Disponibilités", icon: Grid3X3, route: "/admin?tab=matrice-disponibilites" },
-      { label: "Suivi Disponibilités", icon: ClipboardList, route: "/admin?tab=suivi-disponibilites" }
+      { label: "Suivi Disponibilités", icon: ClipboardList, route: "/admin?tab=suivi-disponibilites" },
+      { label: "Suivi Confirms Enseignants", icon: CheckCircle, route: "/admin?tab=suivi-confirm-enseignants" }
     ]
   },
   {

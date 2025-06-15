@@ -56,6 +56,8 @@ function getAdminContent(tab: string | null) {
       return <div className="text-gray-700">Historique des actions administratives (module à intégrer).</div>;
     case "donnees-sensibles":
       return <div className="text-gray-700">Gestion des données sensibles (accès restreint).</div>;
+    case "suivi-confirm-enseignants":
+      return <SuiviConfirmationEnseignants />;
     default:
       return <DashboardAdmin />;
   }
