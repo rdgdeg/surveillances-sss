@@ -1,8 +1,19 @@
 
 import { Input } from "@/components/ui/input";
 
+interface PersonneAmenee {
+  nom: string;
+  prenom: string;
+}
+
+interface AmenesSurveillantsFieldsProps {
+  nombre: number;
+  personnes: PersonneAmenee[];
+  setPersonnes: (personnes: PersonneAmenee[]) => void;
+}
+
 // Affiche dynamiquement les champs pour noms/prénoms (n = quantité)
-export function AmenesSurveillantsFields({ nombre, personnes, setPersonnes }) {
+export function AmenesSurveillantsFields({ nombre, personnes, setPersonnes }: AmenesSurveillantsFieldsProps) {
   return (
     <div className="space-y-2">
       {[...Array(nombre)].map((_, idx) => (

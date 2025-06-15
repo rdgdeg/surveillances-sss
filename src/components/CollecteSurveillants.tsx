@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +32,11 @@ interface ExamenSlot {
   heure_fin: string;
   matiere: string;
   salle: string;
+}
+
+interface PersonneAmenee {
+  nom: string;
+  prenom: string;
 }
 
 export const CollecteSurveillants = () => {
@@ -72,7 +78,7 @@ export const CollecteSurveillants = () => {
     (async () => {
       const { data, error } = await supabase
         .from('surveillants')
-        .select('id, nom, prenom, type, surveillances_a_deduire')
+        .select('id, nom, prenom, type, surveillances_a_deduire, eft')
         .eq('email', email.trim())
         .maybeSingle();
       if (!isCancelled) {
@@ -186,7 +192,7 @@ export const CollecteSurveillants = () => {
   };
 
   // Soumission du formulaire
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!email || !telephone) {
@@ -283,10 +289,9 @@ export const CollecteSurveillants = () => {
   // Ajout état pour check présence et gestion personnes amenées
   const [isPresentSelf, setIsPresentSelf] = useState(true); // Présence par défaut = true 
   const [nbAmenes, setNbAmenes] = useState(0);
-  const [personnesAmenes, setPersonnesAmenes] = useState([]);
+  const [personnesAmenes, setPersonnesAmenes] = useState<PersonneAmenee[]>([]);
 
-  // Calcule le nombre total de surveillants à trouver (DÉMO - À AJUSTER en fonction de la logique métier attendue)
-  // Ici, on suppose un surveillant par créneau comme valeur de base.
+  // Calcule le nombre total de surveillants à trouver
   const nombreSurveillantsTotaux = uniqueCreneaux?.length || 0;
 
   // Affichage conditionnel
@@ -431,13 +436,12 @@ export const CollecteSurveillants = () => {
 
         <Card>
           <CardHeader>
-            {/* Présence à la surveillance : */}
             <div className="flex flex-col">
               <div className="font-bold text-lg flex items-center">
                 <span>Votre présence à la surveillance</span>
               </div>
               <div className="mt-2 bg-blue-50 rounded px-3 py-2 flex items-center gap-2">
-                Surveillants théoriques nécessaires :
+                Surveillants théoriques nécessaires :
                 <span className="text-blue-700 font-bold">{Math.max(0, nombreSurveillantsTotaux - (isPresentSelf ? 1 : 0) - nbAmenes)}</span>
               </div>
             </div>
@@ -451,7 +455,7 @@ export const CollecteSurveillants = () => {
               />
               <span className="font-medium">Je serai présent pour assurer la surveillance</span>
             </div>
-            <div className="text-xs text-gray-600">
+            <div className="text-xs text-gray-600 mt-1">
               Par défaut, nous considérons que vous serez présent. Décochez si vous ne pouvez pas assurer la surveillance.
             </div>
           </CardContent>
@@ -463,12 +467,12 @@ export const CollecteSurveillants = () => {
               Personnes que vous amenez
             </div>
             <div className="mt-2 bg-orange-50 rounded px-3 py-2 text-orange-800 font-semibold">
-              Surveillants restants à attribuer : {Math.max(0, nombreSurveillantsTotaux - (isPresentSelf ? 1 : 0) - nbAmenes)}
+              Surveillants restants à attribuer : {Math.max(0, nombreSurveillantsTotaux - (isPresentSelf ? 1 : 0) - nbAmenes)}
             </div>
           </CardHeader>
           <CardContent>
             <label className="block mb-1 font-medium">
-              Nombre de personnes que j’amenez
+              Nombre de personnes que j'amène
             </label>
             <Input
               type="number"
@@ -489,7 +493,6 @@ export const CollecteSurveillants = () => {
             <div className="text-xs text-gray-700 mb-2">
               Indiquez le nombre de personnes (assistants, collègues) que vous amenez pour aider à la surveillance.
             </div>
-            {/* Affiche dynamiquement les champs pour noms/prénoms */}
             <AmenesSurveillantsFields nombre={nbAmenes} personnes={personnesAmenes} setPersonnes={setPersonnesAmenes} />
           </CardContent>
         </Card>
