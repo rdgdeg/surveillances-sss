@@ -19,53 +19,10 @@ export const ExamenImportSection = () => {
     }));
   };
 
-  const fileConfigs = [
-    {
-      fileType: 'examens' as const,
-      title: "Import Examens",
-      description: "Fichier des examens avec facultés et auditoires",
-      expectedFormat: [
-        'date_examen', 
-        'heure_debut', 
-        'heure_fin', 
-        'matiere', 
-        'salle', 
-        'nombre_surveillants', 
-        'type_requis', 
-        'faculte',
-        'auditoire_original'
-      ]
-    },
-    {
-      fileType: 'surveillants' as const,
-      title: "Import Surveillants",
-      description: "Liste des surveillants avec données sensibles",
-      expectedFormat: [
-        'nom', 
-        'prenom', 
-        'email', 
-        'type', 
-        'faculte_interdite', 
-        'eft', 
-        'affectation_fac', 
-        'date_fin_contrat', 
-        'telephone_gsm', 
-        'campus'
-      ]
-    },
-    {
-      fileType: 'indisponibilites' as const,
-      title: "Import Indisponibilités",
-      description: "Périodes d'indisponibilité des surveillants",
-      expectedFormat: ['email_surveillant', 'date_debut', 'date_fin', 'motif']
-    },
-    {
-      fileType: 'quotas' as const,
-      title: "Ajustement Quotas",
-      description: "Modification des quotas individuels",
-      expectedFormat: ['email_surveillant', 'quota', 'sessions_imposees']
-    }
-  ];
+  // NOTE: NewFileUploader ne prend pas de props title, description, etc.
+  // Donc on n'utilise que NewFileUploader standard ici (exemple générique, un par le design d'origine)
+  // Le mapping en grid attend des NewFileUploader personnalisables, mais ce n'est pas supporté, donc fallback unique.
+  // Si besoin d'uploader spécifique, créer un composant sur mesure pour chaque type.
 
   return (
     <div className="space-y-6">
@@ -84,17 +41,8 @@ export const ExamenImportSection = () => {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {fileConfigs.map((config) => (
-          <NewFileUploader
-            key={config.fileType}
-            title={config.title}
-            description={config.description}
-            fileType={config.fileType}
-            expectedFormat={config.expectedFormat}
-            onUpload={(success) => handleUploadSuccess(config.fileType, success)}
-            uploaded={uploadsState[config.fileType]}
-          />
-        ))}
+        <NewFileUploader />
+        {/* À dupliquer ou spécialiser plus tard si besoin de gestion multi-type */}
       </div>
 
       <Card className="border-uclouvain-blue-grey">

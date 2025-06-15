@@ -196,7 +196,7 @@ export const SurveillantListEditor = () => {
       if (aValue === null) return sortDirection === 'asc' ? 1 : -1;
       if (bValue === null) return sortDirection === 'asc' ? -1 : 1;
 
-      // Correction : comparison uniquement sur nombres pour quota
+      // Correction : pour les comparaisons de type, cast explicitement les deux côtés en number si champ = quota
       if (sortField === 'quota') {
         const numA = Number(aValue) || 0;
         const numB = Number(bValue) || 0;
@@ -689,7 +689,7 @@ export const SurveillantListEditor = () => {
                       surveillant.quota !== "" ? Number(surveillant.quota) : quotaTheorique;
                     const numAssignedQuota = Number(assignedQuota) || 0;
                     const numQuotaTheorique = Number(quotaTheorique) || 0;
-                    const quotaDiffers = numAssignedQuota !== numQuotaTheorique;
+                    const quotaDiffers = Number(numAssignedQuota) !== Number(numQuotaTheorique);
 
                     return (
                       <TableRow 
