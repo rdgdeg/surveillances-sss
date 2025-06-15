@@ -1,11 +1,10 @@
 
-import { useState, useEffect, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Save, Search, Users, Calendar, Clock, MapPin } from "lucide-react";
+import { Save, Search, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
 
@@ -16,6 +15,7 @@ import { ExamenAutocomplete } from "./ExamenAutocomplete";
 import { usePersonnesEquipe } from "@/hooks/usePersonnesEquipe";
 import { useExamenMutations } from "@/hooks/useExamenMutations";
 import { useExamenCalculations } from "@/hooks/useExamenCalculations";
+import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
 
 export const EnseignantExamenForm = () => {
   const { data: activeSession } = useActiveSession();
@@ -54,7 +54,13 @@ export const EnseignantExamenForm = () => {
     }
   });
 
-  const { calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires } = useExamenCalculations(selectedExamen);
+  // Get constraints for available auditoires
+  const { data: contraintesAuditoires, isLoading: contraintesLoading } = useContraintesAuditoires();
+  const {
+    getTheoreticalSurveillants,
+    calculerSurveillantsPedagogiques,
+    calculerSurveillantsNecessaires
+  } = useExamenCalculations(selectedExamen);
 
   const handleAjouterPersonnes = () => {
     if (!selectedExamen) return;
@@ -129,7 +135,7 @@ export const EnseignantExamenForm = () => {
             <CardContent>
               <div className="flex justify-between items-stretch bg-gray-50 rounded-xl px-2 py-2 mb-4">
                 <BlocResume
-                  nombre={selectedExamen.nombre_surveillants}
+                  nombre={getTheoreticalSurveillants()}
                   titre="Surveillants théoriques"
                   color="text-blue-700"
                 />
@@ -159,6 +165,8 @@ export const EnseignantExamenForm = () => {
           <EnseignantPresenceForm
             selectedExamen={selectedExamen}
             updateEnseignantPresenceMutation={updateEnseignantPresenceMutation}
+            surveillantsTheoriques={getTheoreticalSurveillants()}
+            surveillantsNecessaires={calculerSurveillantsNecessaires()}
           />
 
           <Card>

@@ -10,9 +10,11 @@ import { Save, Users } from "lucide-react";
 interface EnseignantPresenceFormProps {
   selectedExamen: any;
   updateEnseignantPresenceMutation: any;
+  surveillantsTheoriques?: number;
+  surveillantsNecessaires?: number;
 }
 
-export const EnseignantPresenceForm = ({ selectedExamen, updateEnseignantPresenceMutation }: EnseignantPresenceFormProps) => {
+export const EnseignantPresenceForm = ({ selectedExamen, updateEnseignantPresenceMutation, surveillantsTheoriques, surveillantsNecessaires }: EnseignantPresenceFormProps) => {
   const [enseignantPresent, setEnseignantPresent] = useState(false);
   const [personnesAmenees, setPersonnesAmenees] = useState(0);
 
@@ -40,6 +42,15 @@ export const EnseignantPresenceForm = ({ selectedExamen, updateEnseignantPresenc
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* State and summary */}
+        <div className="px-3 py-2 rounded-lg bg-gray-50 mb-2 flex flex-col space-y-1">
+          <span className="font-medium text-gray-700">
+            Surveillants nécessaires : <span className="text-blue-700 font-bold">{surveillantsTheoriques}</span>
+          </span>
+          <span className="font-medium text-gray-700">
+            Surveillants restants à attribuer : <span className="text-orange-600 font-bold">{surveillantsNecessaires}</span>
+          </span>
+        </div>
         <div className="flex items-center space-x-2">
           <Checkbox
             id="enseignant-present"
@@ -66,6 +77,23 @@ export const EnseignantPresenceForm = ({ selectedExamen, updateEnseignantPresenc
           <p className="text-sm text-gray-600">
             Indiquez le nombre de personnes (assistants, collègues) que vous amenez pour aider à la surveillance.
           </p>
+        </div>
+
+        <div className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded border border-green-100">
+          <div>
+            <span className="font-semibold">Présence enregistrée :</span>
+            <span> Professeur&nbsp;
+              {selectedExamen.surveillants_enseignant > 0 ? (
+                <span className="text-green-700 font-semibold">PRÉSENT</span>
+              ) : (
+                <span className="text-red-700 font-semibold">ABSENT</span>
+              )}
+            </span>
+            &nbsp;|&nbsp;
+            <span>
+              Personnes amenées : <span className="font-semibold">{selectedExamen.surveillants_amenes ?? 0}</span>
+            </span>
+          </div>
         </div>
 
         <Button
