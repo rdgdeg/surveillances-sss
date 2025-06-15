@@ -105,7 +105,6 @@ export const StandardExcelImporter = () => {
               : null,
           heure_debut: formatTimeCell(row["Début"]),
           heure_fin: formatTimeCell(row["Fin"]),
-          activite: row["Activité"] || null,
           faculte: row["Faculté / Secrétariat"] || null,
           code_examen: row["Code"] || null,
           salle: row["Auditoires"] || null,
