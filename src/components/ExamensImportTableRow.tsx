@@ -1,4 +1,3 @@
-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
@@ -81,7 +80,7 @@ export function ExamensImportTableRow({
             }}
             placeholder="?"
           />
-        ) : theorique !== null && theorique !== undefined && theorique !== "" ? (
+        ) : theorique !== null && theorique !== undefined ? (
           <Badge className="bg-green-100 text-green-800">{theorique}</Badge>
         ) : (
           <span className="text-red-700">?</span>
