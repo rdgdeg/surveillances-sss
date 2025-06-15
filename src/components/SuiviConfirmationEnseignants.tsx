@@ -8,6 +8,8 @@ import { SuiviConfirmationStats } from "./SuiviConfirmationStats";
 import { SuiviConfirmationFilters } from "./SuiviConfirmationFilters";
 import { formatDateWithDayBelgian } from "@/lib/dateUtils";
 import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
+import { EnseignantInfosEditModal } from "./EnseignantInfosEditModal";
+import { Button } from "@/components/ui/button";
 
 export function SuiviConfirmationEnseignants() {
   const { data: contraintesAuditoires } = useContraintesAuditoires();
@@ -131,6 +133,8 @@ export function SuiviConfirmationEnseignants() {
     return filtered;
   };
 
+  const [modalEdit, setModalEdit] = useState<{ open: boolean, examen: any | null }>({ open: false, examen: null });
+
   const filteredExamens = getFilteredAndSortedExamens();
 
   return (
@@ -154,11 +158,13 @@ export function SuiviConfirmationEnseignants() {
                 <TableHead>Matière</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Auditoire</TableHead>
-                <TableHead>Enseignant</TableHead>
+                <TableHead>Enseignant<br />(importé)</TableHead>
+                <TableHead>Enseignant<br />(renseigné)</TableHead>
                 <TableHead>Présent</TableHead>
                 <TableHead>Personnes présentes</TableHead>
                 <TableHead>Surveillants</TableHead>
                 <TableHead>Besoins confirmés</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -180,9 +186,12 @@ export function SuiviConfirmationEnseignants() {
                     </TableCell>
                     <TableCell>{ex.salle || ""}</TableCell>
                     <TableCell>
+                      {ex.enseignants || <span className="text-gray-400">-</span>}
+                    </TableCell>
+                    <TableCell>
                       <div>
                         <span className="font-medium">
-                          {ex.enseignant_nom || ex.enseignants || "?"}
+                          {ex.enseignant_nom || <span className="text-gray-400">Non renseigné</span>}
                         </span>
                         {ex.enseignant_email && (
                           <div className="text-xs text-gray-400">{ex.enseignant_email}</div>
@@ -215,28 +224,46 @@ export function SuiviConfirmationEnseignants() {
                       {ex.besoins_confirmes_par_enseignant ? (
                         <Badge variant="default">Confirmé</Badge>
                       ) : (ex.surveillants_enseignant !== null || ex.surveillants_amenes > 0) ? (
-                        <Badge variant="secondary">Informations fournies</Badge>
+                        <Badge variant="secondary">Partiel</Badge>
                       ) : (
                         <Badge variant="outline">En attente</Badge>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setModalEdit({ open: true, examen: ex })}
+                      >
+                        Modifier
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
               })}
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-gray-400">Chargement…</TableCell>
+                  <TableCell colSpan={11} className="text-center text-gray-400">Chargement…</TableCell>
                 </TableRow>
               )}
               {!isLoading && filteredExamens.length === 0 && examens && examens.length > 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-gray-400">Aucun examen ne correspond aux critères de recherche.</TableCell>
+                  <TableCell colSpan={11} className="text-center text-gray-400">Aucun examen ne correspond aux critères de recherche.</TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+
+      {modalEdit.open && modalEdit.examen && (
+        <EnseignantInfosEditModal
+          examen={modalEdit.examen}
+          open={modalEdit.open}
+          onClose={() => setModalEdit({ open: false, examen: null })}
+          onSaved={() => {}}
+        />
+      )}
     </div>
   );
 }
