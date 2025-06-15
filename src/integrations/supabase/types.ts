@@ -319,6 +319,7 @@ export type Database = {
           statut: string | null
           surveillant_id: string | null
           traite_par: string | null
+          type_modif: string | null
           updated_at: string
         }
         Insert: {
@@ -331,6 +332,7 @@ export type Database = {
           statut?: string | null
           surveillant_id?: string | null
           traite_par?: string | null
+          type_modif?: string | null
           updated_at?: string
         }
         Update: {
@@ -343,6 +345,7 @@ export type Database = {
           statut?: string | null
           surveillant_id?: string | null
           traite_par?: string | null
+          type_modif?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -992,6 +995,10 @@ export type Database = {
           statut_validation: string
           commentaire: string
         }[]
+      }
+      fusionner_creneaux_surveillance: {
+        Args: { p_session_id: string }
+        Returns: undefined
       }
       generate_teacher_token: {
         Args: Record<PropertyKey, never>

@@ -1,99 +1,99 @@
 import { useState } from "react";
-import { AdminSidebar } from "@/components/AdminSidebar";
-import { DashboardOverview } from "@/components/DashboardOverview";
-import { SensitiveDataManager } from "@/components/SensitiveDataManager";
-import { SurveillantAdvancedManager } from "@/components/SurveillantAdvancedManager";
-import { SurveillantUnifiedManager } from "@/components/SurveillantUnifiedManager";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useActiveSession } from "@/hooks/useSessions";
+import { toast } from "@/hooks/use-toast";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Calendar, Clock, Users, Download, Upload } from "lucide-react";
+import { SessionManager } from "@/components/SessionManager";
+import { ExamensImport } from "@/components/ExamensImport";
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
-import { ExamenWorkflowManager } from "@/components/ExamenWorkflowManager";
-import { NewPlanningView } from "@/components/NewPlanningView";
-import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
-import { CandidaturesManager } from "@/components/CandidaturesManager";
-import { CollecteDisponibilites } from "@/components/CollecteDisponibilites";
-import { SuiviDisponibilites } from "@/components/SuiviDisponibilites";
-import SurveillanceHistory from "@/components/SurveillanceHistory";
-import { EnseignantViewManager } from "@/components/EnseignantViewManager";
-import { PreAssignmentManager } from "@/components/PreAssignmentManager";
-import { TokenGenerator } from "@/components/TokenGenerator";
 import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
-import { ExamenCodeUploader } from "@/components/ExamenCodeUploader";
+import { CandidaturesManager } from "@/components/CandidaturesManager";
+import { SurveillantsImport } from "@/components/SurveillantsImport";
+import { SurveillantsManager } from "@/components/SurveillantsManager";
+import { ContraintesAuditoiresManager } from "@/components/ContraintesAuditoiresManager";
+import { ExamensExport } from "@/components/ExamensExport";
+import { ExamenValidationProcessor } from "@/components/ExamenValidationProcessor";
+import { SuiviDisponibilitesAdmin } from "@/components/SuiviDisponibilitesAdmin";
 
-type ActiveTab = 
-  | "dashboard" 
-  | "examens" 
-  | "validation" 
-  | "planning" 
-  | "contraintes" 
-  | "candidatures" 
-  | "disponibilites"
-  | "suivi-disponibilites"
-  | "historique"
-  | "donnees-sensibles"
-  | "enseignant-view"
-  | "pre-assignations"
-  | "tokens-enseignants"
-  | "matrice-disponibilites"
-  | "import-codes"
-  | "surveillants-unified";
-
-const Admin = () => {
-  const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
-  const [showSensitiveData, setShowSensitiveData] = useState(false);
-
-  const handleViewChange = (view: string) => {
-    setActiveTab(view as ActiveTab);
-  };
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case "dashboard":
-        return <DashboardOverview />;
-      case "examens":
-        return <ExamenReviewManager />;
-      case "validation":
-        return <ExamenWorkflowManager />;
-      case "enseignant-view":
-        return <EnseignantViewManager />;
-      case "planning":
-        return <NewPlanningView />;
-      case "contraintes":
-        return <ContraintesAuditoires />;
-      case "candidatures":
-        return <CandidaturesManager />;
-      case "disponibilites":
-        return <CollecteDisponibilites />;
-      case "suivi-disponibilites":
-        return <SuiviDisponibilites />;
-      case "historique":
-        return <SurveillanceHistory />;
-      case "donnees-sensibles":
-        return <SensitiveDataManager 
-          showSensitiveData={showSensitiveData} 
-          onToggle={setShowSensitiveData} 
-        />;
-      case "pre-assignations":
-        return <PreAssignmentManager />;
-      case "tokens-enseignants":
-        return <TokenGenerator />;
-      case "matrice-disponibilites":
-        return <AvailabilityMatrix />;
-      case "import-codes":
-        return <ExamenCodeUploader />;
-      case "surveillants-unified":
-        return <SurveillantUnifiedManager />;
-      default:
-        return <DashboardOverview />;
-    }
-  };
+// Ajoute la vue admin pour le suivi des disponibilités (en bas ou rubrique dédiée)
+export default function AdminPage() {
+  const [activeTab, setActiveTab] = useState("sessions");
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <AdminSidebar activeView={activeTab} onViewChange={handleViewChange} />
-      <main className="flex-1 overflow-auto p-6">
-        {renderContent()}
-      </main>
+    <div>
+      <div className="container mx-auto py-10">
+        <Card>
+          <CardHeader>
+            <CardTitle>Administration</CardTitle>
+            <CardDescription>Gérez les sessions, les examens et les surveillants.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex space-x-4 mb-6">
+              <Button
+                variant={activeTab === "sessions" ? "default" : "outline"}
+                onClick={() => setActiveTab("sessions")}
+              >
+                Sessions
+              </Button>
+              <Button
+                variant={activeTab === "examens" ? "default" : "outline"}
+                onClick={() => setActiveTab("examens")}
+              >
+                Examens
+              </Button>
+              <Button
+                variant={activeTab === "surveillants" ? "default" : "outline"}
+                onClick={() => setActiveTab("surveillants")}
+              >
+                Surveillants
+              </Button>
+              <Button
+                variant={activeTab === "candidatures" ? "default" : "outline"}
+                onClick={() => setActiveTab("candidatures")}
+              >
+                Candidatures
+              </Button>
+              <Button
+                variant={activeTab === "disponibilites" ? "default" : "outline"}
+                onClick={() => setActiveTab("disponibilites")}
+              >
+                Disponibilités
+              </Button>
+              <Button
+                variant={activeTab === "validations" ? "default" : "outline"}
+                onClick={() => setActiveTab("validations")}
+              >
+                Validations
+              </Button>
+            </div>
+
+            {activeTab === "sessions" && <SessionManager />}
+            {activeTab === "examens" && (
+              <div className="space-y-4">
+                <ExamensImport />
+                <ExamensExport />
+                <ExamenReviewManager />
+                <ContraintesAuditoiresManager />
+              </div>
+            )}
+            {activeTab === "surveillants" && (
+              <div className="space-y-4">
+                <SurveillantsImport />
+                <SurveillantsManager />
+              </div>
+            )}
+            {activeTab === "candidatures" && <CandidaturesManager />}
+            {activeTab === "disponibilites" && <AvailabilityMatrix />}
+            {activeTab === "validations" && <ExamenValidationProcessor />}
+          </CardContent>
+        </Card>
+      </div>
+      <SuiviDisponibilitesAdmin />
     </div>
   );
-};
-
-export default Admin;
+}

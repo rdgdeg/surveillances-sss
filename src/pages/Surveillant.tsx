@@ -1,5 +1,5 @@
 
-import { CollecteSurveillants } from "@/components/CollecteSurveillants";
+import { SurveillantDisponibilitesForm } from "@/components/SurveillantDisponibilitesForm";
 import { Footer } from "@/components/Footer";
 import { UCLouvainHeader } from "@/components/UCLouvainHeader";
 
@@ -8,7 +8,7 @@ const Surveillant = () => {
     <div className="min-h-screen flex flex-col bg-gray-50">
       <UCLouvainHeader />
       <main className="flex-1 container mx-auto px-4 py-8">
-        <CollecteSurveillants />
+        <SurveillantDisponibilitesForm />
       </main>
       <Footer />
     </div>
