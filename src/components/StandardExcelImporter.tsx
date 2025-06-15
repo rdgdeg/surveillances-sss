@@ -92,9 +92,22 @@ export const StandardExcelImporter = () => {
       let totalOk = 0, totalFail = 0;
       for (let idx = 0; idx < parsedRows.length; idx++) {
         const row = parsedRows[idx];
+        // Gestion de la durée (possibles formats: nombre, texte, vide, virgule/fr)
+        let rawDuree = row["Durée (h)"];
+        let duree: number | null = null;
+        if (rawDuree !== undefined && rawDuree !== "") {
+          if (typeof rawDuree === "number") {
+            duree = rawDuree;
+          } else if (typeof rawDuree === "string") {
+            // Remplace virugule par point pour prise en charge française
+            const parsed = parseFloat(rawDuree.replace(",", "."));
+            duree = isNaN(parsed) ? null : parsed;
+          }
+        }
         const examenData: any = {
           session_id: activeSession.id,
           date_examen: formatDateCell(row["Jour"]),
+          duree,
           heure_debut: formatTimeCell(row["Début"]),
           heure_fin: formatTimeCell(row["Fin"]),
           faculte: row["Faculté / Secrétariat"] || null,
@@ -107,7 +120,7 @@ export const StandardExcelImporter = () => {
           matiere: row["Activité"] || null,
           type_requis: "Assistant",
         };
-        // Supprimer 'undefined' (évite soucis sur columns non nullables)
+        // Supprimer 'undefined'
         Object.keys(examenData).forEach(key => {
           if (examenData[key] === undefined) examenData[key] = null;
         });
@@ -118,7 +131,7 @@ export const StandardExcelImporter = () => {
           totalOk++;
         } else {
           totalFail++;
-          // Logguez l'erreur et affichez un toast pour savoir quel examen a échoué
+          // Log l’erreur et affiche un toast
           console.error(`Erreur à la ligne ${idx + 2} (code: ${examenData.code_examen}):`, error);
           toast({
             title: `Échec pour "${examenData.code_examen || '-'}"`,

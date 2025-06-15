@@ -489,8 +489,11 @@ export type Database = {
           created_at: string
           date_confirmation_enseignant: string | null
           date_examen: string
+          duree: number | null
           enseignant_email: string | null
           enseignant_nom: string | null
+          enseignants: string | null
+          etudiants: string | null
           faculte: string | null
           heure_debut: string
           heure_fin: string
@@ -516,8 +519,11 @@ export type Database = {
           created_at?: string
           date_confirmation_enseignant?: string | null
           date_examen: string
+          duree?: number | null
           enseignant_email?: string | null
           enseignant_nom?: string | null
+          enseignants?: string | null
+          etudiants?: string | null
           faculte?: string | null
           heure_debut: string
           heure_fin: string
@@ -543,8 +549,11 @@ export type Database = {
           created_at?: string
           date_confirmation_enseignant?: string | null
           date_examen?: string
+          duree?: number | null
           enseignant_email?: string | null
           enseignant_nom?: string | null
+          enseignants?: string | null
+          etudiants?: string | null
           faculte?: string | null
           heure_debut?: string
           heure_fin?: string
