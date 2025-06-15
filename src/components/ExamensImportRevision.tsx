@@ -90,9 +90,15 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
 
+  // Helper to safely get the object form of `row.data`
+  function asRowDataObject(data: any): Record<string, any> {
+    if (data && typeof data === "object" && !Array.isArray(data)) return data as Record<string, any>;
+    return {};
+  }
+
   let columns: string[] = [];
   if (rows[0]) {
-    const dataCols = Object.keys(rows[0].data || {});
+    const dataCols = Object.keys(asRowDataObject(rows[0].data || {}));
 
     // Nouvelle logique : injecter Durée juste après Fin
     // On prend le tableau trouvé, puis on ajuste Durée
@@ -119,8 +125,10 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
 
   const filteredRows = rows.filter(row => {
     if (!searchTerm.trim()) return true;
+    // Use asRowDataObject here to avoid issues
+    const rowDataObject = asRowDataObject(row.data);
     const globalString = [
-      ...columns.map(col => row.data?.[col]?.toString() ?? ""),
+      ...columns.map(col => rowDataObject?.[col]?.toString() ?? ""),
       row.statut,
       (getExamProblem(row).join(", ")),
     ].join(" ").toLowerCase();
@@ -129,14 +137,16 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
 
   const sortedRows = [...filteredRows].sort((a, b) => {
     if (!sortBy) return 0;
+    const dataA = asRowDataObject(a.data);
+    const dataB = asRowDataObject(b.data);
     const valA =
       sortBy === "État"
         ? getExamProblem(a).join("")
-        : a.data?.[sortBy] ?? "";
+        : dataA?.[sortBy] ?? "";
     const valB =
       sortBy === "État"
         ? getExamProblem(b).join("")
-        : b.data?.[sortBy] ?? "";
+        : dataB?.[sortBy] ?? "";
     if (!isNaN(parseFloat(valA)) && !isNaN(parseFloat(valB))) {
       return sortAsc
         ? parseFloat(valA) - parseFloat(valB)
