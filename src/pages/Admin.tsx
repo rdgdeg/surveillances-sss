@@ -17,6 +17,7 @@ import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 import { TokenGenerator } from "@/components/TokenGenerator";
 import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
 import { ExamenCodeUploader } from "@/components/ExamenCodeUploader";
+import { SurveillantWorkflowManager } from "@/components/SurveillantWorkflowManager";
 
 type ActiveTab = 
   | "dashboard" 
@@ -58,7 +59,8 @@ const Admin = () => {
       case "planning":
         return <NewPlanningView />;
       case "surveillants":
-        return <SimpleSurveillantManager />;
+        // On charge désormais le nouveau workflow centralisé :
+        return <SurveillantWorkflowManager />;
       case "surveillants-avance":
         return <SurveillantAdvancedManager />;
       case "contraintes":
