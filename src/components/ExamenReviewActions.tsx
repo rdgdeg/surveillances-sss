@@ -1,4 +1,7 @@
+
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Building2, CheckCircle } from "lucide-react";
 
 interface ExamenReviewActionsProps {
   selectedCount: number;
@@ -6,7 +9,6 @@ interface ExamenReviewActionsProps {
   onSelectAll: (selected: boolean) => void;
   onApplyConstraints: () => void;
   onValidateSelected: () => void;
-  onDeleteSelected: () => void;
   isApplyingConstraints: boolean;
   isValidating: boolean;
   hasConstraints: boolean;
@@ -18,29 +20,39 @@ export const ExamenReviewActions = ({
   onSelectAll,
   onApplyConstraints,
   onValidateSelected,
-  onDeleteSelected,
   isApplyingConstraints,
   isValidating,
   hasConstraints
-}: ExamenReviewActionsProps) => (
-  <div className="flex flex-wrap gap-2 items-center mb-2">
-    <input
-      type="checkbox"
-      className="mr-2"
-      checked={selectedCount === totalCount && totalCount > 0}
-      onChange={e => onSelectAll(e.target.checked)}
-    />
-    <span className="text-sm">{selectedCount} sélectionné(s) / {totalCount}</span>
-
-    <Button variant="outline" disabled={isApplyingConstraints || !hasConstraints} onClick={onApplyConstraints}>
-      Appliquer contraintes salle
-    </Button>
-    <Button variant="outline" disabled={isValidating || selectedCount === 0} onClick={onValidateSelected}>
-      Valider la sélection
-    </Button>
-    {/* Nouveau bouton suppression */}
-    <Button variant="destructive" disabled={selectedCount === 0} onClick={onDeleteSelected}>
-      Supprimer la sélection
-    </Button>
-  </div>
-)
+}: ExamenReviewActionsProps) => {
+  return (
+    <div className="flex gap-4 items-center flex-wrap">
+      <div className="flex items-center space-x-2">
+        <Checkbox
+          checked={selectedCount === totalCount && totalCount > 0}
+          onCheckedChange={onSelectAll}
+        />
+        <span className="text-sm">Tout sélectionner</span>
+      </div>
+      
+      <Button
+        onClick={onApplyConstraints}
+        disabled={isApplyingConstraints || !hasConstraints}
+        className="bg-purple-600 hover:bg-purple-700"
+      >
+        <Building2 className="h-4 w-4 mr-2" />
+        Appliquer contraintes auditoires
+      </Button>
+      
+      {selectedCount > 0 && (
+        <Button
+          onClick={onValidateSelected}
+          disabled={isValidating}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          <CheckCircle className="h-4 w-4 mr-2" />
+          Valider sélection ({selectedCount})
+        </Button>
+      )}
+    </div>
+  );
+};

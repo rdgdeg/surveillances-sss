@@ -1,20 +1,27 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { 
-  Home,
-  FileText,
-  CheckCircle,
-  Calendar,
-  Users,
-  Settings,
+  Home, 
+  FileText, 
+  CheckCircle, 
+  Calendar, 
+  Users, 
+  Settings, 
+  UserPlus, 
+  Clock,
+  History,
   Eye,
-  UserPlus,
-  Code2,
+  ChevronDown,
+  ChevronRight,
   Shield,
-  BarChart3
+  BarChart3,
+  MapPin,
+  ClipboardCheck,
+  UserMinus,
+  Grid3X3,
+  Code2
 } from "lucide-react";
 import { HomeButton } from "@/components/HomeButton";
 
@@ -24,7 +31,16 @@ interface AdminSidebarProps {
 }
 
 export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) => {
-  // On simplifie, plus d’expansion ni de sous-menus complexes
+  const [expandedSections, setExpandedSections] = useState<string[]>(['examens', 'surveillants']);
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => 
+      prev.includes(section) 
+        ? prev.filter(s => s !== section)
+        : [...prev, section]
+    );
+  };
+
   const menuSections = [
     {
       id: "dashboard",
@@ -41,20 +57,12 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
       icon: FileText,
       type: "section",
       children: [
-        { id: "examens", label: "Import & Validation", icon: FileText },
-        { id: "planning", label: "Planning & Attribution", icon: Calendar }
-      ]
-    },
-    {
-      id: "outils-avances",
-      label: "Outils avancés",
-      icon: Settings,
-      type: "section",
-      children: [
+        { id: "examens", label: "Import & Révision", icon: FileText },
+        { id: "import-codes", label: "Import Codes Auto", icon: Code2 },
+        { id: "validation", label: "Workflow de Validation", icon: CheckCircle },
         { id: "enseignant-view", label: "Vue Enseignant", icon: Eye },
         { id: "tokens-enseignants", label: "Liens Enseignants", icon: UserPlus },
-        { id: "import-codes", label: "Import Codes Auto", icon: Code2 },
-        { id: "contraintes", label: "Contraintes Auditoires", icon: Shield }
+        { id: "planning", label: "Planning & Attribution", icon: Calendar }
       ]
     },
     {
@@ -63,33 +71,74 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
       icon: Users,
       type: "section",
       children: [
-        { id: "surveillants", label: "Surveillants", icon: Users }
+        { id: "surveillants", label: "Surveillants", icon: Users },
+        { id: "surveillants-avance", label: "Gestion Avancée", icon: UserMinus },
+        { id: "candidatures", label: "Candidatures", icon: UserPlus },
+        { id: "disponibilites", label: "Collecte Disponibilités", icon: Clock },
+        { id: "matrice-disponibilites", label: "Matrice Disponibilités", icon: Grid3X3 },
+        { id: "suivi-disponibilites", label: "Suivi Disponibilités", icon: ClipboardCheck }
+      ]
+    },
+    {
+      id: "configuration",
+      label: "Configuration",
+      icon: Settings,
+      type: "section",
+      children: [
+        { id: "contraintes", label: "Contraintes Auditoires", icon: MapPin },
+        { id: "pre-assignations", label: "Pré-assignations", icon: Shield }
+      ]
+    },
+    {
+      id: "suivi",
+      label: "Suivi & Historique",
+      icon: History,
+      type: "section",
+      children: [
+        { id: "historique", label: "Historique", icon: History },
+        { id: "donnees-sensibles", label: "Données Sensibles", icon: Eye }
       ]
     }
   ];
 
   const renderMenuItem = (section: any) => {
     if (section.type === "section") {
+      const isExpanded = expandedSections.includes(section.id);
       return (
-        <div key={section.id} className="space-y-1 mt-2">
-          <div className="pl-2 mb-1 text-xs font-semibold text-gray-500 uppercase">{section.label}</div>
-          <div className="ml-2 space-y-1">
-            {section.children.map((child: any) => (
-              <Button
-                key={child.id}
-                variant={activeView === child.id ? "secondary" : "ghost"}
-                className="w-full justify-start text-left text-sm"
-                onClick={() => onViewChange(child.id)}
-              >
-                <child.icon className="mr-2 h-4 w-4" />
-                {child.label}
-              </Button>
-            ))}
-          </div>
+        <div key={section.id} className="space-y-1">
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-left font-medium"
+            onClick={() => toggleSection(section.id)}
+          >
+            <section.icon className="mr-2 h-4 w-4" />
+            {section.label}
+            {isExpanded ? (
+              <ChevronDown className="ml-auto h-4 w-4" />
+            ) : (
+              <ChevronRight className="ml-auto h-4 w-4" />
+            )}
+          </Button>
+          {isExpanded && (
+            <div className="ml-4 space-y-1">
+              {section.children.map((child: any) => (
+                <Button
+                  key={child.id}
+                  variant={activeView === child.id ? "secondary" : "ghost"}
+                  className="w-full justify-start text-left text-sm"
+                  onClick={() => onViewChange(child.id)}
+                >
+                  <child.icon className="mr-2 h-3 w-3" />
+                  {child.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
       );
     }
-    // Single dashboard
+
+    // Single items in dashboard section
     return (
       <div key={section.id} className="space-y-1">
         {section.items.map((item: any) => (

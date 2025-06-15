@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -93,39 +94,44 @@ export const TemplateDownloader = () => {
     createExcelTemplate("surveillants", templateData, "template_surveillants_complet.xlsx");
   };
 
-  // Nouveau template conforme à l'exemple fourni
   const downloadExamenTemplate = () => {
     const templateData = [
       {
-        "Jour": "15012024",
-        "Durée (h)": 3,
-        "Début": "08:30",
-        "Fin": "11:30",
-        "Activité": "LPHYS1201 - Physique générale",
-        "Faculté / Secrétariat": "FASB",
-        "Code": "LPHYS1201",
-        "Auditoires": "HALL01, HALL02",
-        "Etudiants": "BA2-ING",
-        "Enseignants": "JEAN DUPONT, MARIE LEROY"
+        date_examen: "2024-01-15",
+        heure_debut: "08:30",
+        heure_fin: "11:30", 
+        matiere: "LPHYS1201 - Physique générale",
+        salle: "HALL01",
+        nombre_surveillants: 3,
+        type_requis: "PAT",
+        faculte: "FASB",
+        auditoire_original: "HALL01, HALL02"
       },
       {
-        "Jour": "16012024",
-        "Durée (h)": 2,
-        "Début": "13:30",
-        "Fin": "15:30",
-        "Activité": "LMECA2170 - Mécanique des fluides",
-        "Faculté / Secrétariat": "EPL",
-        "Code": "LMECA2170",
-        "Auditoires": "HALL03",
-        "Etudiants": "BA3-ING",
-        "Enseignants": "PIERRE MARTIN"
+        date_examen: "2024-01-15",
+        heure_debut: "08:30", 
+        heure_fin: "11:30",
+        matiere: "LPHYS1201 - Physique générale",
+        salle: "HALL02", 
+        nombre_surveillants: 2,
+        type_requis: "PAT",
+        faculte: "FASB",
+        auditoire_original: "HALL01, HALL02"
+      },
+      {
+        date_examen: "2024-01-16",
+        heure_debut: "13:30",
+        heure_fin: "16:30",
+        matiere: "LMECA2170 - Mécanique des fluides", 
+        salle: "HALL03",
+        nombre_surveillants: 4,
+        type_requis: "Assistant",
+        faculte: "EPL",
+        auditoire_original: ""
       }
     ];
-    createExcelTemplate(
-      "examens",
-      templateData,
-      "template_examens.xlsx"
-    );
+    
+    createExcelTemplate("examens", templateData, "template_examens.xlsx");
   };
 
   const downloadDisponibiliteTemplate = () => {
@@ -175,7 +181,6 @@ export const TemplateDownloader = () => {
     createExcelTemplate("contraintes", templateData, "template_contraintes_salles.xlsx");
   };
 
-  // Adapter la config des colonnes dans le tableau templates
   const templates = [
     {
       id: "surveillants",
@@ -190,20 +195,9 @@ export const TemplateDownloader = () => {
     {
       id: "examens", 
       title: "Template Examens",
-      description: "Planning complet des examens. Date au format JJMMAAAA, toutes les colonnes sont obligatoires sauf 'Auditoires', 'Etudiants', 'Enseignants' qui peuvent rester vides si non connus.",
+      description: "Planning des examens avec facultés organisatrices et auditoires multiples",
       icon: Calendar,
-      columns: [
-        "Jour (JJMMAAAA)",
-        "Durée (h)",
-        "Début",
-        "Fin",
-        "Activité",
-        "Faculté / Secrétariat",
-        "Code",
-        "Auditoires",
-        "Etudiants",
-        "Enseignants"
-      ],
+      columns: ["date_examen", "heure_debut", "heure_fin", "matiere", "salle", "nombre_surveillants", "type_requis", "faculte", "auditoire_original"],
       action: downloadExamenTemplate,
       color: "bg-green-50 border-green-200 text-green-800"
     },

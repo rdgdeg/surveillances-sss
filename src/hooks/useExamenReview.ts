@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,12 +24,7 @@ export const useExamenReview = () => {
           personnes_aidantes (*)
         `)
         .eq('session_id', activeSession.id)
-        .in('statut_validation', [
-          'NON_TRAITE', 
-          'EN_COURS',
-          'REJETE',
-          'NECESSITE_VALIDATION'
-        ])
+        .eq('statut_validation', 'NON_TRAITE')
         .eq('is_active', true)
         .order('date_examen', { ascending: true })
         .order('heure_debut', { ascending: true })
@@ -71,10 +67,6 @@ export const useExamenReview = () => {
         
         if (updates.surveillants_pre_assignes_total !== undefined) {
           examenUpdates.surveillants_pre_assignes = Math.ceil(updates.surveillants_pre_assignes_total / groupe.examens.length);
-        }
-
-        if (updates.faculte !== undefined) {
-          examenUpdates.faculte = updates.faculte;
         }
 
         if (Object.keys(examenUpdates).length > 0) {
@@ -210,37 +202,6 @@ export const useExamenReview = () => {
     }
   });
 
-  // Nouvelle mutation : suppression d’un ou plusieurs examens (par groupe ou sélection)
-  const deleteExamensMutation = useMutation({
-    mutationFn: async (groupes: ExamenGroupe[]) => {
-      for (const groupe of groupes) {
-        for (const examen of groupe.examens) {
-          const { error } = await supabase
-            .from('examens')
-            .delete()
-            .eq('id', examen.id);
-          if (error) throw error;
-        }
-      }
-    },
-    onSuccess: (_, groupes) => {
-      queryClient.invalidateQueries({ queryKey: ['examens-review'] });
-      toast({
-        title: "Examens supprimés",
-        description: `${groupes.length} groupe(s)/examen(s) ont bien été supprimés.`,
-        variant: "default"
-      });
-      setSelectedGroupes(new Set());
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible de supprimer ces examens.",
-        variant: "destructive"
-      });
-    }
-  });
-
   return {
     examens,
     contraintesAuditoires,
@@ -253,7 +214,6 @@ export const useExamenReview = () => {
     validateExamensMutation,
     applquerContraintesAuditoiresMutation,
     toggleExamenActiveMutation,
-    deleteExamensMutation,
     activeSession
   };
 };

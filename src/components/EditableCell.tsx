@@ -9,20 +9,9 @@ interface EditableCellProps {
   type?: 'text' | 'number' | 'switch' | 'select' | 'date';
   options?: { value: string; label: string }[];
   onSave: (value: any) => void;
-  min?: number;
-  max?: number;
-  step?: string | number;
 }
 
-export const EditableCell = ({
-  value,
-  type = 'text',
-  options,
-  onSave,
-  min,
-  max,
-  step
-}: EditableCellProps) => {
+export const EditableCell = ({ value, type = 'text', options, onSave }: EditableCellProps) => {
   const [currentValue, setCurrentValue] = useState(value);
 
   const handleChange = (newValue: any) => {
@@ -56,26 +45,17 @@ export const EditableCell = ({
     );
   }
 
-  // Props additionnels pour le input number/date 
-  const inputProps: Record<string, any> = {};
-  if (type === 'number' || type === 'date') {
-    if (min !== undefined) inputProps.min = min;
-    if (max !== undefined) inputProps.max = max;
-    if (step !== undefined) inputProps.step = step;
-  }
-
   return (
     <Input
       type={type === 'number' ? 'number' : type === 'date' ? 'date' : 'text'}
       value={currentValue || ''}
       onChange={(e) => {
-        const newValue = type === 'number'
-          ? (e.target.value ? parseFloat(e.target.value) : '')
-          : e.target.value;
+        const newValue = type === 'number' ? 
+          (e.target.value ? parseInt(e.target.value) : '') : 
+          e.target.value;
         handleChange(newValue);
       }}
       className="w-full"
-      {...inputProps}
     />
   );
 };

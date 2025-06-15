@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -630,10 +631,9 @@ export const SurveillantListEditor = () => {
                     <SortableHeader field="email">Email</SortableHeader>
                     <SortableHeader field="type">Type</SortableHeader>
                     <TableHead>Faculté interdite</TableHead>
-                    {/* Colonne ETP - toujours visible */}
-                    <TableHead>ETP</TableHead>
                     {showSensitiveData && (
                       <>
+                        <TableHead>EFT</TableHead>
                         <SortableHeader field="affectation_fac">Affectation</SortableHeader>
                         <SortableHeader field="date_fin_contrat">Fin contrat</SortableHeader>
                         <TableHead>GSM</TableHead>
@@ -754,31 +754,24 @@ export const SurveillantListEditor = () => {
                           )}
                         </TableCell>
                         
-                        {/* ETP (affichée qu’on soit en mode sensible ou pas, masquer valeur en mode caché) */}
-                        <TableCell>
-                          {editingId === surveillant.id ? (
-                            <EditableCell
-                              value={surveillant.eft || ""}
-                              type="number"
-                              step="0.01"
-                              min={0}
-                              max={1}
-                              onSave={(value) => setSurvaillants(prev => 
-                                prev.map(s => s.id === surveillant.id ? { ...s, eft: value || null } : s)
-                              )}
-                            />
-                          ) : (
-                            <span className="text-sm">
-                              {/* Si données masquées, masquer l’info */}
-                              {showSensitiveData
-                                ? (surveillant.eft !== null && surveillant.eft !== undefined ? surveillant.eft : <span className="text-gray-400">NR</span>)
-                                : "••••••"}
-                            </span>
-                          )}
-                        </TableCell>
-                        {/* Colonnes sensibles (affectation, fin contrat, GSM, campus) */}
+                        {/* Colonnes sensibles */}
                         {showSensitiveData && (
                           <>
+                            <TableCell>
+                              {editingId === surveillant.id ? (
+                                <EditableCell
+                                  value={surveillant.eft || ""}
+                                  type="number"
+                                  onSave={(value) => setSurvaillants(prev => 
+                                    prev.map(s => s.id === surveillant.id ? { ...s, eft: value || null } : s)
+                                  )}
+                                />
+                              ) : (
+                                <span className="text-sm">
+                                  {formatSensitiveDisplay(surveillant.eft, 'eft')}
+                                </span>
+                              )}
+                            </TableCell>
                             <TableCell>
                               {editingId === surveillant.id ? (
                                 <EditableCell
@@ -865,13 +858,11 @@ export const SurveillantListEditor = () => {
                           </>
                         )}
 
-                        {/* Quota - toujours modifiable, quota théorique suggéré si ETP dispo */}
                         <TableCell>
                           {editingId === surveillant.id ? (
                             <EditableCell
                               value={surveillant.quota}
                               type="number"
-                              min={1}
                               onSave={(value) => setSurvaillants(prev => 
                                 prev.map(s => s.id === surveillant.id ? { ...s, quota: value } : s)
                               )}
@@ -879,11 +870,9 @@ export const SurveillantListEditor = () => {
                           ) : (
                             <div className="flex flex-col">
                               <span>{surveillant.quota}</span>
-                              {/* Affichage quota théorique en indication si ETP renseigné */}
-                              {surveillant.eft && (
+                              {surveillant.eft && showSensitiveData && (
                                 <span className="text-xs text-gray-500">
-                                  (théorique : {calculateAdjustedQuota( surveillant.type === "PAT" ? 12 : 6, surveillant.eft )}
-                                  )
+                                  (ajusté: {calculateAdjustedQuota(surveillant.quota, surveillant.eft)})
                                 </span>
                               )}
                             </div>

@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,9 +18,6 @@ import {
   getContrainteUnifiee,
   ExamenGroupe 
 } from "@/utils/examenReviewUtils";
-import { ExamensAdvancedFilter } from "./ExamensAdvancedFilter";
-import { StickyFilterHeader } from "@/components/StickyFilterHeader";
-import { ExamensSansFaculteAlert } from "@/components/ExamensSansFaculteAlert";
 
 export const ExamenReviewManager = () => {
   const {
@@ -33,15 +31,12 @@ export const ExamenReviewManager = () => {
     updateExamenMutation,
     validateExamensMutation,
     applquerContraintesAuditoiresMutation,
-    deleteExamensMutation,
     activeSession
   } = useExamenReview();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [searchSuggestions, setSearchSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [extraFilter, setExtraFilter] = useState<{pattern?: string; type?: "prefix"|"suffix"|"contain"}>({});
-  const [facultyFilter, setFacultyFilter] = useState<string>("ALL");
 
   // Grouper et fusionner les examens par code/date/heure + auditoire unifié
   const examensGroupes = useMemo(() => {
@@ -49,40 +44,20 @@ export const ExamenReviewManager = () => {
     return groupExamens(examens, contraintesAuditoires);
   }, [examens, contraintesAuditoires]);
 
-  // --- FIX: Compute allSearchTerms for suggestions ---
-  const allSearchTerms = useMemo(() => generateSearchTerms(examensGroupes), [examensGroupes]);
+  // Suggestions pour l'autocomplétion
+  const allSearchTerms = useMemo(() => {
+    return generateSearchTerms(examensGroupes);
+  }, [examensGroupes]);
 
-  // Nouveau: filtrage avancé
-  const filteredByExtra = useMemo(() => {
-    if (!extraFilter.pattern) return examensGroupes;
-    const pat = extraFilter.pattern.toLowerCase() || "";
-    return examensGroupes.filter(groupe => {
-      if (!groupe.code_examen) return false;
-      if (extraFilter.type === "prefix") return groupe.code_examen.toLowerCase().startsWith(pat);
-      if (extraFilter.type === "suffix") return groupe.code_examen.toLowerCase().endsWith(pat);
-      return groupe.code_examen.toLowerCase().includes(pat);
-    });
-  }, [examensGroupes, extraFilter]);
-
-  // Nouveau: filtrage faculté
+  // Examens filtrés
   const filteredExamens = useMemo(() => {
-    if (facultyFilter === "ALL") return filteredByExtra;
-    return filteredByExtra.filter(groupe => (facultyFilter === "NO_FAC" ? !groupe.faculte : groupe.faculte === facultyFilter));
-  }, [filteredByExtra, facultyFilter]);
+    return filterExamens(examensGroupes, searchTerm);
+  }, [examensGroupes, searchTerm]);
 
-  // --- FIX: Compute stats for filteredExamens ---
-  const stats = useMemo(() => calculateStats(filteredExamens), [filteredExamens]);
-
-  // Count for exams without faculty (to show alert + badge)
-  const missingFacCount = filteredExamens.filter(e => !e.faculte || e.faculte.trim() === "").length;
-  const percentAssigned = filteredExamens.length === 0
-    ? 100
-    : Math.round(
-        ((filteredExamens.length - missingFacCount) / filteredExamens.length) * 100
-      );
-
-  // Sticky filter - Open/Close state
-  const [openSticky, setOpenSticky] = useState(true);
+  // Statistiques
+  const stats = useMemo(() => {
+    return calculateStats(filteredExamens);
+  }, [filteredExamens]);
 
   // Mise à jour des suggestions de recherche
   const updateSearchSuggestions = (value: string) => {
@@ -167,35 +142,6 @@ export const ExamenReviewManager = () => {
     }
   };
 
-  const handleBulkAssignFaculty = (groupeKeys: string[], faculty: string) => {
-    setEditingExamens(prev => {
-      const updates = { ...prev };
-      groupeKeys.forEach(key => {
-        updates[key] = { ...updates[key], faculte: faculty };
-      });
-      return updates;
-    });
-  };
-
-  const handleDeleteGroupe = (groupe: ExamenGroupe) => {
-    if (window.confirm("Supprimer ce groupe/examen importé ? Cette opération est définitive.")) {
-      deleteExamensMutation.mutate([groupe]);
-    }
-  };
-
-  const handleDeleteSelected = () => {
-    const groupesToDelete = filteredExamens.filter(groupe => {
-      const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
-      return selectedGroupes.has(groupeKey);
-    });
-    if (
-      groupesToDelete.length > 0 &&
-      window.confirm(`Supprimer ${groupesToDelete.length} groupes/examens sélectionnés ? Opération définitive.`)
-    ) {
-      deleteExamensMutation.mutate(groupesToDelete);
-    }
-  };
-
   const getFieldValue = (groupe: ExamenGroupe, field: keyof ExamenGroupe) => {
     const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
     return editingExamens[groupeKey]?.[field] ?? groupe[field];
@@ -225,55 +171,6 @@ export const ExamenReviewManager = () => {
 
   return (
     <div className="space-y-6">
-      {/* Bandeau de process visuel */}
-      <div className="bg-slate-50 border-l-4 border-blue-600 p-3 rounded flex flex-wrap gap-4 items-center mb-4 text-sm font-medium">
-        <span className="text-blue-800">1️⃣ Importer</span> 
-        <span className="text-blue-800">→</span>
-        <span className="text-yellow-700">2️⃣ Corriger / Attribuer faculté</span> 
-        <span className="text-blue-800">ou</span>
-        <span className="text-red-700">Supprimer</span>
-        <span className="text-blue-800">→</span>
-        <span className="text-green-700">3️⃣ Valider</span>
-        <span className="text-blue-800">→</span>
-        <span className="text-purple-700">4️⃣ Exploiter (vues avancées)</span>
-      </div>
-      {/* Sticky filter + progression */}
-      <StickyFilterHeader
-        filteredCount={filteredExamens.length}
-        missingFacCount={missingFacCount}
-        totalCount={examensGroupes.length}
-        percentAssigned={percentAssigned}
-        isOpen={openSticky}
-        onToggle={() => setOpenSticky((v) => !v)}
-      >
-        <ExamensAdvancedFilter
-          examens={examensGroupes}
-          onBulkAssignFaculty={handleBulkAssignFaculty}
-          setFilter={(pattern, type) => setExtraFilter({ pattern, type })}
-          facultyOptions={["MEDE", "FASB", "FSM", "FSP", "INCONNU"]}
-        />
-      </StickyFilterHeader>
-      {/* Alert visible si examens sans faculté */}
-      <ExamensSansFaculteAlert count={missingFacCount} />
-      <div className="flex items-center gap-2 mb-4">
-        <span>Filtrer par faculté :</span>
-        <select
-          className="border px-2 py-1 rounded"
-          value={facultyFilter}
-          onChange={e => setFacultyFilter(e.target.value)}
-        >
-          <option value="ALL">Toutes</option>
-          <option value="NO_FAC">Sans faculté</option>
-          <option value="MEDE">MEDE</option>
-          <option value="FSM">FSM</option>
-          <option value="FASB">FASB</option>
-          <option value="FSP">FSP</option>
-          <option value="INCONNU">INCONNU</option>
-        </select>
-        <span className="text-xs text-gray-500">
-          (Astuce : filtrez "sans faculté" pour vérifier que tous les examens sont assignés)
-        </span>
-      </div>
       <Tabs defaultValue="import" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="import" className="flex items-center space-x-2">
@@ -316,7 +213,6 @@ export const ExamenReviewManager = () => {
                 isApplyingConstraints={applquerContraintesAuditoiresMutation.isPending}
                 isValidating={validateExamensMutation.isPending}
                 hasConstraints={!!contraintesAuditoires}
-                onDeleteSelected={handleDeleteSelected}
               />
 
               <ExamenReviewFilters
@@ -349,7 +245,6 @@ export const ExamenReviewManager = () => {
                 isValidating={validateExamensMutation.isPending}
                 getFieldValue={getFieldValue}
                 getContrainteUnifiee={getContrainteUnifiee}
-                onDeleteGroupe={handleDeleteGroupe}
               />
 
               {filteredExamens && filteredExamens.length > 0 && (

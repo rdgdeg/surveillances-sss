@@ -1,3 +1,4 @@
+
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -16,7 +17,6 @@ interface ExamenReviewTableProps {
   onFieldChange: (groupeKey: string, field: string, value: string | number) => void;
   onSaveGroupe: (groupe: ExamenGroupe) => void;
   onValidateGroupe: (groupe: ExamenGroupe) => void;
-  onDeleteGroupe?: (groupe: ExamenGroupe) => void;
   isSaving: boolean;
   isValidating: boolean;
   getFieldValue: (groupe: ExamenGroupe, field: keyof ExamenGroupe) => any;
@@ -32,12 +32,11 @@ export const ExamenReviewTable = ({
   onFieldChange,
   onSaveGroupe,
   onValidateGroupe,
-  onDeleteGroupe,
   isSaving,
   isValidating,
   getFieldValue,
   getContrainteUnifiee
-}: ExamenReviewTableProps & { onDeleteGroupe?: (groupe: ExamenGroupe) => void }) => {
+}: ExamenReviewTableProps) => {
   if (examens.length === 0) {
     return (
       <div className="text-center py-8">
@@ -61,7 +60,6 @@ export const ExamenReviewTable = ({
             <TableHead>Code/Matière</TableHead>
             <TableHead>Date/Heure</TableHead>
             <TableHead>Auditoire</TableHead>
-            <TableHead>Faculté</TableHead>
             <TableHead>Statut</TableHead>
             <TableHead>Base</TableHead>
             <TableHead>Enseig.</TableHead>
@@ -111,19 +109,6 @@ export const ExamenReviewTable = ({
                   <div className="text-xs text-gray-500 mt-1">
                     Salles: {groupe.examens.map(e => e.salle).join(', ')}
                   </div>
-                </TableCell>
-                <TableCell>
-                  <input
-                    className={`text-sm border rounded px-1 py-0.5 w-24 ${!groupe.faculte ? "border-red-400 bg-red-50" : "border-gray-200"}`}
-                    value={groupe.faculte ?? ""}
-                    placeholder="..."
-                    onChange={e =>
-                      onFieldChange(groupeKey, "faculte", e.target.value)
-                    }
-                  />
-                  {!groupe.faculte && (
-                    <div className="text-red-600 text-xs">Faculté ?</div>
-                  )}
                 </TableCell>
                 <TableCell>
                   <Badge className="bg-gray-100 text-gray-800">
@@ -199,18 +184,6 @@ export const ExamenReviewTable = ({
                     >
                       <Check className="h-4 w-4 text-green-600" />
                     </Button>
-                    {/* Nouveau bouton suppression */}
-                    {onDeleteGroupe && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => onDeleteGroupe(groupe)}
-                        className="ml-1"
-                        title="Supprimer ce groupe/examen"
-                      >
-                        🗑
-                      </Button>
-                    )}
                   </div>
                 </TableCell>
               </TableRow>
