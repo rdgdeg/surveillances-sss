@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
 
 // Nouvelle fonction de normalisation plus robuste
 function normalizeCol(s: string) {
@@ -96,12 +97,18 @@ function getSuggestions(headers: string[]) {
     });
 }
 
+// Ajout : ligne problématique "salle vide"
+const [invalidSalleRows, setInvalidSalleRows] = useState<number[]>([]);
+// Ajout : ligne faculté vide
+const [emptyFaculteRows, setEmptyFaculteRows] = useState<number[]>([]);
+
 export const StandardExcelImporter = () => {
   const [file, setFile] = useState<File | null>(null);
   const [previewRows, setPreviewRows] = useState<any[]>([]);
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
   const { data: activeSession } = useActiveSession();
+  const { data: contraintesAuditoires, isLoading: loadingContraintes } = useContraintesAuditoires();
 
   // Les clés réelles trouvées
   const [detectedColumns, setDetectedColumns] = useState<any | null>(null);
@@ -151,7 +158,7 @@ export const StandardExcelImporter = () => {
           const data = evt.target?.result;
           const workbook = XLSX.read(data, { type: 'binary' });
           const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+          const rows: any[] = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
           const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
 
           // Ajout : suggestions naming
@@ -183,6 +190,42 @@ export const StandardExcelImporter = () => {
             return;
           }
 
+          // File preview/check, with empty salle/faculte confirm
+          const colSalle = colMap.auditoires;
+          const colFaculte = colMap.faculte;
+
+          const rowsWithEmptySalle: number[] = [];
+          const rowsWithEmptyFaculte: number[] = [];
+
+          // Nettoyage + détection : "vide" si chaîne vide ou espaces
+          rows.forEach((row, i) => {
+            // Normalise null/undefined à chaîne vide pour salle/faculté
+            if (colSalle && (row[colSalle] === undefined || row[colSalle] === null)) row[colSalle] = "";
+            if (colFaculte && (row[colFaculte] === undefined || row[colFaculte] === null)) row[colFaculte] = "";
+
+            // Test si auditoire vide
+            if (!colSalle || !row[colSalle] || (typeof row[colSalle] === "string" && row[colSalle].trim() === "")) {
+              rowsWithEmptySalle.push(i);
+            }
+            // Test faculté vide                
+            if (!colFaculte || !row[colFaculte] || (typeof row[colFaculte] === "string" && row[colFaculte].trim() === "")) {
+              rowsWithEmptyFaculte.push(i);
+            }
+          });
+          setInvalidSalleRows(rowsWithEmptySalle);
+          setEmptyFaculteRows(rowsWithEmptyFaculte);
+
+          if (rowsWithEmptySalle.length > 0) {
+            toast({
+              title: "Erreur : Auditoire(s) manquant(s)",
+              description: `Les lignes suivantes n'ont pas d'auditoire : ${rowsWithEmptySalle.map(idx => idx+2).join(', ')}. Corrigez-les avant d'importer (la colonne auditoire est obligatoire).`,
+              variant: "destructive"
+            });
+            setParsedRows(rows);
+            setPreviewRows(rows.slice(0, 5));
+            return;
+          }
+
           setParsedRows(rows);
           setPreviewRows(rows.slice(0, 5));
         } catch (e) {
@@ -201,6 +244,8 @@ export const StandardExcelImporter = () => {
       setPreviewRows([]);
       setParsedRows([]);
       setHeaderSuggestions([]);
+      setInvalidSalleRows([]);
+      setEmptyFaculteRows([]);
     }
   };
 
@@ -217,7 +262,17 @@ export const StandardExcelImporter = () => {
         setImporting(false);
         return;
       }
-
+      // On bloque si au moins une ligne a un auditoire vide
+      if (invalidSalleRows.length > 0) {
+        toast({
+          title: "Import impossible",
+          description:
+            "Certains examens n'ont pas d'auditoire spécifié. Veuillez corriger avant d'importer.",
+          variant: "destructive",
+        });
+        setImporting(false);
+        return;
+      }
       let totalOk = 0, totalFail = 0;
       for (let idx = 0; idx < parsedRows.length; idx++) {
         const row = parsedRows[idx];
@@ -311,6 +366,13 @@ export const StandardExcelImporter = () => {
     }
   };
 
+  // Calcul du nombre de surveillants théorique si possible
+  function getTheoriqueCount(auditoire: string) {
+    if (!auditoire || !contraintesAuditoires) return null;
+    const key = auditoire.trim().toLowerCase();
+    return contraintesAuditoires[key] || null;
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -374,7 +436,37 @@ export const StandardExcelImporter = () => {
           </Alert>
         )}
 
-        {/* Aperçu augmenté pour montrer les correspondances */}
+        {/* Affichage des alertes avant prévisualisation */}
+        {(invalidSalleRows.length > 0 || emptyFaculteRows.length > 0) && (
+          <Alert
+            variant={invalidSalleRows.length > 0 ? "destructive" : "default"}
+            className={invalidSalleRows.length > 0 ? "" : "bg-yellow-50 border-yellow-400 text-yellow-800"}
+          >
+            <AlertTitle>
+              {invalidSalleRows.length > 0 ? "Erreur d'import" : "Champs à corriger"}
+            </AlertTitle>
+            <AlertDescription>
+              {invalidSalleRows.length > 0 && (
+                <>
+                  Les lignes suivantes n'ont <b>pas d'auditoire spécifié</b> (champ obligatoire) :{" "}
+                  <span className="font-mono">{invalidSalleRows.map(idx => idx + 2).join(", ")}</span>
+                  <br /><b>L'import est bloqué</b> tant que ces lignes ne sont pas corrigées.
+                </>
+              )}
+              {invalidSalleRows.length > 0 && emptyFaculteRows.length > 0 && <hr className="my-2" />}
+              {emptyFaculteRows.length > 0 && (
+                <>
+                  Les lignes suivantes n'ont <span className="font-semibold text-orange-700">pas de faculté</span> (conseillé de compléter) :{" "}
+                  <span className="font-mono">{emptyFaculteRows.map(idx => idx + 2).join(", ")}</span>
+                  <br />
+                  <span className="text-xs italic text-orange-800">L'import est toléré, mais corrigez si possible pour la qualité du suivi.</span>
+                </>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Aperçu augmenté pour affichage des erreurs et surveillants théoriques */}
         {previewRows.length > 0 && (
           <div className="border rounded-md p-3 bg-blue-50 space-y-2">
             <h4 className="font-medium text-blue-900">Aperçu du fichier (5 premières lignes):</h4>
@@ -398,34 +490,65 @@ export const StandardExcelImporter = () => {
                     {Object.keys(previewRows[0] ?? {}).map(col =>
                       <th className="px-2 py-1 font-semibold" key={col}>{col}</th>
                     )}
+                    <th className="px-2 py-1 font-semibold text-uclouvain-blue">Surveillants théoriques</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {previewRows.map((row, i) => (
-                    <tr key={i} className="border-b">
-                      {Object.values(row).map((cell, j) => (
-                        <td className="px-2 py-1" key={j}>
-                          {typeof cell === "string" || typeof cell === "number" || typeof cell === "boolean"
-                            ? cell.toString()
-                            : cell === null || cell === undefined
-                              ? ""
-                              : JSON.stringify(cell)}
+                  {previewRows.map((row, i) => {
+                    // Index de ligne Excel = i+2 (header + base-0)
+                    const isSalleMissing = invalidSalleRows.includes(i);
+                    const isFaculteMissing = emptyFaculteRows.includes(i);
+                    const salleVal = detectedColumns?.auditoires ? row[detectedColumns.auditoires] : null;
+                    const faculteVal = detectedColumns?.faculte ? row[detectedColumns.faculte] : null;
+                    const theorique =
+                      salleVal && contraintesAuditoires
+                        ? getTheoriqueCount(salleVal)
+                        : null;
+
+                    return (
+                      <tr key={i} className={isSalleMissing ? "bg-red-100" : ""}>
+                        {Object.keys(row).map(col => {
+                          // Surligne l'auditoire idéalement en rouge si vide, orange pour faculté
+                          if (detectedColumns?.auditoires && col === detectedColumns.auditoires)
+                            return (
+                              <td key={col}
+                                className={isSalleMissing ? "bg-red-200 border-2 border-red-400 font-semibold text-red-800" : ""}>
+                                {row[col]?.toString() || <span className="italic text-red-600">vide</span>}
+                              </td>
+                            );
+                          if (detectedColumns?.faculte && col === detectedColumns.faculte)
+                            return (
+                              <td key={col}
+                                className={isFaculteMissing ? "bg-yellow-200 border-2 border-yellow-400 font-medium text-yellow-900" : ""}>
+                                {row[col]?.toString() || <span className="italic text-yellow-800">vide</span>}
+                              </td>
+                            );
+                          return (<td key={col}>{row[col]?.toString()}</td>);
+                        })}
+                        <td className={theorique === null ? "text-red-700" : "text-green-800 font-bold"}>
+                          {salleVal && theorique !== null
+                            ? theorique
+                            : salleVal
+                              ? <span className="italic text-red-600">?</span>
+                              : ""}
                         </td>
-                      ))}
-                    </tr>
-                  ))}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-              <div className="text-xs text-blue-600 mt-1">
-                Vérifiez les colonnes et leur contenu avant de poursuivre.
-              </div>
+            </div>
+            <div className="text-xs text-blue-600 mt-1">
+              Vérifiez les colonnes et leur contenu avant de poursuivre.<br />
+              {invalidSalleRows.length > 0 && <span className="text-red-700">L'import est bloqué tant qu'un auditoire est vide.</span>}
+              {emptyFaculteRows.length > 0 && <span className="text-orange-700">Champs "faculté" recommandé à compléter.</span>}
             </div>
           </div>
         )}
 
         <Button 
           className="w-full mt-2"
-          disabled={!file || importing || !activeSession}
+          disabled={!file || importing || !activeSession || invalidSalleRows.length > 0}
           onClick={handleImport}
         >
           {importing ? "Importation..." : "Confirmer l'import"}
