@@ -1,15 +1,23 @@
 
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { SuiviConfirmationStats } from "./SuiviConfirmationStats";
+import { SuiviConfirmationFilters } from "./SuiviConfirmationFilters";
 import { formatDateWithDayBelgian } from "@/lib/dateUtils";
 import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
 
 export function SuiviConfirmationEnseignants() {
   const { data: contraintesAuditoires } = useContraintesAuditoires();
+  const [filters, setFilters] = useState({
+    searchTerm: "",
+    sortBy: "date",
+    statusFilter: "all",
+    selectedExamen: null as any
+  });
 
   // Récupère tous les examens avec infos présence enseignant, personnes amenées, confirmation besoins
   const { data: examens, isLoading } = useQuery({
@@ -57,6 +65,75 @@ export function SuiviConfirmationEnseignants() {
     return Math.max(0, theoriques - enseignantPresent - personnesAmenees);
   };
 
+  // Fonction pour filtrer et trier les examens
+  const getFilteredAndSortedExamens = () => {
+    if (!examens) return [];
+
+    let filtered = examens;
+
+    // Filtre par examen sélectionné
+    if (filters.selectedExamen) {
+      filtered = filtered.filter(ex => ex.id === filters.selectedExamen.id);
+    }
+
+    // Filtre par terme de recherche
+    if (filters.searchTerm) {
+      const term = filters.searchTerm.toLowerCase();
+      filtered = filtered.filter(ex => 
+        (ex.code_examen || "").toLowerCase().includes(term) ||
+        (ex.matiere || "").toLowerCase().includes(term) ||
+        (ex.enseignant_nom || "").toLowerCase().includes(term) ||
+        (ex.enseignants || "").toLowerCase().includes(term) ||
+        (ex.enseignant_email || "").toLowerCase().includes(term)
+      );
+    }
+
+    // Filtre par statut
+    if (filters.statusFilter !== "all") {
+      filtered = filtered.filter(ex => {
+        switch (filters.statusFilter) {
+          case "confirmed":
+            return ex.besoins_confirmes_par_enseignant;
+          case "completed":
+            return (ex.surveillants_enseignant !== null || ex.surveillants_amenes > 0) && !ex.besoins_confirmes_par_enseignant;
+          case "pending":
+            return ex.surveillants_enseignant === null && ex.surveillants_amenes === 0;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // Tri
+    filtered.sort((a, b) => {
+      switch (filters.sortBy) {
+        case "code":
+          return (a.code_examen || "").localeCompare(b.code_examen || "");
+        case "matiere":
+          return (a.matiere || "").localeCompare(b.matiere || "");
+        case "enseignant":
+          const nameA = a.enseignant_nom || a.enseignants || "";
+          const nameB = b.enseignant_nom || b.enseignants || "";
+          return nameA.localeCompare(nameB);
+        case "status":
+          const statusA = a.besoins_confirmes_par_enseignant ? "confirmed" : 
+                         (a.surveillants_enseignant !== null || a.surveillants_amenes > 0) ? "completed" : "pending";
+          const statusB = b.besoins_confirmes_par_enseignant ? "confirmed" : 
+                         (b.surveillants_enseignant !== null || b.surveillants_amenes > 0) ? "completed" : "pending";
+          return statusA.localeCompare(statusB);
+        case "date":
+        default:
+          const dateA = new Date(a.date_examen + " " + a.heure_debut);
+          const dateB = new Date(b.date_examen + " " + b.heure_debut);
+          return dateA.getTime() - dateB.getTime();
+      }
+    });
+
+    return filtered;
+  };
+
+  const filteredExamens = getFilteredAndSortedExamens();
+
   return (
     <div className="mx-auto max-w-7xl">
       {examens && <SuiviConfirmationStats examens={examens} />}
@@ -66,6 +143,11 @@ export function SuiviConfirmationEnseignants() {
           <CardTitle>Suivi confirmation enseignants (présence & informations apportées)</CardTitle>
         </CardHeader>
         <CardContent>
+          <SuiviConfirmationFilters 
+            examens={examens || []}
+            onFilterChange={setFilters}
+          />
+          
           <Table>
             <TableHeader>
               <TableRow>
@@ -81,7 +163,7 @@ export function SuiviConfirmationEnseignants() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {!isLoading && examens && examens.map((ex: any) => {
+              {!isLoading && filteredExamens.map((ex: any) => {
                 const surveillantsNecessaires = calculerSurveillantsNecessaires(ex);
                 const surveillantsAdaptes = calculerSurveillantsAdaptes(ex);
                 
@@ -134,7 +216,7 @@ export function SuiviConfirmationEnseignants() {
                       {ex.besoins_confirmes_par_enseignant ? (
                         <Badge variant="default">Confirmé</Badge>
                       ) : (ex.surveillants_enseignant !== null || ex.surveillants_amenes > 0) ? (
-                        <Badge variant="secondary">Complété</Badge>
+                        <Badge variant="secondary">Informations fournies</Badge>
                       ) : (
                         <Badge variant="outline">En attente</Badge>
                       )}
@@ -145,6 +227,11 @@ export function SuiviConfirmationEnseignants() {
               {isLoading && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center text-gray-400">Chargement…</TableCell>
+                </TableRow>
+              )}
+              {!isLoading && filteredExamens.length === 0 && examens && examens.length > 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center text-gray-400">Aucun examen ne correspond aux critères de recherche.</TableCell>
                 </TableRow>
               )}
             </TableBody>
