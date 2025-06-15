@@ -417,7 +417,7 @@ export function SurveillantUnifiedManager() {
   }, {});
 
   return (
-    <div className="space-y-4 px-0 md:px-6 max-w-[1700px] w-full mx-auto">
+    <div className="space-y-4 px-0 md:px-8 max-w-screen-2xl w-full mx-auto">
       {/* --- Recap --- */}
       <SurveillantStatsRecap
         total={total}
@@ -425,7 +425,7 @@ export function SurveillantUnifiedManager() {
         inactifs={inactifs}
         typeMap={typeMap}
       />
-      <Card>
+      <Card className="w-full max-w-none">
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div>
             <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-1">Liste des surveillants</CardTitle>
@@ -438,15 +438,14 @@ export function SurveillantUnifiedManager() {
             Importer surveillants (Excel)
           </Button>
         </CardHeader>
-        <CardContent>
-          {/* --- Sélection multiple barre actions REMAIN UNCHANGED ... --- */}
-          {/* ... keep existing code (barre d'actions sélection multiple, tabs, etc) the same ... */}
+        <CardContent className="p-0">
+          {/* --- Tabs, Table, Import, Modal, remain unchanged --- */}
           <Tabs value={activeTab} onValueChange={v => setActiveTab(v as "actifs" | "desactives")}>
-            <TabsList className="mb-3">
+            <TabsList className="mb-3 ml-4">
               <TabsTrigger value="actifs">Actifs</TabsTrigger>
               <TabsTrigger value="desactives">Désactivés</TabsTrigger>
             </TabsList>
-            <TabsContent value="actifs">
+            <TabsContent value="actifs" className="p-0">
               <SurveillantTable
                 rows={surveillantsActifs}
                 editRow={editRow}
@@ -463,9 +462,10 @@ export function SurveillantUnifiedManager() {
                 modalOpen={modalOpen}
                 setModalOpen={setModalOpen}
                 hasSessionEntryId={true}
+                compact={true}
               />
             </TabsContent>
-            <TabsContent value="desactives">
+            <TabsContent value="desactives" className="p-0">
               <SurveillantTable
                 rows={surveillantsDesactives}
                 editRow={editRow}
@@ -482,6 +482,7 @@ export function SurveillantUnifiedManager() {
                 modalOpen={modalOpen}
                 setModalOpen={setModalOpen}
                 hasSessionEntryId={true}
+                compact={true}
               />
             </TabsContent>
           </Tabs>

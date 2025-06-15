@@ -43,7 +43,6 @@ interface SurveillantTableProps {
   compact?: boolean;
 }
 
-// Calcul quota théorique par type (corrigé)
 function getTheoreticalQuota(type: string | undefined, etp: number | undefined | null): number {
   if (!type) return 0;
   const typeNorm = type.trim().toLowerCase();
@@ -56,17 +55,17 @@ export function SurveillantTable({
   rows, editRow, editValues, isLoading, selectedRows,
   onEdit, onEditChange, onSave, onCancel, onSelectRow, onToggleActive,
   statutsDisponibles, modalOpen, setModalOpen,
-  hasSessionEntryId = true
+  hasSessionEntryId = true, compact = false
 }: SurveillantTableProps) {
   return (
-    <div className="w-full max-w-[1700px] mx-auto overflow-x-visible"> {/* Largeur max élargie */}
-      <Table className="w-full min-w-[1200px]">
+    <div className="w-full overflow-visible max-w-none">
+      <Table className="w-full border-separate border-spacing-0">
         <TableHeader>
-          <TableRow className="bg-blue-100 text-xs">
-            <TableHead className="w-7 px-3 py-1" />
-            <TableHead className="min-w-[170px] w-48 p-2">Nom</TableHead>
-            <TableHead className="min-w-[200px] w-60 p-2">Email</TableHead>
-            <TableHead className="w-16 p-2">
+          <TableRow className="bg-blue-100 text-xs border-b">
+            <TableHead className="w-7 px-3 py-2" />
+            <TableHead className="min-w-[180px] w-48 px-2 py-2">Nom</TableHead>
+            <TableHead className="min-w-[210px] w-56 px-2 py-2">Email</TableHead>
+            <TableHead className="w-20 px-2 py-2 text-center">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -76,11 +75,11 @@ export function SurveillantTable({
                 </Tooltip>
               </TooltipProvider>
             </TableHead>
-            <TableHead className="w-14 p-2">Type</TableHead>
-            <TableHead className="w-20 p-2">Statut</TableHead>
-            <TableHead className="w-16 p-2">Affect.</TableHead>
-            <TableHead className="w-11 p-2">ETP</TableHead>
-            <TableHead className="w-11 p-2">
+            <TableHead className="w-14 px-2 py-2">Type</TableHead>
+            <TableHead className="w-20 px-2 py-2">Statut</TableHead>
+            <TableHead className="w-16 px-2 py-2">Affect.</TableHead>
+            <TableHead className="w-11 px-2 py-2 text-center">ETP</TableHead>
+            <TableHead className="w-11 px-2 py-2 text-center">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -92,10 +91,10 @@ export function SurveillantTable({
                 </Tooltip>
               </TooltipProvider>
             </TableHead>
-            <TableHead className="w-12 p-2">Quota</TableHead>
-            <TableHead className="w-28 p-2">Restrictions</TableHead>
-            <TableHead className="w-23 p-2">Fin contrat</TableHead>
-            <TableHead className="w-16 p-2">Actions</TableHead>
+            <TableHead className="w-12 px-2 py-2 text-center">Quota</TableHead>
+            <TableHead className="w-28 px-2 py-2">Restrictions</TableHead>
+            <TableHead className="w-23 px-2 py-2">Fin contrat</TableHead>
+            <TableHead className="w-20 px-2 py-2 text-center">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -120,7 +119,7 @@ export function SurveillantTable({
                   : ["NONE"];
               return (
                 <TableRow key={row.id} className={isEdit ? "bg-blue-50" : undefined}>
-                  <TableCell className="p-1">
+                  <TableCell className="p-2">
                     <input
                       type="checkbox"
                       checked={isChecked}
@@ -129,18 +128,18 @@ export function SurveillantTable({
                       className="h-4 w-4"
                     />
                   </TableCell>
-                  <TableCell className="font-medium p-2">
+                  <TableCell className="font-medium px-2 py-2">
                     {row.nom} <span className="text-xs">{row.prenom}</span>
                   </TableCell>
-                  <TableCell className="text-xs p-2">{row.email}</TableCell>
-                  <TableCell className="p-2">
+                  <TableCell className="text-xs px-2 py-2">{row.email}</TableCell>
+                  <TableCell className="px-2 py-2 text-center">
                     {hasSessionEntryId && row.session_entry_id && row.quota !== undefined ? (
                       isEdit ? (
                         <span>{row.is_active ? "Actif" : "Désactivé"}</span>
                       ) : (
                         <Button
                           size="sm"
-                          variant={row.is_active ? "secondary" : "outline"}
+                          variant={row.is_active ? "default" : "secondary"}
                           className={
                             row.is_active
                               ? "bg-emerald-100 text-emerald-700 h-7 px-4 font-semibold"
@@ -153,10 +152,10 @@ export function SurveillantTable({
                       )
                     ) : (<span>-</span>)}
                   </TableCell>
-                  <TableCell className="p-2">
+                  <TableCell className="px-2 py-2">
                     <Badge variant="outline" className="px-2 py-0.5 text-xs">{row.type}</Badge>
                   </TableCell>
-                  <TableCell className="p-2">
+                  <TableCell className="px-2 py-2">
                     {isEdit ? (
                       <select
                         className="w-20 rounded border px-1 py-0.5 text-xs"
@@ -174,7 +173,7 @@ export function SurveillantTable({
                       <Badge variant="outline" className="px-2 py-0.5 text-xs">{row.statut}</Badge>
                     )}
                   </TableCell>
-                  <TableCell className="p-2 text-xs">
+                  <TableCell className="px-2 py-2 text-xs">
                     {isEdit ? (
                       <select
                         className="w-20 rounded border px-1 py-0.5 text-xs"
@@ -192,7 +191,7 @@ export function SurveillantTable({
                       row.affectation_fac || "-"
                     )}
                   </TableCell>
-                  <TableCell className="p-2">
+                  <TableCell className="px-2 py-2 text-center">
                     {isEdit ? (
                       <Input
                         type="number"
@@ -208,12 +207,12 @@ export function SurveillantTable({
                       row.eft ?? "-"
                     )}
                   </TableCell>
-                  <TableCell className="p-2">
+                  <TableCell className="px-2 py-2 text-center">
                     <span className="inline-block px-2 text-xs font-bold bg-gray-100 text-gray-700 rounded min-w-[2.3rem] text-center">
                       {quotaTheorique}
                     </span>
                   </TableCell>
-                  <TableCell className="p-2">
+                  <TableCell className="px-2 py-2 text-center">
                     {isEdit ? (
                       <Input
                         type="number"
@@ -228,7 +227,7 @@ export function SurveillantTable({
                       row.quota ?? "-"
                     )}
                   </TableCell>
-                  <TableCell className="p-2">
+                  <TableCell className="px-2 py-2">
                     {isEdit ? (
                       <FacultesMultiSelect
                         values={selectedFacs}
@@ -244,10 +243,10 @@ export function SurveillantTable({
                       <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                  <TableCell className="p-2 text-xs">
+                  <TableCell className="px-2 py-2 text-xs">
                     {row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}
                   </TableCell>
-                  <TableCell className="p-2">
+                  <TableCell className="px-2 py-2 text-center">
                     {isEdit ? (
                       <>
                         <Button size="sm" variant="default" onClick={() => onSave(row)}>
