@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,14 +74,14 @@ export const DashboardOverview = () => {
         return surveillant?.type === 'Jobiste';
       }).length || 0;
 
-      // Correction couverture/théorique (coverage = capacité/needs*100)
-      const { data: quotas } = await supabase
+      // Get active surveillant sessions for capacity calculation
+      const { data: surveillantSessions } = await supabase
         .from('surveillant_sessions')
-        .select('quota')
+        .select('quota, surveillant_id')
         .eq('session_id', activeSession.id)
         .eq('is_active', true);
 
-      const capaciteTheorique = quotas?.reduce((sum, q) => sum + q.quota, 0) || 0;
+      const capaciteTheorique = surveillantSessions?.reduce((sum, s) => sum + s.quota, 0) || 0;
 
       // Correction du taux de couverture (coverage = capaciteTheorique / totalSurveillantsRequis * 100)
       const tauxCouverture = totalSurveillantsRequis > 0
@@ -103,19 +102,13 @@ export const DashboardOverview = () => {
       // Progression attributions
       const progressionAttributions = examensTotal > 0 ? (examensComplets.length / examensTotal) * 100 : 0;
 
-      const { data: surveillantsActifs } = await supabase
-        .from('surveillant_sessions')
-        .select('id')
-        .eq('session_id', activeSession.id)
-        .eq('is_active', true);
-
       // Nouveaux stats demandés
       
-      // Nombre de surveillants par type
+      // Nombre de surveillants par type - get from active surveillant sessions
       const { data: allSurveillants } = await supabase
         .from('surveillants')
         .select('type')
-        .in('id', surveillantsActifs?.map(s => s.surveillant_id) || []);
+        .in('id', surveillantSessions?.map(s => s.surveillant_id) || []);
 
       const surveillantsParType = allSurveillants?.reduce((acc, s) => {
         acc[s.type] = (acc[s.type] || 0) + 1;
@@ -131,12 +124,15 @@ export const DashboardOverview = () => {
 
       const surveillantsAvecDispos = new Set(disposUniques?.map(d => d.surveillant_id) || []);
       const disposRemplies = surveillantsAvecDispos.size;
-      const totalSurveillants = surveillantsActifs?.length || 0;
+      const totalSurveillants = surveillantSessions?.length || 0;
 
       // Renseignements enseignants
       const examensValides = examens?.filter(e => e.statut_validation === 'VALIDE') || [];
       const renseignementsEnseignants = examensValides.filter(e => e.besoins_confirmes_par_enseignant).length;
       const totalExamensValides = examensValides.length;
+
+      // Store examens complets list for modal
+      setExamensCompletsList(examensComplets);
 
       return {
         totalSurveillantsRequis,
@@ -147,7 +143,6 @@ export const DashboardOverview = () => {
         progressionAttributions,
         surveillantsActifs: totalSurveillants,
         sessionActive: activeSession.name,
-        examensCompletsList: examensComplets,
         surveillancesJobistes,
         surveillantsParType,
         disposRemplies,
@@ -160,7 +155,6 @@ export const DashboardOverview = () => {
 
   // Pour ouvrir la modal examens complets
   const handleOpenExamensComplets = () => {
-    if (stats?.examensCompletsList) setExamensCompletsList(stats.examensCompletsList);
     setExamensCompletsOpen(true);
   };
 
