@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -10,30 +9,48 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Utilitaire pour normaliser les noms de colonnes (retire accents, casse, espaces)
+// Nouvelle fonction de normalisation plus robuste
 function normalizeCol(s: string) {
   return s
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // retirer accents
-    .replace(/\s+/g, "")
+    .replace(/[()]/g, "") // enlever parenthèses
+    .replace(/[^a-zA-Z0-9/]/g, "") // retire tout sauf lettres/chiffres/slash
+    .replace(/\s+/g, "") // retire espaces partout
     .toLowerCase();
 }
 
-// Map de toutes les variations connues pour chaque champ
+// Mapping étendu et tolérant
 const COLUMN_MAP = {
   jour: ["jour", "date", "dateexamen"],
-  debut: ["debut", "heuredebut", "debutheure", "heuredebutexamen"],
+  debut: ["debut", "heuredebut", "debutheure", "heuredebutexamen", "début"],
   fin: ["fin", "heurefin", "finheure", "heurefinexamen"],
-  duree: ["duree(h)", "duree", "dureeexamen"],
-  activite: ["activite", "matiere", "nomexamen"],
-  faculte: ["faculte/secreteriat", "faculte", "secreteriat", "faculte/secrétariat", "faculte / secreteriat", "faculte / secrétariat", "faculté/secrétariat", "faculté/secreteriat", "faculté / secrétariat", "faculté / secreteriat"],
+  duree: [
+    "dureeh", 
+    "duree", 
+    "dureeexamen", 
+    "durée", 
+    "dureeh", 
+    "duree(h)",
+    "duréeh"
+  ],
+  activite: ["activite", "matiere", "nomexamen", "activité"],
+  faculte: [
+    "facultesecreteriat", "faculte", "secreteriat", 
+    "facultésecreteriat", "faculté", 
+    "facultésecrétariat", "faculté/secrétariat","faculte/secreteriat",
+    "facultesecretariat", "faculte/secrétariat", "faculté/secreteriat",
+    "faculte/secrétariat", "faculté/secrétariat",
+    "faculte/secreteriat", "faculté/secrétariat",
+    "faculté/secreteriat", "faculté/secrétariat",
+    "faculté/secrétariat", "faculté / secreteriat", "faculté / secrétariat"
+  ],
   code: ["code", "codeexamen"],
   auditoires: ["auditoires", "auditoire", "salle"],
   etudiants: ["etudiants", "etudiant", "effectif", "nombreetudiants"],
   enseignants: ["enseignants", "enseignant"]
 };
 
-// Trouve le nom réel de colonne dans l'Excel qui correspond à un des champs clés
 function findColKey(keys: string[], wanted: string[]): string | null {
   for (const k of keys) {
     const norm = normalizeCol(k);
@@ -97,19 +114,21 @@ export const StandardExcelImporter = () => {
           const workbook = XLSX.read(data, { type: 'binary' });
           const worksheet = workbook.Sheets[workbook.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-          // Détermination dynamique des colonnes
           const cols = rows.length > 0 ? Object.keys(rows[0]) : [];
-          // Pour chaque champ attendu, on cherche la colonne correspondante (plus tolérant)
+
+          // Mapping amélioré !
           const colMap: Record<string, string | null> = {};
           Object.entries(COLUMN_MAP).forEach(([field, variations]) => {
-            // Ajoute la version normalisée pour matcher plus large
             const wanted = variations.map(normalizeCol);
             const found = findColKey(cols, wanted);
             colMap[field] = found;
           });
+
+          // Pour debuggage : log dans la console le mapping trouvé
+          console.log("Mapping des colonnes détectées:", colMap);
           setDetectedColumns(colMap);
 
-          // Teste si colonnes essentielles sont bien détectées
+          // Ajout d'un warning toast si colonnes critiques manquantes
           const missing = ["jour", "debut", "fin"].filter(field => !colMap[field]);
           if (missing.length > 0) {
             toast({
@@ -273,9 +292,23 @@ export const StandardExcelImporter = () => {
           className="mb-2"
         />
 
+        {/* Aperçu augmenté pour montrer les correspondances */}
         {previewRows.length > 0 && (
           <div className="border rounded-md p-3 bg-blue-50 space-y-2">
             <h4 className="font-medium text-blue-900">Aperçu du fichier (5 premières lignes):</h4>
+            <div className="text-xs text-blue-900 mb-1">
+              <b>Correspondances colonnes importantes :</b>
+              <ul>
+                {Object.entries(COLUMN_MAP).map(([champ, variations]) => (
+                  <li key={champ}>
+                    <span className="font-semibold capitalize">{champ} :</span>{" "}
+                    <span className={detectedColumns?.[champ] ? "text-green-700" : "text-red-500"}>
+                      {detectedColumns?.[champ] || <span className="italic">Non détecté</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs border border-blue-200">
                 <thead>
