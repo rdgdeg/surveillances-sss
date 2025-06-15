@@ -79,6 +79,15 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
       ]
     },
     {
+      id: "surveillants-unified",
+      label: "Surveillants - Gestion Unifiée",
+      icon: Users,
+      type: "single",
+      items: [
+        { id: "surveillants-unified", label: "Manager Unifié", icon: Users }
+      ]
+    },
+    {
       id: "configuration",
       label: "Configuration",
       icon: Settings,

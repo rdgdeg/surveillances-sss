@@ -34,7 +34,8 @@ type ActiveTab =
   | "pre-assignations"
   | "tokens-enseignants"
   | "matrice-disponibilites"
-  | "import-codes";
+  | "import-codes"
+  | "surveillants-unified";
 
 const Admin = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
@@ -81,6 +82,8 @@ const Admin = () => {
         return <AvailabilityMatrix />;
       case "import-codes":
         return <ExamenCodeUploader />;
+      case "surveillants-unified":
+        return <SurveillantUnifiedManager />;
       default:
         return <DashboardOverview />;
     }
