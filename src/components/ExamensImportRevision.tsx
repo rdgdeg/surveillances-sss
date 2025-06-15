@@ -293,11 +293,15 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   // Nouvelle mutation pour mettre surveillants à 0 pour la sélection
   const setSurvThZeroMutation = useMutation({
     mutationFn: async (rowIds: string[]) => {
-      // Pour chaque ligne, upsert/patch data.Surveillants_Th à 0 en base
+      // For each line, upsert/patch data.Surveillants_Th to 0 in DB
       for (const id of rowIds) {
-        const { data: rowObj } = rows.find(r => r.id === id) ?? {};
+        const rowObj = rows.find(r => r.id === id);
+        const dataObject =
+          rowObj && rowObj.data && typeof rowObj.data === "object" && !Array.isArray(rowObj.data)
+            ? rowObj.data
+            : (typeof rowObj?.data === "string" ? JSON.parse(rowObj.data) : {});
         const updatedData = {
-          ...(rowObj?.data || {}),
+          ...dataObject,
           Surveillants_Th: 0
         };
         const { error } = await supabase
