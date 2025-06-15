@@ -404,8 +404,43 @@ export function SurveillantUnifiedManager() {
     },
   });
 
+  // Ajout : calculs pour tuiles récapitulatives
+  const allRows = Array.isArray(surveillants) ? surveillants : [];
+  const total = allRows.length;
+  const actifs = allRows.filter(r => r.is_active).length;
+  const inactifs = allRows.filter(r => !r.is_active).length;
+  // Comptage par type + fallback "Inconnu"
+  const typeMap = allRows.reduce((acc: Record<string, number>, r) => {
+    acc[r.type || "Inconnu"] = (acc[r.type || "Inconnu"] || 0) + 1;
+    return acc;
+  }, {});
+
   return (
     <div className="space-y-6">
+      {/* --- TU Multiples Statistiques --- */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-2">
+        <div className="bg-blue-50 border rounded p-3 flex flex-col items-center">
+          <span className="text-xs text-gray-500 mb-1">Total surveillants</span>
+          <span className="text-2xl font-bold text-uclouvain-blue">{total}</span>
+        </div>
+        <div className="bg-emerald-50 border rounded p-3 flex flex-col items-center">
+          <span className="text-xs text-gray-500 mb-1">Actifs</span>
+          <span className="text-xl font-semibold text-emerald-700">{actifs}</span>
+        </div>
+        <div className="bg-red-50 border rounded p-3 flex flex-col items-center">
+          <span className="text-xs text-gray-500 mb-1">Inactifs</span>
+          <span className="text-xl font-semibold text-red-600">{inactifs}</span>
+        </div>
+        <div className="bg-gray-50 border rounded p-3 flex flex-col items-center col-span-2">
+          <span className="text-xs text-gray-500 mb-1">Par type</span>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {Object.entries(typeMap).map(([typeName, count]) => (
+              <span key={typeName} className="bg-gray-100 text-gray-700 rounded px-2 text-xs">{typeName}: {count}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <Card>
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div>
@@ -478,76 +513,99 @@ export function SurveillantUnifiedManager() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-blue-100 font-semibold" style={{ fontSize: "1rem" }}>
-                      <TableHead className="py-3 px-2 w-10"></TableHead>
-                      <TableHead className="py-3 px-2">Nom</TableHead>
-                      <TableHead className="py-3 px-2">Prénom</TableHead>
-                      <TableHead className="py-3 px-2">Email</TableHead>
-                      <TableHead className="py-3 px-2">Actif</TableHead>
-                      <TableHead className="py-3 px-2">Type</TableHead>
-                      <TableHead className="py-3 px-2">Statut</TableHead>
-                      <TableHead className="py-3 px-2">Affectation</TableHead>
-                      <TableHead className="py-3 px-2">ETP</TableHead>
-                      <TableHead className="py-3 px-2 min-w-[140px]">
-                        Quota théorique
-                        <div className="text-xs text-gray-500 font-normal leading-tight pt-1">
-                          (Assistant: <span className="font-semibold">ETP×6</span>,<br />
-                          PAT FASB: <span className="font-semibold">ETP×12</span>,<br />
-                          autres: 0)
-                        </div>
+                      <TableHead className="w-8 px-1 py-2" />
+                      <TableHead className="w-44 px-1 py-2">
+                        <span>Nom&nbsp;/&nbsp;Prénom</span>
                       </TableHead>
-                      <TableHead className="py-3 px-2">Quota session<br /><span className="text-xs text-gray-400">(modifiable)</span></TableHead>
-                      <TableHead className="py-3 px-2">
-                        Faculté(s) interdite(s)
-                        <span className="block text-xs text-gray-400 font-normal">Blocages attrib.</span>
+                      <TableHead className="hidden md:table-cell px-1 py-2 w-40">
+                        <span>Email</span>
                       </TableHead>
-                      <TableHead className="py-3 px-2">Fin de contrat</TableHead>
-                      <TableHead className="py-3 px-2">Actions</TableHead>
+                      <TableHead className="w-18 px-1 py-2">
+                        <span>
+                          <span title="Actif pour la session, ou désactivé (ne sera pas assigné)">
+                            Actif
+                          </span>
+                        </span>
+                      </TableHead>
+                      <TableHead className="w-24 px-1 py-2">
+                        <span>Type</span>
+                      </TableHead>
+                      <TableHead className="w-20 px-1 py-2">
+                        <span>Statut</span>
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell w-28 px-1 py-2">
+                        <span>
+                          <span title="Faculté d’affectation (optionnel)">
+                            Affect.
+                          </span>
+                        </span>
+                      </TableHead>
+                      <TableHead className="w-12 px-1 py-2">ETP</TableHead>
+                      <TableHead className="w-20 px-1 py-2">
+                        <span title="Assistant: ETP×6, PAT: ETP×12">{`Quota th.`}</span>
+                      </TableHead>
+                      <TableHead className="w-20 px-1 py-2">
+                        <span>
+                          <span title="Quota session (modifiable)">
+                            Quota
+                          </span>
+                        </span>
+                      </TableHead>
+                      <TableHead className="w-28 px-1 py-2">
+                        <span>
+                          <span title="Blocages d'affectation (facultés interdites)">
+                            Restrictions
+                          </span>
+                        </span>
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell w-24 px-1 py-2">
+                        <span>Fin contrat</span>
+                      </TableHead>
+                      <TableHead className="w-16 px-1 py-2">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   {/* Affichage du tableau */}
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={14}>Chargement...</TableCell>
+                        <TableCell colSpan={13}>Chargement...</TableCell>
                       </TableRow>
                     ) : currentRows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={14} className="text-center">Aucun surveillant actif</TableCell>
+                        <TableCell colSpan={13} className="text-center">Aucun surveillant actif</TableCell>
                       </TableRow>
                     ) : (
                       currentRows?.map((row) => {
                         const isEdit = editRow === row.id;
                         const isChecked = selectedRows.includes(row.id);
-
-                        // Calcul du quota théorique (Assistant: ETP × 6, PAT FASB: ETP × 12, autres: 0)
-                        let statut = isEdit ? editValues.statut ?? row.statut : row.statut;
-                        let type = row.type;
-                        let etp = isEdit ? editValues.etp ?? row.eft ?? 0 : row.eft ?? 0;
-
-                        const quotaTheorique = getTheoreticalQuota(statut, etp);
-
-                        // Correction de la propagation du type pour handleEdit et handleSave
+                        // Utilisation du champ TYPE pour quota
+                        const type = row.type;
+                        const statut = isEdit ? editValues.statut ?? row.statut : row.statut;
+                        const etp = isEdit ? editValues.etp ?? row.eft ?? 0 : row.eft ?? 0;
+                        const quotaTheorique = getTheoreticalQuota(type, etp);
                         const selectedFacs = isEdit
                           ? editValues.faculte_interdite ?? ["NONE"]
                           : row.faculte_interdite.length > 0
                           ? row.faculte_interdite
                           : ["NONE"];
-
                         return (
                           <TableRow key={row.id} className={isEdit ? "bg-blue-50" : undefined}>
-                            <TableCell className="px-2 py-2">
+                            <TableCell className="px-1 py-1">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={(e) => handleSelectRow(row.id, e.target.checked)}
                                 aria-label="Sélectionner"
+                                className="h-4 w-4"
                               />
                             </TableCell>
-                            <TableCell className="px-2 py-2">{row.nom}</TableCell>
-                            <TableCell className="px-2 py-2">{row.prenom}</TableCell>
-                            <TableCell className="px-2 py-2">{row.email}</TableCell>
-                            {/* --- COLONNE ACTIF (MàJ : Affichage via is_active !) --- */}
-                            <TableCell className="px-2 py-2">
+                            <TableCell className="px-1 py-1 font-medium">
+                              <span>{row.nom} {row.prenom}</span>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell px-1 py-1 text-xs">
+                              {row.email}
+                            </TableCell>
+                            <TableCell className="px-1 py-1">
                               {row.session_entry_id && row.quota !== undefined ? (
                                 isEdit ? (
                                   <span>
@@ -557,7 +615,7 @@ export function SurveillantUnifiedManager() {
                                   <Button
                                     size="sm"
                                     variant={row.is_active ? "secondary" : "outline"}
-                                    className={row.is_active ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}
+                                    className={row.is_active ? "bg-emerald-100 text-emerald-700 h-7 px-2" : "bg-red-100 text-red-700 h-7 px-2"}
                                     onClick={() =>
                                       toggleActiveMutation.mutate({
                                         sessionEntryId: row.session_entry_id!,
@@ -572,15 +630,13 @@ export function SurveillantUnifiedManager() {
                                 <span>-</span>
                               )}
                             </TableCell>
-                            {/* --- COLONNE TYPE --- */}
-                            <TableCell className="px-2 py-2">
-                              <Badge variant="outline">{type}</Badge>
-                            </TableCell>
-                            {/* --- COLONNE STATUT (editable) --- */}
-                            <TableCell className="px-2 py-2">
+                            {/* --- TYPE --- */}
+                            <TableCell className="px-1 py-1"><Badge variant="outline">{type}</Badge></TableCell>
+                            {/* --- STATUT --- */}
+                            <TableCell className="px-1 py-1">
                               {isEdit ? (
                                 <select
-                                  className="w-28 rounded-md border px-2 py-1 text-sm"
+                                  className="w-20 rounded-md border px-1 py-1 text-xs"
                                   value={editValues.statut ?? row.statut}
                                   onChange={e => {
                                     if (e.target.value === "Ajouter...") {
@@ -595,13 +651,13 @@ export function SurveillantUnifiedManager() {
                                   ))}
                                 </select>
                               ) : (
-                                <Badge variant="outline">{row.statut}</Badge>
+                                <Badge variant="outline">{statut}</Badge>
                               )}
                             </TableCell>
-                            <TableCell className="px-2 py-2">
+                            <TableCell className="hidden md:table-cell px-1 py-1 text-xs">
                               {isEdit ? (
                                 <select
-                                  className="w-24 rounded-md border px-2 py-1 text-sm"
+                                  className="w-16 rounded-md border px-1 py-1 text-xs"
                                   value={editValues.affectation_fac ?? row.affectation_fac ?? ""}
                                   onChange={e =>
                                     setEditValues(v => ({
@@ -619,11 +675,11 @@ export function SurveillantUnifiedManager() {
                                 row.affectation_fac || "-"
                               )}
                             </TableCell>
-                            <TableCell className="px-2 py-2">
+                            <TableCell className="px-1 py-1">
                               {isEdit ? (
                                 <Input
                                   type="number"
-                                  className="w-20"
+                                  className="w-12 h-7 text-xs"
                                   value={editValues.etp ?? ""}
                                   step="0.01"
                                   min="0"
@@ -638,16 +694,16 @@ export function SurveillantUnifiedManager() {
                                 row.eft ?? "-"
                               )}
                             </TableCell>
-                            <TableCell className="px-2 py-2">
-                              <span className="inline-block px-3 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200 min-w-[2.7rem] text-center">
+                            <TableCell className="px-1 py-1">
+                              <span className="inline-block px-1 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200 min-w-[2rem] text-center">
                                 {quotaTheorique}
                               </span>
                             </TableCell>
-                            <TableCell className="px-2 py-2">
+                            <TableCell className="px-1 py-1">
                               {isEdit ? (
                                 <Input
                                   type="number"
-                                  className="w-20"
+                                  className="w-12 h-7 text-xs"
                                   value={editValues.quota ?? ""}
                                   min="0"
                                   onChange={e =>
@@ -661,7 +717,8 @@ export function SurveillantUnifiedManager() {
                                 row.quota ?? "-"
                               )}
                             </TableCell>
-                            <TableCell className="px-2 py-2">
+                            {/* Facultés interdites = Restrictions */}
+                            <TableCell className="px-1 py-1">
                               {isEdit ? (
                                 <FacultesMultiSelect
                                   values={selectedFacs}
@@ -677,13 +734,13 @@ export function SurveillantUnifiedManager() {
                                   ))}
                                 </div>
                               ) : (
-                                <span className="text-xs text-muted-foreground">Aucune restriction</span>
+                                <span className="text-xs text-muted-foreground">-</span>
                               )}
                             </TableCell>
-                            <TableCell className="px-2 py-2">
+                            <TableCell className="hidden md:table-cell px-1 py-1">
                               {row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}
                             </TableCell>
-                            <TableCell className="px-2 py-2">
+                            <TableCell className="px-1 py-1">
                               {isEdit ? (
                                 <>
                                   <Button
@@ -717,21 +774,21 @@ export function SurveillantUnifiedManager() {
                 </Table>
               </div>
             </TabsContent>
-            {/* Désactivés : le header n'affiche PAS la colonne campus non plus */}
+            {/* Table désactivés aussi adaptée : compact, quotas avec type */}
             <TabsContent value="desactives">
               <div className="overflow-x-auto border rounded-md bg-blue-50">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-blue-100 font-semibold" style={{ fontSize: "1rem" }}>
-                      <TableHead className="py-3 px-2 w-10"></TableHead>
-                      <TableHead className="py-3 px-2">Nom</TableHead>
-                      <TableHead className="py-3 px-2">Prénom</TableHead>
-                      <TableHead className="py-3 px-2">Email</TableHead>
-                      <TableHead className="py-3 px-2">Statut</TableHead>
-                      <TableHead className="py-3 px-2">ETP</TableHead>
-                      <TableHead className="py-3 px-2">Quota théorique</TableHead>
-                      <TableHead className="py-3 px-2">Quota session</TableHead>
-                      <TableHead className="py-3 px-2">Fin de contrat</TableHead>
+                      <TableHead className="w-8 px-1 py-2"></TableHead>
+                      <TableHead className="w-44 px-1 py-2">Nom / Prénom</TableHead>
+                      <TableHead className="hidden md:table-cell w-40 px-1 py-2">Email</TableHead>
+                      <TableHead className="w-24 px-1 py-2">Type</TableHead>
+                      <TableHead className="w-20 px-1 py-2">Statut</TableHead>
+                      <TableHead className="w-12 px-1 py-2">ETP</TableHead>
+                      <TableHead className="w-20 px-1 py-2" title="Quota théorique (Assistant: ETP×6, PAT: ETP×12)">Quota th.</TableHead>
+                      <TableHead className="w-16 px-1 py-2">Quota</TableHead>
+                      <TableHead className="hidden md:table-cell w-24 px-1 py-2">Fin contrat</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -745,27 +802,28 @@ export function SurveillantUnifiedManager() {
                       </TableRow>
                     ) : (
                       currentRows.map(row => {
-                        let etp = row.eft ?? 0;
-                        const quotaTheorique = getTheoreticalQuota(row.statut, etp);
+                        const etp = row.eft ?? 0;
+                        const quotaTheorique = getTheoreticalQuota(row.type, etp);
                         const isChecked = selectedRows.includes(row.id);
                         return (
                           <TableRow key={row.id}>
-                            <TableCell className="px-2 py-2">
+                            <TableCell className="px-1 py-1">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={e => handleSelectRow(row.id, e.target.checked)}
                                 aria-label="Sélectionner"
+                                className="h-4 w-4"
                               />
                             </TableCell>
-                            <TableCell className="px-2 py-2">{row.nom}</TableCell>
-                            <TableCell className="px-2 py-2">{row.prenom}</TableCell>
-                            <TableCell className="px-2 py-2">{row.email}</TableCell>
-                            <TableCell className="px-2 py-2">{row.statut}</TableCell>
-                            <TableCell className="px-2 py-2">{etp}</TableCell>
-                            <TableCell className="px-2 py-2">{quotaTheorique}</TableCell>
-                            <TableCell className="px-2 py-2">{row.quota ?? "-"}</TableCell>
-                            <TableCell className="px-2 py-2">
+                            <TableCell className="px-1 py-1 font-medium">{row.nom} {row.prenom}</TableCell>
+                            <TableCell className="hidden md:table-cell px-1 py-1 text-xs">{row.email}</TableCell>
+                            <TableCell className="px-1 py-1"><Badge variant="outline">{row.type}</Badge></TableCell>
+                            <TableCell className="px-1 py-1"><Badge variant="outline">{row.statut}</Badge></TableCell>
+                            <TableCell className="px-1 py-1">{etp}</TableCell>
+                            <TableCell className="px-1 py-1">{quotaTheorique}</TableCell>
+                            <TableCell className="px-1 py-1">{row.quota ?? "-"}</TableCell>
+                            <TableCell className="hidden md:table-cell px-1 py-1">
                               {row.date_fin_contrat ? new Date(row.date_fin_contrat).toLocaleDateString() : "-"}
                             </TableCell>
                           </TableRow>
