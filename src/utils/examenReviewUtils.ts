@@ -11,7 +11,9 @@ export interface ContrainteAuditoire {
   nombre_surveillants_requis: number;
 }
 
+// Added 'id' and 'nombre_etudiants_total'
 export interface ExamenGroupe {
+  id: string;
   code_examen: string;
   matiere: string;
   date_examen: string;
@@ -19,6 +21,7 @@ export interface ExamenGroupe {
   heure_fin: string;
   auditoire_unifie: string;
   examens: ExamenReview[];
+  nombre_etudiants_total: number;
   nombre_surveillants_total: number;
   surveillants_enseignant_total: number;
   surveillants_amenes_total: number;
