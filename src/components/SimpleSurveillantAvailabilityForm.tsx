@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,7 +31,7 @@ interface CreneauSimple {
 }
 
 export function SimpleSurveillantAvailabilityForm() {
-  const [etape, setEtape] = useState<'email' | 'profil' | 'disponibilites' | 'termine'>(email');
+  const [etape, setEtape] = useState<'email' | 'profil' | 'disponibilites' | 'termine'>('email');
   const [email, setEmail] = useState("");
   const [surveillant, setSurveillant] = useState<Surveillant | null>(null);
   const [telephone, setTelephone] = useState("");
