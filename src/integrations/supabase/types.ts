@@ -582,6 +582,53 @@ export type Database = {
           },
         ]
       }
+      examens_import_temp: {
+        Row: {
+          created_at: string | null
+          data: Json
+          erreurs: string | null
+          id: string
+          import_batch_id: string
+          imported_by: string | null
+          ordre_import: number
+          session_id: string
+          statut: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data: Json
+          erreurs?: string | null
+          id?: string
+          import_batch_id: string
+          imported_by?: string | null
+          ordre_import: number
+          session_id: string
+          statut?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json
+          erreurs?: string | null
+          id?: string
+          import_batch_id?: string
+          imported_by?: string | null
+          ordre_import?: number
+          session_id?: string
+          statut?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "examens_import_temp_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       examens_validation: {
         Row: {
           code_original: string
