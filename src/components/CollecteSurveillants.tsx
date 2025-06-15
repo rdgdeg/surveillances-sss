@@ -72,7 +72,7 @@ export const CollecteSurveillants = () => {
     (async () => {
       const { data, error } = await supabase
         .from('surveillants')
-        .select('id, nom, prenom, type, quota, surveillances_a_deduire')
+        .select('id, nom, prenom, type, surveillances_a_deduire')
         .eq('email', email.trim())
         .maybeSingle();
       if (!isCancelled) {
