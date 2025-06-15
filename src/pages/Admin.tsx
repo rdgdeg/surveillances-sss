@@ -1,9 +1,7 @@
-
 import { useState } from "react";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { SensitiveDataManager } from "@/components/SensitiveDataManager";
-import { SimpleSurveillantManager } from "@/components/SimpleSurveillantManager";
 import { SurveillantAdvancedManager } from "@/components/SurveillantAdvancedManager";
 import { SurveillantUnifiedManager } from "@/components/SurveillantUnifiedManager";
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
@@ -25,7 +23,6 @@ type ActiveTab =
   | "examens" 
   | "validation" 
   | "planning" 
-  | "surveillants" 
   | "contraintes" 
   | "candidatures" 
   | "disponibilites"
@@ -59,8 +56,6 @@ const Admin = () => {
         return <EnseignantViewManager />;
       case "planning":
         return <NewPlanningView />;
-      case "surveillants":
-        return <SimpleSurveillantManager />;
       case "contraintes":
         return <ContraintesAuditoires />;
       case "candidatures":

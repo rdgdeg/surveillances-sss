@@ -65,26 +65,41 @@ export const AdminSidebar = ({ activeView, onViewChange }: AdminSidebarProps) =>
         { id: "planning", label: "Planning & Attribution", icon: Calendar }
       ]
     },
+    // SUPPRESSION : section surveillants classique
+    // {
+    //   id: "surveillants",
+    //   label: "Gestion Surveillants",
+    //   icon: Users,
+    //   type: "section",
+    //   children: [
+    //     { id: "surveillants", label: "Surveillants", icon: Users },
+    //     { id: "candidatures", label: "Disponibilités envoyées", icon: UserPlus },
+    //     { id: "disponibilites", label: "Collecte Disponibilités", icon: Clock },
+    //     { id: "matrice-disponibilites", label: "Matrice Disponibilités", icon: Grid3X3 },
+    //     { id: "suivi-disponibilites", label: "Suivi Disponibilités", icon: ClipboardCheck }
+    //   ]
+    // },
+    // Ajout uniquement des sous-pages utiles hors surveillant principal :
     {
-      id: "surveillants",
-      label: "Gestion Surveillants",
-      icon: Users,
+      id: "candidatures-bloc",
+      label: "Disponibilités & suivi",
+      icon: Clock,
       type: "section",
       children: [
-        { id: "surveillants", label: "Surveillants", icon: Users },
         { id: "candidatures", label: "Disponibilités envoyées", icon: UserPlus },
         { id: "disponibilites", label: "Collecte Disponibilités", icon: Clock },
         { id: "matrice-disponibilites", label: "Matrice Disponibilités", icon: Grid3X3 },
         { id: "suivi-disponibilites", label: "Suivi Disponibilités", icon: ClipboardCheck }
       ]
     },
+    // PAGE UNIQUE UNIFIÉE renommée :
     {
       id: "surveillants-unified",
-      label: "Surveillants - Gestion Unifiée",
+      label: "Liste des surveillants",
       icon: Users,
       type: "single",
       items: [
-        { id: "surveillants-unified", label: "Manager Unifié", icon: Users }
+        { id: "surveillants-unified", label: "Liste des surveillants", icon: Users }
       ]
     },
     {
