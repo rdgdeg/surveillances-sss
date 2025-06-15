@@ -11,59 +11,8 @@ import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, 
 import { Delete } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-
-// <--- utilitaires d'affichage heures/date/durée (inchangé)
-function excelTimeToHHMM(t: any): string {
-  if (typeof t === "number") {
-    const totalMinutes = Math.round(t * 24 * 60);
-    const h = Math.floor(totalMinutes / 60);
-    const m = totalMinutes % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-  }
-  if (typeof t === "string" && /^\d{1,2}:\d{2}$/.test(t.trim())) {
-    return t.trim();
-  }
-  return t?.toString() || "";
-}
-
-function excelDateString(d: any): string {
-  if (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
-    // déjà en forme YYYY-MM-DD
-    return d.split("-").reverse().join("/");
-  }
-  if (typeof d === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(d)) {
-    // déjà formaté
-    return d;
-  }
-  return d?.toString() || "";
-}
-
-function excelDurationToHM(val: any): string {
-  if (typeof val === "number") {
-    // 0.0833 (Excel) => environ 5 min, 0.125 => 7.5 min, mais souvent durée = nombre d'heures (1.5 pour 1h30)
-    // Essayons d'abord : 1 => 1:00, 1.5 => 1:30, 2 => 2:00
-    const hours = Math.floor(val);
-    const minutes = Math.round((val - hours) * 60);
-    if (isNaN(hours) || isNaN(minutes)) return val.toString();
-    return `${hours}:${minutes.toString().padStart(2, '0')}`;
-  }
-  return val?.toString() || "";
-}
-
-// Champs à mapper explicitement dans un ordre idéal pour l’affichage
-const IDEAL_COL_ORDER = [
-  "Jour",
-  "Debut",
-  "Fin",
-  "Duree",
-  "Faculte",
-  "Code",
-  "Activite",
-  "Auditoires",
-  "Etudiants",
-  "Enseignants"
-];
-
+import { excelTimeToHHMM, excelDateString, excelDurationToHM } from "@/utils/examensImportUtils";
+import { getExamProblem } from "@/utils/examensImportProblems";
 import { ExamensImportTable } from "./ExamensImportTable";
 
 export function ExamensImportRevision({ batchId }: { batchId?: string }) {
@@ -96,12 +45,6 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   });
 
   // On retire l'obligation sur l'auditoire (plus de contrainte dans la révision)
-  function getExamProblem(row: any) {
-    const { data } = row;
-    const missing: string[] = [];
-    if (!data['Faculte'] && !data['Faculté'] && !data['faculte'] && !data['faculté']) missing.push("faculté");
-    return missing;
-  }
 
   function getSurvTh(data: any) {
     const audString =
