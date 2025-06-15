@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -95,6 +94,7 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
         description: `${selectedRows.size} examen(s) marqué(s) comme prêt(s) pour validation.`
       });
     } catch (error) {
+      console.error("Erreur lors du marquage comme prêts:", error);
       toast({
         title: "Erreur",
         description: "Impossible de marquer les examens comme prêts.",
@@ -114,6 +114,8 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
     }
 
     try {
+      console.log("Validation forcée pour les examens:", Array.from(selectedRows));
+      
       await batchValidate.mutateAsync({
         rowIds: Array.from(selectedRows),
         statut: "VALIDE"
@@ -122,12 +124,13 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
       setSelectedRows(new Set());
       toast({
         title: "Validation forcée réussie",
-        description: `${selectedRows.size} examen(s) validé(s) avec succès. Les créneaux et listes enseignants sont en cours de génération.`
+        description: `${selectedRows.size} examen(s) validé(s) avec succès.`
       });
     } catch (error) {
+      console.error("Erreur lors de la validation forcée:", error);
       toast({
-        title: "Erreur",
-        description: "Impossible de valider les examens sélectionnés.",
+        title: "Erreur de validation",
+        description: error instanceof Error ? error.message : "Impossible de valider les examens sélectionnés.",
         variant: "destructive"
       });
     }
@@ -168,6 +171,7 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
         description: "Les modifications ont été sauvegardées."
       });
     } catch (error) {
+      console.error("Erreur lors de la sauvegarde:", error);
       toast({
         title: "Erreur",
         description: "Impossible de sauvegarder les modifications.",
@@ -188,6 +192,8 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
     }
 
     try {
+      console.log("Validation de tous les examens:", rowsToValidate.map(r => r.id));
+      
       await batchValidate.mutateAsync({
         rowIds: rowsToValidate.map(r => r.id),
         statut: "VALIDE"
@@ -195,12 +201,13 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
       
       toast({
         title: "Validation réussie",
-        description: `${rowsToValidate.length} examens ont été validés avec succès. Les créneaux et listes enseignants sont en cours de génération.`
+        description: `${rowsToValidate.length} examens ont été validés avec succès.`
       });
     } catch (error) {
+      console.error("Erreur lors de la validation globale:", error);
       toast({
-        title: "Erreur",
-        description: "Impossible de valider les examens.",
+        title: "Erreur de validation",
+        description: error instanceof Error ? error.message : "Impossible de valider les examens.",
         variant: "destructive"
       });
     }
@@ -256,6 +263,7 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
                   onClick={handleMarkSelectedAsReady}
                   variant="outline"
                   className="border-blue-300 text-blue-700 hover:bg-blue-50"
+                  disabled={updateMutation.isPending}
                 >
                   <Check className="h-4 w-4 mr-2" />
                   Marquer comme prêts ({selectedRows.size})
@@ -264,6 +272,7 @@ export function ExamenErrorsOnlyView({ batchId }: ExamenErrorsOnlyViewProps) {
                   onClick={handleForceValidateSelected}
                   variant="outline"
                   className="border-orange-300 text-orange-700 hover:bg-orange-50"
+                  disabled={batchValidate.isPending}
                 >
                   <ShieldCheck className="h-4 w-4 mr-2" />
                   Valider forcé ({selectedRows.size})
