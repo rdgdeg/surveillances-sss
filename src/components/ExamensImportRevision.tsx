@@ -93,13 +93,21 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   // Helper to safely get the object form of `row.data`
   function asRowDataObject(data: any): Record<string, any> {
     if (data && typeof data === "object" && !Array.isArray(data)) return data as Record<string, any>;
+    try {
+      if (typeof data === "string") {
+        // attempt parse, fallback to {}
+        const parsed = JSON.parse(data);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore
+    }
     return {};
   }
 
   let columns: string[] = [];
   if (rows[0]) {
     const dataCols = Object.keys(asRowDataObject(rows[0].data || {}));
-
     // Nouvelle logique : injecter Durée juste après Fin
     // On prend le tableau trouvé, puis on ajuste Durée
     const indexFin = dataCols.findIndex(
@@ -125,7 +133,6 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
 
   const filteredRows = rows.filter(row => {
     if (!searchTerm.trim()) return true;
-    // Use asRowDataObject here to avoid issues
     const rowDataObject = asRowDataObject(row.data);
     const globalString = [
       ...columns.map(col => rowDataObject?.[col]?.toString() ?? ""),
@@ -172,8 +179,9 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   }
 
   const handleEdit = (id: string, data: any) => {
+    // If passed a string data by accident, always convert to object!
     setEditRow(id);
-    setEditData(data);
+    setEditData(asRowDataObject(data));
   };
 
   const handleChangeEdit = (col: string, value: any) => {
@@ -274,7 +282,11 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
       </CardHeader>
       <CardContent>
         <ExamensImportTable
-          rows={sortedRows}
+          rows={sortedRows.map(r => ({
+            ...r,
+            // Always ensure .data is an object for table/row sub-components
+            data: asRowDataObject(r.data)
+          }))}
           columns={columns}
           editRow={editRow}
           editData={editData}
