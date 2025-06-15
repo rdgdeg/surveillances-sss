@@ -196,11 +196,10 @@ export const SurveillantListEditor = () => {
       if (aValue === null) return sortDirection === 'asc' ? 1 : -1;
       if (bValue === null) return sortDirection === 'asc' ? -1 : 1;
 
-      // --- FIX 1 (line 430): make sure to compare same types
-      // Ensure quota is compared as number, not string
+      // --- FIX: Ensure quota is always number
       if (sortField === 'quota') {
-        const numA = typeof aValue === 'string' ? Number(aValue) : aValue;
-        const numB = typeof bValue === 'string' ? Number(bValue) : bValue;
+        const numA = Number(aValue) || 0;
+        const numB = Number(bValue) || 0;
         if (numA < numB) return sortDirection === 'asc' ? -1 : 1;
         if (numA > numB) return sortDirection === 'asc' ? 1 : -1;
         return 0;
@@ -683,12 +682,14 @@ export const SurveillantListEditor = () => {
 
                     // Quota calc
                     const quotaTheorique = calculateQuotaTheorique(surveillant);
-                    // --- FIX 2 (line 676): be sure assignedQuota and quotaTheorique are both numbers
+                    // --- FIX: Be sure assignedQuota and quotaTheorique are numbers
                     const assignedQuota =
                       surveillant.quota !== undefined &&
                       surveillant.quota !== null &&
                       surveillant.quota !== "" ? Number(surveillant.quota) : quotaTheorique;
-                    const quotaDiffers = Number(assignedQuota) !== Number(quotaTheorique);
+                    const numAssignedQuota = Number(assignedQuota) || 0;
+                    const numQuotaTheorique = Number(quotaTheorique) || 0;
+                    const quotaDiffers = numAssignedQuota !== numQuotaTheorique;
 
                     return (
                       <TableRow 
