@@ -9,13 +9,12 @@ import { Save, Users } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
-// Rafraîchit l’examen après modif pour avoir feedback immédiat
 interface EnseignantPresenceFormProps {
   selectedExamen: any;
   updateEnseignantPresenceMutation: any;
   surveillantsTheoriques?: number;
   surveillantsNecessaires?: number;
-  onPresenceSaved?: () => void; // <---- NEW
+  onPresenceSaved?: () => void;
 }
 
 export const EnseignantPresenceForm = ({
@@ -23,9 +22,9 @@ export const EnseignantPresenceForm = ({
   updateEnseignantPresenceMutation,
   surveillantsTheoriques,
   surveillantsNecessaires,
-  onPresenceSaved, // <---- NEW
+  onPresenceSaved,
 }: EnseignantPresenceFormProps) => {
-  const [enseignantPresent, setEnseignantPresent] = useState(false);
+  const [enseignantPresent, setEnseignantPresent] = useState(true); // Par défaut présent
   const [personnesAmenees, setPersonnesAmenees] = useState(0);
   const queryClient = useQueryClient();
 
@@ -42,87 +41,88 @@ export const EnseignantPresenceForm = ({
       enseignantPresent,
       personnesAmenees,
     });
-    // Rafraîchir les examens pour avoir la donnée à jour
     queryClient.invalidateQueries({ queryKey: ['examens-enseignant'] });
     toast({
-      title: "Présence enregistrée",
-      description: "Vos informations ont bien été sauvegardées.",
+      title: "Informations mises à jour",
+      description: "Vos informations de présence ont été sauvegardées.",
       variant: "default"
     });
-    if (onPresenceSaved) onPresenceSaved(); // <---- NEW: trigger refresh
+    if (onPresenceSaved) onPresenceSaved();
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Users className="h-5 w-5" />
-          <span>Présence de l'enseignant</span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* State and summary */}
-        <div className="px-3 py-2 rounded-lg bg-gray-50 mb-2 flex flex-col space-y-1">
-          <span className="font-medium text-gray-700">
-            Surveillants nécessaires : <span className="text-blue-700 font-bold">{surveillantsTheoriques}</span>
-          </span>
-          <span className="font-medium text-gray-700">
-            Surveillants restants à attribuer : <span className="text-orange-600 font-bold">{surveillantsNecessaires}</span>
-          </span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="enseignant-present"
-            checked={enseignantPresent}
-            onCheckedChange={(checked) => setEnseignantPresent(!!checked)}
-          />
-          <Label htmlFor="enseignant-present">
-            Je serai présent pour la surveillance
-          </Label>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="personnes-amenees">
-            Nombre de personnes que j'amène
-          </Label>
-          <Input
-            id="personnes-amenees"
-            type="number"
-            min="0"
-            value={personnesAmenees}
-            onChange={(e) => setPersonnesAmenees(Math.max(0, parseInt(e.target.value) || 0))}
-            className="w-32"
-          />
-          <p className="text-sm text-gray-600">
-            Indiquez le nombre de personnes (assistants, collègues) que vous amenez pour aider à la surveillance.
-          </p>
-        </div>
-
-        <div className="text-xs text-green-700 bg-green-50 px-2 py-1 rounded border border-green-100">
-          <div>
-            <span className="font-semibold">Présence enregistrée :</span>
-            <span> Professeur&nbsp;
-              {selectedExamen.surveillants_enseignant > 0 ? (
-                <span className="text-green-700 font-semibold">PRÉSENT</span>
-              ) : (
-                <span className="text-red-700 font-semibold">ABSENT</span>
-              )}
-            </span>
-            &nbsp;|&nbsp;
-            <span>
-              Personnes amenées : <span className="font-semibold">{selectedExamen.surveillants_amenes ?? 0}</span>
+    <div className="space-y-4">
+      {/* Présence de l'enseignant */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Users className="h-5 w-5" />
+            <span>Votre présence à la surveillance</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="px-3 py-2 rounded-lg bg-blue-50 mb-2">
+            <span className="font-medium text-blue-700">
+              Surveillants théoriques nécessaires : <span className="font-bold">{surveillantsTheoriques}</span>
             </span>
           </div>
-        </div>
+          
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="enseignant-present"
+              checked={enseignantPresent}
+              onCheckedChange={(checked) => setEnseignantPresent(!!checked)}
+            />
+            <Label htmlFor="enseignant-present" className="font-medium">
+              Je serai présent pour assurer la surveillance
+            </Label>
+          </div>
 
-        <Button
-          onClick={handleSave}
-          disabled={updateEnseignantPresenceMutation.isPending}
-        >
-          <Save className="mr-2 h-4 w-4" />
-          Sauvegarder la présence
-        </Button>
-      </CardContent>
-    </Card>
+          <p className="text-sm text-gray-600">
+            Par défaut, nous considérons que vous serez présent. Décochez si vous ne pouvez pas assurer la surveillance.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Personnes amenées */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Personnes que vous amenez</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="px-3 py-2 rounded-lg bg-orange-50 mb-2">
+            <span className="font-medium text-orange-700">
+              Surveillants restants à attribuer : <span className="font-bold">{surveillantsNecessaires}</span>
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="personnes-amenees">
+              Nombre de personnes que j'amène
+            </Label>
+            <Input
+              id="personnes-amenees"
+              type="number"
+              min="0"
+              value={personnesAmenees}
+              onChange={(e) => setPersonnesAmenees(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-32"
+            />
+            <p className="text-sm text-gray-600">
+              Indiquez le nombre de personnes (assistants, collègues) que vous amenez pour aider à la surveillance.
+            </p>
+          </div>
+
+          <Button
+            onClick={handleSave}
+            disabled={updateEnseignantPresenceMutation.isPending}
+            className="w-full"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            Mettre à jour les informations
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 };

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +22,7 @@ import { DisponibilitesSection } from "./DisponibilitesSection";
 import { SurveillantProfilePanel } from "./SurveillantProfilePanel";
 import { UnknownSurveillantForm } from "./UnknownSurveillantForm";
 import { CreneauRow } from "./CreneauRow";
-import { Input } from "@/components/ui/input";  // Ajouté ici
+import { Input } from "@/components/ui/input";
 
 interface ExamenSlot {
   id: string;
@@ -32,121 +33,25 @@ interface ExamenSlot {
   salle: string;
 }
 
-// ⚡ Ajout fonction utilitaire pour formater la date et calculer l'heure début surveillance
-function formatExamSlotForDisplay(date_examen: string, heure_debut: string, heure_fin: string) {
-  // format date: jour-mois-année
-  const date = new Date(`${date_examen}T${heure_debut}`);
-  const jour = String(date.getDate()).padStart(2, "0");
-  const mois = String(date.getMonth() + 1).padStart(2, "0");
-  const annee = date.getFullYear();
-  const formattedDate = `${jour}-${mois}-${annee}`;
-
-  // calcul heure début surveillance (45 min avant heure_debut)
-  const [hdHour, hdMin] = heure_debut.split(":").map(Number);
-  const debutSurv = new Date(date);
-  debutSurv.setHours(hdHour);
-  debutSurv.setMinutes(hdMin - 45);
-  // Gère le cas où on soustrait 45min à, par exemple "08:30"
-  if (debutSurv.getMinutes() < 0) {
-    debutSurv.setHours(debutSurv.getHours() - 1);
-    debutSurv.setMinutes(debutSurv.getMinutes() + 60);
-  }
-  const dh = String(debutSurv.getHours()).padStart(2, "0");
-  const dm = String(debutSurv.getMinutes()).padStart(2, "0");
-  const startSurv = `${dh}:${dm}`;
-
-  // heure fin inchangée (affichée à droite)
-  return {
-    formattedDate,
-    debutSurv: startSurv,
-    heure_fin
-  };
-}
-
-// Utility function signatures update - remove typeof uniqueCreneaux, use generics or explicit types.
-/**
- * Grouper les créneaux par semaine (lundi-dimanche, puis on ignore samedi/dimanche à l'affichage)
- * @param creneaux array of unique slots (each slot object must have date_examen)
- */
-function groupCreneauxByWeek(
-  creneaux: {
-    examenIds: string[];
-    date_examen: string;
-    heure_debut: string;
-    heure_fin: string;
-  }[]
-) {
-  const semaines: {
-    title: string;
-    range: { start: Date; end: Date };
-    creneaux: {
-      examenIds: string[];
-      date_examen: string;
-      heure_debut: string;
-      heure_fin: string;
-    }[];
-  }[] = [];
-
-  creneaux.forEach((creneau) => {
-    const dateObj = parseISO(creneau.date_examen);
-    // semaine commence lundi
-    const weekStart = startOfWeek(dateObj, { weekStartsOn: 1, locale: fr });
-    const weekEnd = endOfWeek(dateObj, { weekStartsOn: 1, locale: fr });
-
-    // Section déjà existante ?
-    let semaine = semaines.find((s) =>
-      isSameWeek(dateObj, s.range.start, { weekStartsOn: 1 })
-    );
-    if (!semaine) {
-      semaine = {
-        title: `Semaine du ${format(weekStart, "dd-MM-yyyy", { locale: fr })} au ${format(weekEnd, "dd-MM-yyyy", { locale: fr })}`,
-        range: { start: weekStart, end: weekEnd },
-        creneaux: [],
-      };
-      semaines.push(semaine);
-    }
-    semaine.creneaux.push(creneau);
-  });
-
-  // Optionnel : on retire les créneaux samedi/dimanche de l'affichage
-  semaines.forEach(sem => {
-    sem.creneaux = sem.creneaux.filter(c => {
-      const jour = parseISO(c.date_examen).getDay();
-      return jour >= 1 && jour <= 5; // lundi-vendredi
-    });
-  });
-
-  // Retirer les semaines "vides" éventuellement (tous créneaux samedi/dimanche)
-  return semaines.filter(s => s.creneaux.length > 0);
-}
-
 export const CollecteSurveillants = () => {
-  const [formData, setFormData] = useState({
-    nom: '',
-    prenom: '',
-    email: '',
-    telephone: '',
-    statut: '',
-    statut_autre: '',
-    faculte: '',
-    etp: null,
-    quota_surveillance: null,
-    disponibilites: {} as Record<string, boolean>,
-    commentaires_surveillance: {} as Record<string, string>,
-    noms_examens_obligatoires: {} as Record<string, string>,
-    preferences_jobiste: {
-      souhaite_maximum: false,
-      plusieurs_par_jour: false,
-      commentaires: ''
-    }
-  });
-
+  const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [surveillantId, setSurveillantId] = useState<string|null>(null);
-  const [disposEnregistrees, setDisposEnregistrees] = useState(false); // <--- voir si dispo déjà envoyées
-  const [disposInitiales, setDisposInitiales] = useState<any>(null);   // pour restauration en modification
+  const [surveillantData, setSurveillantData] = useState<any>(null);
+  const [disposEnregistrees, setDisposEnregistrees] = useState(false);
 
-  // Récupérer la session active pour afficher les créneaux
+  // Données pour profil inconnu
+  const [nom, setNom] = useState('');
+  const [prenom, setPrenom] = useState('');
+  const [telephone, setTelephone] = useState('');
+
+  // Surveillances à déduire
+  const [surveillancesADeduire, setSurveillancesADeduire] = useState(0);
+
+  // Disponibilités avec nouveau système
+  const [newDispos, setNewDispos] = useState<Record<string, { dispo: boolean, type_choix: string, nom_examen_selectionne: string }>>({});
+
+  // Récupérer la session active
   const { data: activeSession } = useQuery({
     queryKey: ['active-session-public'],
     queryFn: async () => {
@@ -160,109 +65,34 @@ export const CollecteSurveillants = () => {
     }
   });
 
-  // Ajout des nouveaux états pour surveillances à déduire
-  const [surveillancesADeduire, setSurveillancesADeduire] = useState(0);
-
-  // Pour le formulaire inconnu
-  const [nom, setNom] = useState('');
-  const [prenom, setPrenom] = useState('');
-
-  // Ajouter un effet pour vérifier l'email
+  // Vérifier l'email et charger le profil surveillant
   useEffect(() => {
-    // On vérifie l'email au blur pour ne pas requêter à chaque frappe
-    if (!formData.email || !activeSession) return;
-    let isCancelled = false;
-    (async () => {
-      // On recherche quelqu’un dans surveillants avec exact email
-      const { data, error } = await supabase
-        .from('surveillants')
-        .select('id, nom, prenom')
-        .eq('email', formData.email.trim())
-        .maybeSingle();
-      if (!isCancelled) {
-        if (!data) {
-          setSurveillantId(null);
-        } else {
-          setSurveillantId(data.id);
-          if (formData.nom === '' && formData.prenom === '') {
-            setFormData(f => ({ ...f, nom: data.nom, prenom: data.prenom }));
-          }
-        }
-      }
-    })();
-    return () => { isCancelled = true; };
-  }, [formData.email, activeSession]);
-
-  // Lorsqu'on charge le profil surveillant, on récupère aussi surveillances_a_deduire si existant
-  useEffect(() => {
-    if (!formData.email || !activeSession) return;
+    if (!email || !activeSession) return;
     let isCancelled = false;
     (async () => {
       const { data, error } = await supabase
         .from('surveillants')
-        .select('id, nom, prenom, surveillances_a_deduire')
-        .eq('email', formData.email.trim())
+        .select('id, nom, prenom, type, quota, surveillances_a_deduire')
+        .eq('email', email.trim())
         .maybeSingle();
       if (!isCancelled) {
         if (!data) {
           setSurveillantId(null);
+          setSurveillantData(null);
           setSurveillancesADeduire(0);
         } else {
           setSurveillantId(data.id);
+          setSurveillantData(data);
           setSurveillancesADeduire(data.surveillances_a_deduire || 0);
-          if (formData.nom === '' && formData.prenom === '') {
-            setFormData(f => ({ ...f, nom: data.nom, prenom: data.prenom }));
-          }
+          setNom(data.nom);
+          setPrenom(data.prenom);
         }
       }
     })();
     return () => { isCancelled = true; };
-  }, [formData.email, activeSession]);
+  }, [email, activeSession]);
 
-  // Affichage principal du formulaire : email requis pour tout le monde
-  if (!formData.email) {
-    return (
-      <div className="max-w-md mx-auto space-y-6">
-        <div className="bg-white p-6 rounded shadow">
-          <label className="block text-sm font-semibold mb-2">Votre email *</label>
-          <Input
-            value={formData.email}
-            onChange={e => setFormData(prev => ({ ...prev, email: e.target.value }))}
-            type="email"
-            placeholder="prenom.nom@uclouvain.be"
-            required
-          />
-        </div>
-      </div>
-    );
-  }
-
-  // Affichage panel surveillant reconnu ou inconnu
-  let profilePanel = null;
-  if (surveillantId) {
-    profilePanel = (
-      <SurveillantProfilePanel
-        surveillant={{ ...formData, id: surveillantId }}
-        telephone={formData.telephone}
-        setTelephone={v => setFormData(f => ({ ...f, telephone: v }))}
-        surveillancesADeduire={surveillancesADeduire}
-        setSurveillancesADeduire={setSurveillancesADeduire}
-        onDemandeModif={() => {}}  // Correction : ajout du handler requis
-      />
-    );
-  } else {
-    profilePanel = (
-      <UnknownSurveillantForm
-        nom={nom}
-        setNom={setNom}
-        prenom={prenom}
-        setPrenom={setPrenom}
-        telephone={formData.telephone}
-        setTelephone={v => setFormData(f => ({ ...f, telephone: v }))}
-      />
-    );
-  }
-
+  // Récupérer les examens pour créer les créneaux
   const { data: examens } = useQuery({
     queryKey: ['examens-public', activeSession?.id],
     queryFn: async (): Promise<ExamenSlot[]> => {
@@ -272,6 +102,7 @@ export const CollecteSurveillants = () => {
         .from('examens')
         .select('id, date_examen, heure_debut, heure_fin, matiere, salle')
         .eq('session_id', activeSession.id)
+        .eq('statut_validation', 'VALIDE')
         .order('date_examen')
         .order('heure_debut');
 
@@ -281,7 +112,7 @@ export const CollecteSurveillants = () => {
     enabled: !!activeSession?.id
   });
 
-  // Rendu des créneaux uniques pour la sélection
+  // Créer les créneaux uniques
   let uniqueCreneaux: {
     examenIds: string[];
     date_examen: string;
@@ -290,7 +121,6 @@ export const CollecteSurveillants = () => {
   }[] = [];
 
   if (examens && examens.length > 0) {
-    // Utilise un map pour éviter les doublons sur [date_examen, heure_debut, heure_fin]
     const creneauMap = new Map();
     for (const ex of examens) {
       const key = `${ex.date_examen}_${ex.heure_debut}_${ex.heure_fin}`;
@@ -308,63 +138,46 @@ export const CollecteSurveillants = () => {
     uniqueCreneaux = Array.from(creneauMap.values());
   }
 
-  // Pré-remplir les données précédentes si elles existent (en mode modification)
+  // Charger les disponibilités existantes
   useEffect(() => {
     if (!surveillantId || !activeSession?.id) return;
     (async () => {
-      // On cherche s'il existe déjà des disponibilités pour cet utilisateur/session
       const { data, error } = await supabase
         .from('disponibilites')
-        .select('examen_id, commentaire_surveillance_obligatoire, nom_examen_obligatoire')
+        .select('date_examen, heure_debut, heure_fin, type_choix, nom_examen_selectionne')
         .eq('surveillant_id', surveillantId)
         .eq('session_id', activeSession.id);
       if (!error && data && data.length > 0) {
-        // On marque qu'il y avait des dispos...
         setDisposEnregistrees(true);
-        // On génère un objet pour cochage et commentaires
-        const newDispos: Record<string, boolean> = {};
-        const newCommentaires: Record<string, string> = {};
-        const newNomsExamens: Record<string, string> = {};
+        const loadedDispos: Record<string, { dispo: boolean, type_choix: string, nom_examen_selectionne: string }> = {};
         data.forEach((row: any) => {
-          newDispos[row.examen_id] = true;
-          if (row.commentaire_surveillance_obligatoire)
-            newCommentaires[row.examen_id] = row.commentaire_surveillance_obligatoire;
-          if (row.nom_examen_obligatoire)
-            newNomsExamens[row.examen_id] = row.nom_examen_obligatoire;
+          const key = `${row.date_examen}|${row.heure_debut}|${row.heure_fin}`;
+          loadedDispos[key] = {
+            dispo: true,
+            type_choix: row.type_choix || 'souhaitee',
+            nom_examen_selectionne: row.nom_examen_selectionne || ''
+          };
         });
-        setFormData(prev => ({
-          ...prev,
-          disponibilites: newDispos,
-          commentaires_surveillance: newCommentaires,
-          noms_examens_obligatoires: newNomsExamens
-        }));
-        // Stockage des données initiales pour restauration éventuelle
-        setDisposInitiales({
-          disponibilites: newDispos,
-          commentaires_surveillance: newCommentaires,
-          noms_examens_obligatoires: newNomsExamens
-        });
+        setNewDispos(loadedDispos);
       }
     })();
-  // eslint-disable-next-line
-  }, [surveillantId, activeSession?.id]); // (on surveille surveillantId seulement au premier rendu)
+  }, [surveillantId, activeSession?.id]);
 
-  // ----------------- Correction sur les handlers, regroupement pour éviter les redéfinitions -----------------------------
-  // On place ces fonctions à un seul endroit de la fonction composant.
-  const [newDispos, setNewDispos] = useState<Record<string, { dispo: boolean, type_choix: string, nom_examen_selectionne: string }>>({});
-
+  // Handlers pour les disponibilités
   const handleDisponibleChange = (key: string, checked: boolean) => {
     setNewDispos(d => ({
       ...d,
-      [key]: { ...d[key], dispo: checked, type_choix: d[key]?.type_choix || 'souhaitee' }
+      [key]: { ...d[key], dispo: checked, type_choix: d[key]?.type_choix || 'souhaitee', nom_examen_selectionne: d[key]?.nom_examen_selectionne || '' }
     }));
   };
+
   const handleTypeChange = (key: string, type: string) => {
     setNewDispos(d => ({
       ...d,
       [key]: { ...d[key], type_choix: type }
     }));
   };
+
   const handleNomExamenChange = (key: string, val: string) => {
     setNewDispos(d => ({
       ...d,
@@ -372,7 +185,190 @@ export const CollecteSurveillants = () => {
     }));
   };
 
-  // Affichage des créneaux sous forme simplifiée
+  // Soumission du formulaire
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!email || !telephone) {
+      toast({
+        title: "Champs requis",
+        description: "Veuillez remplir l'email et le téléphone.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Pour surveillant inconnu, créer le profil
+    let usedSurveillantId = surveillantId;
+    if (!surveillantId) {
+      if (!nom || !prenom) {
+        toast({
+          title: "Champs requis",
+          description: "Veuillez remplir le nom et prénom.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const { data: surveillantObj } = await supabase
+        .from('surveillants')
+        .insert({
+          email: email,
+          nom,
+          prenom,
+          telephone: telephone,
+          statut: 'candidat',
+          type: 'Candidat'
+        })
+        .select('id')
+        .single();
+      usedSurveillantId = surveillantObj?.id;
+    } else {
+      // Mettre à jour les surveillances à déduire
+      await supabase
+        .from('surveillants')
+        .update({ 
+          surveillances_a_deduire: surveillancesADeduire,
+          telephone: telephone 
+        })
+        .eq('id', surveillantId);
+    }
+
+    // Préparer les disponibilités
+    const listDispos = Object.entries(newDispos)
+      .filter(([_, d]) => d.dispo)
+      .map(([key, d]) => {
+        const [date_examen, heure_debut, heure_fin] = key.split("|");
+        return {
+          surveillant_id: usedSurveillantId,
+          session_id: activeSession?.id,
+          date_examen,
+          heure_debut,
+          heure_fin,
+          est_disponible: true,
+          type_choix: d.type_choix,
+          nom_examen_selectionne: d.nom_examen_selectionne
+        };
+      });
+
+    if (listDispos.length === 0) {
+      toast({
+        title: "Aucune disponibilité",
+        description: "Veuillez sélectionner au moins un créneau.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Supprimer les anciennes disponibilités
+    if (usedSurveillantId) {
+      await supabase
+        .from('disponibilites')
+        .delete()
+        .eq('surveillant_id', usedSurveillantId)
+        .eq('session_id', activeSession?.id);
+    }
+
+    // Insérer les nouvelles disponibilités
+    await supabase.from('disponibilites').insert(listDispos);
+
+    toast({
+      title: "Sauvegardé",
+      description: "Vos disponibilités ont été enregistrées avec succès.",
+    });
+    setSubmitted(true);
+    setDisposEnregistrees(true);
+  };
+
+  // Affichage conditionnel
+  if (!email) {
+    return (
+      <div className="max-w-md mx-auto space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Collecte des disponibilités de surveillance</CardTitle>
+            <CardDescription>
+              Veuillez saisir votre adresse email pour commencer
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="email">Votre email *</Label>
+                <Input
+                  id="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  type="email"
+                  placeholder="prenom.nom@uclouvain.be"
+                  required
+                />
+              </div>
+              <Button 
+                onClick={() => email && setEmail(email)}
+                disabled={!email}
+                className="w-full"
+              >
+                Continuer
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (submitted || disposEnregistrees) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <CollecteHeader title="Gestion des Surveillances d'Examen" />
+        <Card className="border-green-200">
+          <CardHeader className="text-center">
+            <CardTitle className="text-green-800">Disponibilités enregistrées !</CardTitle>
+            <CardDescription>
+              Merci pour votre candidature. Vos disponibilités ont été transmises au service des surveillances.
+            </CardDescription>
+            <div className="mt-4 flex justify-center">
+              <Button
+                variant="outline"
+                className="border-blue-600 text-blue-600"
+                onClick={() => setSubmitted(false)}
+              >
+                Modifier mes disponibilités
+              </Button>
+            </div>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
+
+  // Affichage principal du formulaire
+  let profilePanel = null;
+  if (surveillantData) {
+    profilePanel = (
+      <SurveillantProfilePanel
+        surveillant={{ ...surveillantData, email }}
+        telephone={telephone}
+        setTelephone={setTelephone}
+        surveillancesADeduire={surveillancesADeduire}
+        setSurveillancesADeduire={setSurveillancesADeduire}
+        onDemandeModif={() => {}}
+      />
+    );
+  } else {
+    profilePanel = (
+      <UnknownSurveillantForm
+        nom={nom}
+        setNom={setNom}
+        prenom={prenom}
+        setPrenom={setPrenom}
+        telephone={telephone}
+        setTelephone={setTelephone}
+      />
+    );
+  }
+
   const creneauRows = (uniqueCreneaux || []).map(creneau => {
     const key = `${creneau.date_examen}|${creneau.heure_debut}|${creneau.heure_fin}`;
     const value = newDispos[key] || { dispo: false, type_choix: 'souhaitee', nom_examen_selectionne: "" };
@@ -389,277 +385,47 @@ export const CollecteSurveillants = () => {
     );
   });
 
-  const submitMutation = useMutation({
-    mutationFn: async (dispoData: typeof formData) => {
-      if (!surveillantId || !activeSession?.id) throw new Error("Vous n'êtes pas autorisé.");
-
-      // Supprimer les disponibilités précédentes
-      await supabase
-        .from('disponibilites')
-        .delete()
-        .eq('surveillant_id', surveillantId)
-        .eq('session_id', activeSession.id);
-
-      // Préparer les nouvelles disponibilités avec commentaires
-      let dispoList = Object.entries(newDispos)
-        .filter(([_, d]) => d.dispo)
-        .map(([key, d]) => {
-          const [date_examen, heure_debut, heure_fin] = key.split("|");
-          return {
-            surveillant_id: surveillantId ?? null,
-            session_id: activeSession?.id ?? null,
-            date_examen,
-            heure_debut,
-            heure_fin,
-            est_disponible: true,
-            type_choix: d.type_choix,
-            nom_examen_selectionne: d.nom_examen_selectionne
-          };
-        });
-
-      // Déduplication renforcée : garder UNE entrée par (date_examen, heure_debut, heure_fin)
-      const uniqueDispoList: any[] = [];
-      const keys = new Set();
-      for (const d of dispoList) {
-        const key = d && `${d.surveillant_id}_${d.session_id}_${d.date_examen}_${d.heure_debut}_${d.heure_fin}`;
-        if (!keys.has(key)) {
-          keys.add(key);
-          uniqueDispoList.push(d);
-        }
-      }
-
-      if (uniqueDispoList.length === 0) throw new Error("Veuillez sélectionner au moins un créneau.");
-
-      // Insérer les disponibilités dédupliquées
-      const { error } = await supabase
-        .from('disponibilites')
-        .insert(uniqueDispoList);
-      if (error) throw error;
-
-      // Enregistrer/mettre à jour les informations du candidat
-      const candidatData = {
-        nom: dispoData.nom,
-        prenom: dispoData.prenom,
-        email: dispoData.email,
-        telephone: dispoData.telephone,
-        statut: dispoData.statut,
-        statut_autre: dispoData.statut_autre,
-        faculte: dispoData.faculte,
-        etp: dispoData.etp,
-        quota_surveillance: dispoData.quota_surveillance,
-        preferences_jobiste: dispoData.statut === 'Jobiste' ? dispoData.preferences_jobiste : null,
-        session_id: activeSession.id
-      };
-
-      // Vérifier si le candidat existe déjà
-      const { data: existingCandidat } = await supabase
-        .from('candidats_surveillance')
-        .select('id')
-        .eq('email', dispoData.email)
-        .eq('session_id', activeSession.id)
-        .maybeSingle();
-
-      if (existingCandidat) {
-        await supabase
-          .from('candidats_surveillance')
-          .update(candidatData)
-          .eq('id', existingCandidat.id);
-      } else {
-        await supabase
-          .from('candidats_surveillance')
-          .insert(candidatData);
-      }
-
-      return true;
-    },
-    onSuccess: () => {
-      setSubmitted(true);
-      setDisposEnregistrees(true);
-      // Sauvegarde les données de dispos pour une future modification
-      setDisposInitiales({
-        disponibilites: formData.disponibilites,
-        commentaires_surveillance: formData.commentaires_surveillance,
-        noms_examens_obligatoires: formData.noms_examens_obligatoires
-      });
-      toast({
-        title: "Disponibilités enregistrées",
-        description: "Merci ! Vos disponibilités ont été enregistrées avec succès.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Erreur lors de l'enregistrement.",
-        variant: "destructive"
-      });
-    }
-  });
-
-  const handleDisponibiliteChange = (examenId: string, checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      disponibilites: {
-        ...prev.disponibilites,
-        [examenId]: checked
-      }
-    }));
-  };
-
-  const handleCreneauChange = (creneauIds: string[], checked: boolean) => {
-    setFormData((prev) => {
-      const updated = { ...prev.disponibilites };
-      creneauIds.forEach((id) => {
-        updated[id] = checked;
-      });
-      return {
-        ...prev,
-        disponibilites: updated,
-      };
-    });
-  };
-
-  const handleCommentaireChange = (examenId: string, commentaire: string) => {
-    setFormData(prev => ({
-      ...prev,
-      commentaires_surveillance: {
-        ...prev.commentaires_surveillance,
-        [examenId]: commentaire
-      }
-    }));
-  };
-
-  const handleNomExamenChange2 = (examenId: string, nomExamen: string) => {
-    setFormData(prev => ({
-      ...prev,
-      noms_examens_obligatoires: {
-        ...prev.noms_examens_obligatoires,
-        [examenId]: nomExamen
-      }
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.email || !formData.telephone) {
-      toast({
-        title: "Champs requis",
-        description: "Veuillez remplir tous les champs obligatoires.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Pour surveillant connu : on MAJ le champ surveillances à déduire
-    if (surveillantId) {
-      await supabase
-        .from('surveillants')
-        .update({ surveillances_a_deduire: surveillancesADeduire })
-        .eq('id', surveillantId);
-    }
-
-    // Préparer les enregistrements dans disponibilites
-    const listDispos = Object.entries(newDispos)
-      .filter(([_, d]) => d.dispo)
-      .map(([key, d]) => {
-        const [date_examen, heure_debut, heure_fin] = key.split("|");
-        return {
-          surveillant_id: surveillantId ?? null,
-          session_id: activeSession?.id ?? null,
-          date_examen,
-          heure_debut,
-          heure_fin,
-          est_disponible: true,
-          type_choix: d.type_choix,
-          nom_examen_selectionne: d.nom_examen_selectionne
-        };
-      });
-
-    // Pour profil inconnu, créer une candidature et surveillant si pas déjà fait
-    let usedSurveillantId = surveillantId;
-    if (!surveillantId) {
-      const { data: surveillantObj } = await supabase
-        .from('surveillants')
-        .insert({
-          email: formData.email,
-          nom,
-          prenom,
-          telephone: formData.telephone,
-          statut: 'candidat',
-          type: 'Candidat'
-        })
-        .select('id')
-        .single();
-      usedSurveillantId = surveillantObj?.id;
-      await supabase.from('candidats_surveillance').insert({
-        nom,
-        prenom,
-        email: formData.email,
-        telephone: formData.telephone,
-        statut: 'candidat_spontané'
-      });
-    }
-    // Supprimer les anciennes dispos de l'utilisateur/email
-    if (usedSurveillantId) {
-      await supabase
-        .from('disponibilites')
-        .delete()
-        .eq('surveillant_id', usedSurveillantId)
-        .eq('session_id', activeSession?.id);
-    }
-    // Insérer les nouvelles dispos (pour tout le monde)
-    if (listDispos.length > 0) {
-      await supabase.from('disponibilites').insert(
-        listDispos.map(d => ({
-          ...d,
-          surveillant_id: usedSurveillantId ?? null,
-          session_id: activeSession?.id ?? null
-        }))
-      );
-    }
-
-    toast({
-      title: "Sauvegardé",
-      description: "Vos disponibilités ont été enregistrées avec succès.",
-    });
-    // Afficher confirmation, reset ou navigation
-  };
-
-  // Si les dispos sont envoyées (confirmation), afficher recap + bouton modifier
-  if (submitted || disposEnregistrees) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <CollecteHeader title="Gestion des Surveillances d'Examen" />
-        <Card className="border-uclouvain-cyan">
-          <CardHeader className="text-center">
-            <CardTitle className="text-uclouvain-blue">Disponibilités enregistrées !</CardTitle>
-            <CardDescription>
-              Merci pour votre candidature. Vos disponibilités ont été transmises au service des surveillances.
-            </CardDescription>
-            <div className="mt-4 flex justify-center">
-              <Button
-                variant="outline"
-                className="border-uclouvain-blue text-uclouvain-blue"
-                onClick={() => setSubmitted(false)}
-              >
-                Modifier mes disponibilités
-              </Button>
-            </div>
-          </CardHeader>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <form className="max-w-2xl mx-auto space-y-4" onSubmit={handleSubmit}>
-      {profilePanel}
-      <div className="bg-white p-4 rounded space-y-4">
-        <h4 className="font-semibold mb-2">Créneaux de surveillance disponibles</h4>
-        {creneauRows}
-      </div>
-      <Button type="submit" className="w-full mt-4">
-        Enregistrer mes disponibilités
-      </Button>
-    </form>
+    <div className="max-w-4xl mx-auto p-6">
+      <CollecteHeader title="Collecte des disponibilités de surveillance" />
+      
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Email : {email}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {profilePanel}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2">
+              <Users className="h-5 w-5" />
+              <span>Créneaux de surveillance disponibles</span>
+            </CardTitle>
+            <CardDescription>
+              Sélectionnez les créneaux où vous êtes disponible. Vous pouvez préciser si c'est une surveillance obligatoire ou souhaitée.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {creneauRows.length > 0 ? creneauRows : (
+                <p className="text-center text-gray-500 py-8">
+                  Aucun créneau de surveillance disponible pour cette session.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-center">
+          <Button type="submit" size="lg" className="px-8">
+            Enregistrer mes disponibilités
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 };

@@ -26,7 +26,7 @@ export const EnseignantExamenForm = () => {
       if (!activeSession?.id) return [];
       const { data, error } = await supabase
         .from('examens')
-        .select(`*, personnes_aidantes (*)`)
+        .select(`*, personnes_aidantes (*), enseignant_nom, enseignant_email`)
         .eq('session_id', activeSession.id)
         .eq('statut_validation', 'VALIDE')
         .eq('is_active', true)
@@ -105,7 +105,7 @@ export const EnseignantExamenForm = () => {
   const refreshSelectedExamen = async (id: string) => {
     const { data, error } = await supabase
       .from('examens')
-      .select(`*, personnes_aidantes (*)`)
+      .select(`*, personnes_aidantes (*), enseignant_nom, enseignant_email`)
       .eq('id', id)
       .maybeSingle();
     if (data) setSelectedExamen(data);
@@ -128,7 +128,7 @@ export const EnseignantExamenForm = () => {
             examens={examensValides || []}
             selectedExamen={selectedExamen}
             onSelectExamen={setSelectedExamen}
-            placeholder="Recherchez par code, matière ou salle..."
+            placeholder="Recherchez par code, matière, salle ou nom d'enseignant..."
           />
         </CardContent>
       </Card>
