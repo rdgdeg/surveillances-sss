@@ -1,9 +1,10 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Users, Calendar, AlertTriangle, CheckCircle, TrendingUp, Calculator } from "lucide-react";
+import { Users, Calendar, AlertTriangle, CheckCircle, TrendingUp, Calculator, UserCheck, FileText, Briefcase } from "lucide-react";
 import { ExamensCompletsModal } from "./ExamensCompletsModal";
 import { useState } from "react";
 
@@ -16,6 +17,12 @@ interface DashboardStats {
   progressionAttributions: number;
   surveillantsActifs: number;
   sessionActive: string;
+  surveillancesJobistes: number;
+  surveillantsParType: { [key: string]: number };
+  disposRemplies: number;
+  totalSurveillants: number;
+  renseignementsEnseignants: number;
+  totalExamensValides: number;
 }
 
 export const DashboardOverview = () => {
@@ -24,7 +31,7 @@ export const DashboardOverview = () => {
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboard-stats'],
-    queryFn: async (): Promise<any> => {
+    queryFn: async (): Promise<DashboardStats> => {
       // Get active session
       const { data: activeSession } = await supabase
         .from('sessions')
@@ -39,7 +46,7 @@ export const DashboardOverview = () => {
       // Get total surveillants required
       const { data: examens } = await supabase
         .from('examens')
-        .select('id, matiere, date_examen, heure_debut, heure_fin, salle, surveillants_a_attribuer')
+        .select('id, matiere, date_examen, heure_debut, heure_fin, salle, surveillants_a_attribuer, besoins_confirmes_par_enseignant, statut_validation')
         .eq('session_id', activeSession.id);
 
       const totalSurveillantsRequis = examens?.reduce((sum, exam) =>
@@ -48,7 +55,7 @@ export const DashboardOverview = () => {
       // Get attributions for all examens
       const { data: attributions } = await supabase
         .from('attributions')
-        .select('examen_id')
+        .select('examen_id, surveillant_id')
         .eq('session_id', activeSession.id);
 
       // Compte examens complets (attributions >= surveillants requis)
@@ -56,6 +63,17 @@ export const DashboardOverview = () => {
         acc[attr.examen_id] = (acc[attr.examen_id] || 0) + 1;
         return acc;
       }, {} as Record<string, number>) || {};
+
+      // Get surveillances by jobistes
+      const { data: surveillantsInfo } = await supabase
+        .from('surveillants')
+        .select('id, type')
+        .in('id', attributions?.map(a => a.surveillant_id) || []);
+
+      const surveillancesJobistes = attributions?.filter(attr => {
+        const surveillant = surveillantsInfo?.find(s => s.id === attr.surveillant_id);
+        return surveillant?.type === 'Jobiste';
+      }).length || 0;
 
       // Correction couverture/théorique (coverage = capacité/needs*100)
       const { data: quotas } = await supabase
@@ -91,6 +109,35 @@ export const DashboardOverview = () => {
         .eq('session_id', activeSession.id)
         .eq('is_active', true);
 
+      // Nouveaux stats demandés
+      
+      // Nombre de surveillants par type
+      const { data: allSurveillants } = await supabase
+        .from('surveillants')
+        .select('type')
+        .in('id', surveillantsActifs?.map(s => s.surveillant_id) || []);
+
+      const surveillantsParType = allSurveillants?.reduce((acc, s) => {
+        acc[s.type] = (acc[s.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>) || {};
+
+      // Nombre de dispos remplies
+      const { data: disposUniques } = await supabase
+        .from('disponibilites')
+        .select('surveillant_id')
+        .eq('session_id', activeSession.id)
+        .eq('est_disponible', true);
+
+      const surveillantsAvecDispos = new Set(disposUniques?.map(d => d.surveillant_id) || []);
+      const disposRemplies = surveillantsAvecDispos.size;
+      const totalSurveillants = surveillantsActifs?.length || 0;
+
+      // Renseignements enseignants
+      const examensValides = examens?.filter(e => e.statut_validation === 'VALIDE') || [];
+      const renseignementsEnseignants = examensValides.filter(e => e.besoins_confirmes_par_enseignant).length;
+      const totalExamensValides = examensValides.length;
+
       return {
         totalSurveillantsRequis,
         capaciteTheorique,
@@ -98,9 +145,15 @@ export const DashboardOverview = () => {
         examensTotal,
         examensComplets: examensComplets.length,
         progressionAttributions,
-        surveillantsActifs: surveillantsActifs?.length || 0,
+        surveillantsActifs: totalSurveillants,
         sessionActive: activeSession.name,
-        examensCompletsList: examensComplets
+        examensCompletsList: examensComplets,
+        surveillancesJobistes,
+        surveillantsParType,
+        disposRemplies,
+        totalSurveillants,
+        renseignementsEnseignants,
+        totalExamensValides
       };
     }
   });
@@ -114,7 +167,7 @@ export const DashboardOverview = () => {
   if (isLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
           <Card key={i} className="animate-pulse">
             <CardHeader className="space-y-0 pb-2">
               <div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -172,10 +225,9 @@ export const DashboardOverview = () => {
       {/* KPIs principaux */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
-          {/* Surveillants Requis (non-cliquable pour l'instant) */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Surveillants Requis
+              Surveillants à Trouver
             </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
@@ -186,44 +238,42 @@ export const DashboardOverview = () => {
             </p>
           </CardContent>
         </Card>
+
         <Card>
-          {/* Capacité Théorique */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Capacité Théorique
+              Nombre d'Examens
             </CardTitle>
-            <Calculator className="h-4 w-4 text-muted-foreground" />
+            <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.capaciteTheorique}</div>
+            <div className="text-2xl font-bold">{stats.examensTotal}</div>
             <p className="text-xs text-muted-foreground">
-              Basé sur les quotas ({stats.surveillantsActifs} surveillants)
+              Examens dans la session
             </p>
           </CardContent>
         </Card>
+
         <Card>
-          {/* Taux de Couverture */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Taux de Couverture
+              Surveillances Jobistes
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <Briefcase className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${getStatusColor(stats.tauxCouverture)}`}>
-              {stats.tauxCouverture.toFixed(1)}%
-            </div>
-            <div className="flex items-center space-x-2">
-              {getStatusBadge(stats.tauxCouverture)}
-            </div>
+            <div className="text-2xl font-bold">{stats.surveillancesJobistes}</div>
+            <p className="text-xs text-muted-foreground">
+              Assurées par des jobistes
+            </p>
           </CardContent>
         </Card>
+
         <Card
           className="cursor-pointer hover:bg-muted/30 transition"
           onClick={handleOpenExamensComplets}
           title="Voir la liste des examens complets"
         >
-          {/* Examens Complets cliquable */}
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Examens Complets
@@ -241,21 +291,88 @@ export const DashboardOverview = () => {
         </Card>
       </div>
 
+      {/* Nouvelles statistiques détaillées */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Surveillants par Type</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {Object.entries(stats.surveillantsParType).map(([type, count]) => (
+                <div key={type} className="flex justify-between items-center">
+                  <span className="text-sm font-medium">{type}</span>
+                  <Badge variant="outline">{count}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center space-x-2">
+              <UserCheck className="h-4 w-4" />
+              <span>Disponibilités Remplies</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold">
+                {stats.disposRemplies}/{stats.totalSurveillants}
+              </div>
+              <Progress 
+                value={(stats.disposRemplies / (stats.totalSurveillants || 1)) * 100} 
+                className="w-full" 
+              />
+              <p className="text-xs text-muted-foreground">
+                {((stats.disposRemplies / (stats.totalSurveillants || 1)) * 100).toFixed(1)}% de completion
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center space-x-2">
+              <Calculator className="h-4 w-4" />
+              <span>Renseignements Enseignants</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold">
+                {stats.renseignementsEnseignants}/{stats.totalExamensValides}
+              </div>
+              <Progress 
+                value={(stats.renseignementsEnseignants / (stats.totalExamensValides || 1)) * 100} 
+                className="w-full" 
+              />
+              <p className="text-xs text-muted-foreground">
+                {((stats.renseignementsEnseignants / (stats.totalExamensValides || 1)) * 100).toFixed(1)}% confirmés
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Détails et alertes */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Progression des Attributions</CardTitle>
+            <CardTitle>Capacité Théorique</CardTitle>
             <CardDescription>
-              Pourcentage d'examens avec tous les surveillants attribués
+              Basé sur les quotas des surveillants actifs
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              <Progress value={stats.progressionAttributions} className="w-full" />
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>{stats.examensComplets} complets</span>
-                <span>{stats.examensTotal - stats.examensComplets} restants</span>
+              <div className="text-2xl font-bold">{stats.capaciteTheorique}</div>
+              <div className={`text-lg font-semibold ${getStatusColor(stats.tauxCouverture)}`}>
+                Taux de couverture: {stats.tauxCouverture.toFixed(1)}%
+              </div>
+              <div className="flex items-center space-x-2">
+                {getStatusBadge(stats.tauxCouverture)}
               </div>
             </div>
           </CardContent>
@@ -284,7 +401,14 @@ export const DashboardOverview = () => {
                   </p>
                 </div>
               )}
-              {stats.tauxCouverture >= 100 && stats.progressionAttributions >= 80 && (
+              {stats.disposRemplies / stats.totalSurveillants < 0.8 && (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                  <p className="text-sm text-orange-800">
+                    <strong>Disponibilités manquantes:</strong> Moins de 80% des surveillants ont rempli leurs disponibilités.
+                  </p>
+                </div>
+              )}
+              {stats.tauxCouverture >= 100 && stats.progressionAttributions >= 80 && stats.disposRemplies / stats.totalSurveillants >= 0.8 && (
                 <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
                   <p className="text-sm text-green-800">
                     <strong>Situation normale:</strong> La capacité est suffisante et les attributions avancent bien.
