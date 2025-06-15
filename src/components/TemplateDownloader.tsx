@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -94,44 +93,44 @@ export const TemplateDownloader = () => {
     createExcelTemplate("surveillants", templateData, "template_surveillants_complet.xlsx");
   };
 
+  // Correction du template d'examens avec format de date JJMMAAAA,
+  // suppression de nombre_surveillants et type_requis
   const downloadExamenTemplate = () => {
     const templateData = [
       {
-        date_examen: "2024-01-15",
+        date_examen: "15012024", // Format JJMMAAAA
         heure_debut: "08:30",
         heure_fin: "11:30", 
         matiere: "LPHYS1201 - Physique générale",
         salle: "HALL01",
-        nombre_surveillants: 3,
-        type_requis: "PAT",
         faculte: "FASB",
-        auditoire_original: "HALL01, HALL02"
+        auditoire_original: "HALL01, HALL02",
       },
       {
-        date_examen: "2024-01-15",
+        date_examen: "15012024",
         heure_debut: "08:30", 
         heure_fin: "11:30",
         matiere: "LPHYS1201 - Physique générale",
-        salle: "HALL02", 
-        nombre_surveillants: 2,
-        type_requis: "PAT",
+        salle: "HALL02",
         faculte: "FASB",
-        auditoire_original: "HALL01, HALL02"
+        auditoire_original: "HALL01, HALL02",
       },
       {
-        date_examen: "2024-01-16",
+        date_examen: "16012024",
         heure_debut: "13:30",
         heure_fin: "16:30",
         matiere: "LMECA2170 - Mécanique des fluides", 
         salle: "HALL03",
-        nombre_surveillants: 4,
-        type_requis: "Assistant",
         faculte: "EPL",
-        auditoire_original: ""
+        auditoire_original: "",
       }
     ];
     
-    createExcelTemplate("examens", templateData, "template_examens.xlsx");
+    createExcelTemplate(
+      "examens",
+      templateData,
+      "template_examens.xlsx"
+    );
   };
 
   const downloadDisponibiliteTemplate = () => {
@@ -181,6 +180,7 @@ export const TemplateDownloader = () => {
     createExcelTemplate("contraintes", templateData, "template_contraintes_salles.xlsx");
   };
 
+  // Adapter la config des colonnes dans le tableau templates
   const templates = [
     {
       id: "surveillants",
@@ -195,9 +195,17 @@ export const TemplateDownloader = () => {
     {
       id: "examens", 
       title: "Template Examens",
-      description: "Planning des examens avec facultés organisatrices et auditoires multiples",
+      description: "Planning des examens - la date doit être au format JJMMAAAA (ex: 15012024). Le nombre de surveillants sera calculé automatiquement selon les contraintes d'auditoires.",
       icon: Calendar,
-      columns: ["date_examen", "heure_debut", "heure_fin", "matiere", "salle", "nombre_surveillants", "type_requis", "faculte", "auditoire_original"],
+      columns: [
+        "date_examen (JJMMAAAA)",
+        "heure_debut",
+        "heure_fin",
+        "matiere",
+        "salle",
+        "faculte",
+        "auditoire_original"
+      ],
       action: downloadExamenTemplate,
       color: "bg-green-50 border-green-200 text-green-800"
     },
