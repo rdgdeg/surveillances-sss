@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,7 @@ import { Upload, CheckCircle, FileSpreadsheet, X, AlertCircle, Shield } from "lu
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
+import * as XLSX from "xlsx";
 
 interface NewFileUploaderProps {
   title: string;
@@ -30,6 +32,17 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
   const [fileName, setFileName] = useState("");
   const { data: activeSession } = useActiveSession();
 
+  // Nouvelle fonction : parser Excel en tableau 2D string
+  const parseExcel = async (file: File): Promise<string[][]> => {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array' });
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+    // json est un tableau d'arrays (chaque ligne = array de valeurs de colonnes)
+    return json as string[][];
+  };
+
+  // On garde le parseur CSV pour les autres types si besoin
   const parseCSV = (csvText: string): string[][] => {
     const lines = csvText.split('\n').filter(line => line.trim());
     return lines.map(line => line.split(';').map(cell => cell.trim()));
@@ -314,34 +327,52 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
       return;
     }
 
-    if (!file.name.endsWith('.csv')) {
-      toast({
-        title: "Format non supporté",
-        description: "Veuillez utiliser un fichier CSV (séparateur point-virgule).",
-        variant: "destructive"
-      });
-      return;
+    // Détection extension pour surveillants : uniquement .xlsx
+    if (fileType === 'surveillants') {
+      if (!file.name.endsWith('.xlsx')) {
+        toast({
+          title: "Format non supporté",
+          description: "Veuillez utiliser un fichier Excel (.xlsx) respectant le template pour l'import des surveillants.",
+          variant: "destructive"
+        });
+        return;
+      }
+    } else {
+      // Pour les autres types, on garde l'import CSV
+      if (!file.name.endsWith('.csv')) {
+        toast({
+          title: "Format non supporté",
+          description: "Veuillez utiliser un fichier CSV (séparateur point-virgule).",
+          variant: "destructive"
+        });
+        return;
+      }
     }
 
     setIsUploading(true);
     setFileName(file.name);
 
     try {
-      const text = await file.text();
-      const data = parseCSV(text);
-      
-      if (data.length < 2) {
+      let data: string[][];
+      if (fileType === "surveillants") {
+        data = await parseExcel(file);
+      } else {
+        const text = await file.text();
+        data = parseCSV(text);
+      }
+
+      if (!data || data.length < 2) {
         throw new Error("Le fichier doit contenir au moins une ligne de données");
       }
 
       const result = await processData(data, fileType);
-      
+
       toast({
         title: "Import réussi",
         description: result.message || `${result.processed} ${result.type} importé(s) avec succès.`,
         variant: "default"
       });
-      
+
       onUpload(true);
     } catch (error: any) {
       console.error('Upload error:', error);
@@ -360,7 +391,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
-    
+
     const file = e.dataTransfer.files[0];
     if (file) {
       handleFileUpload(file);
@@ -381,6 +412,10 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
   };
 
   const isSensitiveFileType = fileType === 'surveillants';
+
+  // Adapter les textes UI selon le type de fichier (phrases, accept, etc)
+  const acceptFileTypes = fileType === 'surveillants' ? '.xlsx' : '.csv';
+  const uploadFormatText = fileType === 'surveillants' ? "Format : Excel (.xlsx)" : "Format : CSV avec séparateur point-virgule (;)";
 
   return (
     <Card className={`transition-all duration-200 ${uploaded ? 'border-green-200 bg-green-50' : isDragOver ? 'border-blue-300 bg-blue-50' : ''} ${isSensitiveFileType ? 'border-l-4 border-l-red-500' : ''}`}>
@@ -457,7 +492,7 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
                 <Upload className="mx-auto h-10 w-10 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-600 mb-2">
-                    Glissez votre fichier CSV ici ou
+                    Glissez votre fichier {fileType === "surveillants" ? "Excel" : "CSV"} ici ou
                   </p>
                   <label className="cursor-pointer">
                     <Button variant="outline" size="sm" asChild disabled={!activeSession}>
@@ -466,14 +501,14 @@ export const NewFileUploader = ({ title, description, fileType, expectedFormat, 
                     <input
                       type="file"
                       className="hidden"
-                      accept=".csv"
+                      accept={acceptFileTypes}
                       onChange={handleFileSelect}
                       disabled={!activeSession}
                     />
                   </label>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Format : CSV avec séparateur point-virgule (;)
+                  {uploadFormatText}
                 </p>
               </div>
             )}
