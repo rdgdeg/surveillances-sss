@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -18,18 +19,10 @@ export const DeleteAllExamensButton = () => {
         throw new Error("Aucune session active");
       }
 
-      // D'abord supprimer les attributions liées aux examens
-      const { error: attributionsError } = await supabase
-        .from('attributions')
-        .delete()
-        .eq('session_id', activeSession.id);
+      // Log de diagnostic
+      console.log("[DeleteAllExamens] Session active utilisée :", activeSession.id);
 
-      if (attributionsError) {
-        console.error('Erreur suppression attributions:', attributionsError);
-        throw new Error("Erreur lors de la suppression des attributions");
-      }
-
-      // Supprimer les validations d'examens
+      // Récupérer d'abord les examens à supprimer pour cette session
       const { data: examensToDelete, error: selectExamensError } = await supabase
         .from('examens')
         .select('id')
@@ -39,71 +32,86 @@ export const DeleteAllExamensButton = () => {
         throw new Error("Erreur lors de la récupération des examens à supprimer");
       }
 
-      let deletedCount = 0;
-      if (examensToDelete && examensToDelete.length > 0) {
-        const examenIds = examensToDelete.map(e => e.id);
-        
-        // Supprimer les validations
-        const { error: validationsError } = await supabase
-          .from('examens_validation')
-          .delete()
-          .in('examen_id', examenIds);
-
-        if (validationsError) {
-          console.error('Erreur suppression validations:', validationsError);
-          throw new Error("Erreur lors de la suppression des validations");
-        }
-
-        // Supprimer les créneaux de surveillance
-        const { error: creneauxError } = await supabase
-          .from('creneaux_surveillance')
-          .delete()
-          .in('examen_id', examenIds);
-
-        if (creneauxError) {
-          console.error('Erreur suppression créneaux:', creneauxError);
-          throw new Error("Erreur lors de la suppression des créneaux");
-        }
-
-        // Supprimer les personnes aidantes
-        const { error: aidantesError } = await supabase
-          .from('personnes_aidantes')
-          .delete()
-          .in('examen_id', examenIds);
-
-        if (aidantesError) {
-          console.error('Erreur suppression personnes aidantes:', aidantesError);
-          throw new Error("Erreur lors de la suppression des personnes aidantes");
-        }
-
-        // Enfin, suppression des examens
-        const { error: examensError, count } = await supabase
-          .from('examens')
-          .delete()
-          .eq('session_id', activeSession.id);
-
-        if (examensError) {
-          console.error('Erreur suppression examens:', examensError);
-          throw new Error("Erreur lors de la suppression des examens");
-        }
-
-        deletedCount = examenIds.length;
+      if (!examensToDelete || examensToDelete.length === 0) {
+        // Aucun examen à supprimer, on arrête là
+        return { deleted: 0, notFound: true };
       }
 
-      return { deleted: deletedCount };
+      // ID des examens trouvés
+      const examenIds = examensToDelete.map(e => e.id);
+      console.log("[DeleteAllExamens] Examens trouvés à supprimer :", examenIds);
+
+      // Supprimer toutes les dépendances liées
+      // 1. Attributions
+      const { error: attributionsError } = await supabase
+        .from('attributions')
+        .delete()
+        .eq('session_id', activeSession.id);
+      if (attributionsError) {
+        console.error('Erreur suppression attributions:', attributionsError);
+        throw new Error("Erreur lors de la suppression des attributions");
+      }
+
+      // 2. Validations
+      const { error: validationsError } = await supabase
+        .from('examens_validation')
+        .delete()
+        .in('examen_id', examenIds);
+      if (validationsError) {
+        console.error('Erreur suppression validations:', validationsError);
+        throw new Error("Erreur lors de la suppression des validations");
+      }
+
+      // 3. Créneaux de surveillance
+      const { error: creneauxError } = await supabase
+        .from('creneaux_surveillance')
+        .delete()
+        .in('examen_id', examenIds);
+      if (creneauxError) {
+        console.error('Erreur suppression créneaux:', creneauxError);
+        throw new Error("Erreur lors de la suppression des créneaux");
+      }
+
+      // 4. Personnes aidantes
+      const { error: aidantesError } = await supabase
+        .from('personnes_aidantes')
+        .delete()
+        .in('examen_id', examenIds);
+      if (aidantesError) {
+        console.error('Erreur suppression personnes aidantes:', aidantesError);
+        throw new Error("Erreur lors de la suppression des personnes aidantes");
+      }
+
+      // Supprimer les examens eux-mêmes
+      const { error: examensError } = await supabase
+        .from('examens')
+        .delete()
+        .eq('session_id', activeSession.id);
+      if (examensError) {
+        console.error('Erreur suppression examens:', examensError);
+        throw new Error("Erreur lors de la suppression des examens");
+      }
+
+      return { deleted: examenIds.length, notFound: false };
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['examens'] });
       queryClient.invalidateQueries({ queryKey: ['examens-review'] });
       queryClient.invalidateQueries({ queryKey: ['examens-validation'] });
       queryClient.invalidateQueries({ queryKey: ['attributions'] });
-      
-      toast({
-        title: "Suppression réussie",
-        description: `${data.deleted} examens et leurs données associées ont été supprimés.`,
-      });
-      
-      setIsOpen(false);
+
+      if (data.notFound) {
+        toast({
+          title: "Aucun examen à supprimer",
+          description: "Aucun examen n'a été trouvé pour la session sélectionnée.",
+        });
+      } else {
+        toast({
+          title: "Suppression réussie",
+          description: `${data.deleted} examens et leurs données associées ont été supprimés.`,
+        });
+        setIsOpen(false);
+      }
     },
     onError: (error: any) => {
       toast({
@@ -175,3 +183,4 @@ export const DeleteAllExamensButton = () => {
     </AlertDialog>
   );
 };
+
