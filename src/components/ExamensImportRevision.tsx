@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +7,12 @@ import { useExamensImportTemp, useUpdateExamenImportTemp, useBatchValidateExamen
 import { useActiveSession } from "@/hooks/useSessions";
 import { toast } from "@/hooks/use-toast";
 import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { Delete } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
-// <--- AJOUT utilitaire pour formater les heures et durée
+// <--- utilitaires d'affichage heures/date/durée (inchangé)
 function excelTimeToHHMM(t: any): string {
   if (typeof t === "number") {
     const totalMinutes = Math.round(t * 24 * 60);
@@ -66,9 +69,29 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   const updateMutation = useUpdateExamenImportTemp();
   const batchValidate = useBatchValidateExamensImport();
   const { data: contraintesAuditoires } = useContraintesAuditoires();
+  const queryClient = useQueryClient();
+
   const [editRow, setEditRow] = useState<string | null>(null);
   const [editData, setEditData] = useState<any>({});
   const [validating, setValidating] = useState(false);
+
+  // Pour la suppression
+  const [deleteRowId, setDeleteRowId] = useState<string | null>(null);
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // Suppression dans Supabase
+      const { error } = await supabase.from("examens_import_temp").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["examens-import-temp"] });
+      toast({ title: "Examen supprimé", description: "La ligne a été supprimée." });
+      setDeleteRowId(null);
+    },
+    onError: (error: any) => {
+      toast({ title: "Erreur", description: "Impossible de supprimer la ligne." });
+    }
+  });
 
   // Champs obligatoires à contrôler (corrigez ici selon vos colonnes)
   function getExamProblem(row: any) {
@@ -178,7 +201,7 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
                   {columns.map(col => <th key={col}>{col}</th>)}
                   <th>Surveillants théoriques</th>
                   <th>État</th>
-                  <th>Action</th>
+                  <th colSpan={2}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -192,7 +215,6 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
                         <td key={col}>{editRow === row.id
                           ? <EditableCell row={row} col={col} />
                           : (
-                            // Affichage valeurs formatées pour les colonnes concernées
                             ["Debut", "Heure_debut", "heure_debut"].includes(col) ? excelTimeToHHMM(row.data?.[col])
                             : ["Fin", "Heure_fin", "heure_fin"].includes(col) ? excelTimeToHHMM(row.data?.[col])
                             : ["Jour", "Date", "date_examen"].includes(col) ? excelDateString(row.data?.[col])
@@ -217,6 +239,38 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
                           : <Button size="sm" variant="ghost" onClick={() => handleEdit(row.id, row.data)}>Éditer</Button>
                         }
                       </td>
+                      <td>
+                        <AlertDialog open={deleteRowId === row.id} onOpenChange={open => { if (!open) setDeleteRowId(null); }}>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="icon"
+                              variant="destructive"
+                              title="Supprimer la ligne"
+                              onClick={() => setDeleteRowId(row.id)}
+                            >
+                              <Delete className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Voulez-vous vraiment supprimer cette ligne ?<br />
+                                Cette action est irréversible.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Annuler</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteMutation.mutate(row.id)}
+                                disabled={deleteMutation.isPending}
+                              >
+                                Supprimer
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </td>
                     </tr>
                   );
                 })}
@@ -233,4 +287,3 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     </Card>
   );
 }
-
