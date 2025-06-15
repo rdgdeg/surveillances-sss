@@ -129,6 +129,85 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     return null;
   }
 
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortAsc, setSortAsc] = useState(true);
+
+  // Correction inline
+  function EditableCell({ row, col }: { row: any, col: string }) {
+    if (editRow === row.id) {
+      return (
+        <Input
+          value={editData[col] ?? ""}
+          className="text-xs"
+          onChange={e => setEditData({ ...editData, [col]: e.target.value })}
+        />
+      );
+    }
+    // Ici : formatage si colonne = heure, date…
+    if (["Debut", "Heure_debut", "heure_debut"].includes(col)) return <span>{excelTimeToHHMM(row.data?.[col])}</span>;
+    if (["Fin", "Heure_fin", "heure_fin"].includes(col)) return <span>{excelTimeToHHMM(row.data?.[col])}</span>;
+    if (["Jour", "Date", "date_examen"].includes(col)) return <span>{excelDateString(row.data?.[col])}</span>;
+    if (["Duree", "Durée", "duree"].includes(col)) return <span>{excelDurationToHM(row.data?.[col])}</span>;
+    return <span>{row.data?.[col]?.toString() ?? ""}</span>;
+  }
+
+  // Calcule la liste des colonnes
+  let columns: string[] = [];
+  if (rows[0]) {
+    const dataCols = Object.keys(rows[0].data || {});
+    columns = IDEAL_COL_ORDER.filter(c => dataCols.includes(c));
+    columns = columns.concat(dataCols.filter(c => !columns.includes(c)));
+  }
+
+  // Appliquer la recherche sur toutes les colonnes concaténées
+  const filteredRows = rows.filter(row => {
+    if (!searchTerm.trim()) return true;
+    const globalString = [
+      ...columns.map(col => row.data?.[col]?.toString() ?? ""),
+      row.statut,
+      (getExamProblem(row).join(", ")),
+    ].join(" ").toLowerCase();
+    return globalString.includes(searchTerm.toLowerCase());
+  });
+
+  // Gestion du tri sur la colonne sélectionnée
+  const sortedRows = [...filteredRows].sort((a, b) => {
+    if (!sortBy) return 0;
+    const valA =
+      sortBy === "État"
+        ? getExamProblem(a).join("") // On classe "État" sur le nombre de problèmes
+        : a.data?.[sortBy] ?? "";
+    const valB =
+      sortBy === "État"
+        ? getExamProblem(b).join("")
+        : b.data?.[sortBy] ?? "";
+    // Gestion nombre/texte
+    if (!isNaN(parseFloat(valA)) && !isNaN(parseFloat(valB))) {
+      return sortAsc
+        ? parseFloat(valA) - parseFloat(valB)
+        : parseFloat(valB) - parseFloat(valA);
+    }
+    return sortAsc
+      ? valA.toString().localeCompare(valB.toString())
+      : valB.toString().localeCompare(valA.toString());
+  });
+
+  function handleSort(col: string) {
+    if (sortBy === col) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortBy(col);
+      setSortAsc(true);
+    }
+  }
+
+  // Correction : la colonne Duree affiche la valeur brute, sauf si nombre Excel
+  function getDureeAffichee(val: any) {
+    if (typeof val === "number") return excelDurationToHM(val);
+    return val?.toString() || "";
+  }
+
   const handleEdit = (id: string, data: any) => {
     setEditRow(id);
     setEditData(data);
@@ -154,34 +233,6 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
     setValidating(false);
   };
 
-  // Correction inline
-  function EditableCell({ row, col }: { row: any, col: string }) {
-    if (editRow === row.id) {
-      return (
-        <Input
-          value={editData[col] ?? ""}
-          className="text-xs"
-          onChange={e => setEditData({ ...editData, [col]: e.target.value })}
-        />
-      );
-    }
-    // Ici : formatage si colonne = heure, date…
-    if (["Debut", "Heure_debut", "heure_debut"].includes(col)) return <span>{excelTimeToHHMM(row.data?.[col])}</span>;
-    if (["Fin", "Heure_fin", "heure_fin"].includes(col)) return <span>{excelTimeToHHMM(row.data?.[col])}</span>;
-    if (["Jour", "Date", "date_examen"].includes(col)) return <span>{excelDateString(row.data?.[col])}</span>;
-    if (["Duree", "Durée", "duree"].includes(col)) return <span>{excelDurationToHM(row.data?.[col])}</span>;
-    return <span>{row.data?.[col]?.toString() ?? ""}</span>;
-  }
-
-  // Calcul : ordre idéal puis complète par autres champs
-  let columns: string[] = [];
-  if (rows[0]) {
-    const dataCols = Object.keys(rows[0].data || {});
-    columns = IDEAL_COL_ORDER.filter(c => dataCols.includes(c));
-    // Ajoute les colonnes pas dans la liste idéale (pour pas en perdre)
-    columns = columns.concat(dataCols.filter(c => !columns.includes(c)));
-  }
-
   return (
     <Card className="mt-4">
       <CardHeader>
@@ -191,6 +242,17 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <div className="mb-2 flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+          <Input
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            placeholder="Rechercher dans tous les examens..."
+            className="w-full sm:w-96"
+          />
+          <span className="ml-auto text-xs text-gray-500">
+            {sortedRows.length} / {rows.length} affichés
+          </span>
+        </div>
         {rows.length === 0 && <div>Aucune donnée à réviser.</div>}
         {rows.length > 0 && (
           <div className="overflow-x-auto">
@@ -198,29 +260,62 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
               <thead>
                 <tr>
                   <th>#</th>
-                  {columns.map(col => <th key={col}>{col}</th>)}
-                  <th>Surveillants théoriques</th>
-                  <th>État</th>
+                  {columns.map(col => (
+                    <th
+                      key={col}
+                      className="cursor-pointer select-none hover:underline"
+                      onClick={() => handleSort(col)}
+                    >
+                      {col}
+                      {sortBy === col && (
+                        <span className="ml-1">{sortAsc ? "▲" : "▼"}</span>
+                      )}
+                    </th>
+                  ))}
+                  <th
+                    className="cursor-pointer select-none hover:underline"
+                    onClick={() => handleSort("Surveillants théoriques")}
+                  >
+                    Surveillants théoriques
+                    {sortBy === "Surveillants théoriques" && (
+                      <span className="ml-1">{sortAsc ? "▲" : "▼"}</span>
+                    )}
+                  </th>
+                  <th
+                    className="cursor-pointer select-none hover:underline"
+                    onClick={() => handleSort("État")}
+                  >
+                    État
+                    {sortBy === "État" && (
+                      <span className="ml-1">{sortAsc ? "▲" : "▼"}</span>
+                    )}
+                  </th>
                   <th colSpan={2}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, idx) => {
+                {sortedRows.map((row, idx) => {
                   const problems = getExamProblem(row);
                   const theorique = getSurvTh(row.data);
                   return (
                     <tr key={row.id} className={problems.length ? "bg-red-50" : ""}>
                       <td>{idx + 1}</td>
                       {columns.map(col => (
-                        <td key={col}>{editRow === row.id
-                          ? <EditableCell row={row} col={col} />
-                          : (
-                            ["Debut", "Heure_debut", "heure_debut"].includes(col) ? excelTimeToHHMM(row.data?.[col])
-                            : ["Fin", "Heure_fin", "heure_fin"].includes(col) ? excelTimeToHHMM(row.data?.[col])
-                            : ["Jour", "Date", "date_examen"].includes(col) ? excelDateString(row.data?.[col])
-                            : ["Duree", "Durée", "duree"].includes(col) ? excelDurationToHM(row.data?.[col])
-                            : row.data?.[col]?.toString() ?? ""
-                          )}</td>
+                        <td key={col}>
+                          {editRow === row.id
+                            ? <EditableCell row={row} col={col} />
+                            : (
+                              col === "Duree" || col === "Durée" || col === "duree"
+                                ? getDureeAffichee(row.data?.[col])
+                                : ["Debut", "Heure_debut", "heure_debut"].includes(col)
+                                  ? excelTimeToHHMM(row.data?.[col])
+                                  : ["Fin", "Heure_fin", "heure_fin"].includes(col)
+                                    ? excelTimeToHHMM(row.data?.[col])
+                                    : ["Jour", "Date", "date_examen"].includes(col)
+                                      ? excelDateString(row.data?.[col])
+                                      : row.data?.[col]?.toString() ?? ""
+                            )}
+                        </td>
                       ))}
                       <td>
                         {theorique !== null && theorique !== undefined
