@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { DemandeModificationModal } from "./DemandeModificationModal";
-import { User, Calendar, CheckSquare, Phone, AlertCircle, RefreshCw } from "lucide-react";
+import { User, Calendar, CheckSquare, Phone, AlertCircle, RefreshCw, Edit, Info } from "lucide-react";
 
 interface Surveillant {
   id: string;
@@ -384,6 +383,14 @@ export function SimpleSurveillantAvailabilityForm() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-4">
+              <div className="flex items-start space-x-2">
+                <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-blue-800">
+                  <strong>Important :</strong> Pour être reconnu dans notre système, utilisez impérativement votre adresse email UCLouvain (@uclouvain.be) ou votre adresse de contrat jobiste si vous en avez une.
+                </div>
+              </div>
+            </div>
             <div>
               <Label htmlFor="email">Votre email UCLouvain *</Label>
               <Input
@@ -418,10 +425,10 @@ export function SimpleSurveillantAvailabilityForm() {
               <CheckSquare className="h-8 w-8 text-green-600" />
             </div>
             <CardTitle>
-              {isUnknownUser ? "Profil non trouvé - Candidature spontanée" : "Profil confirmé"}
+              {isUnknownUser ? "Profil non trouvé - Envoi des disponibilités" : "Profil confirmé"}
             </CardTitle>
             <CardDescription>
-              Étape 2/3 : {isUnknownUser ? "Création de candidature" : "Vérification des informations"}
+              Étape 2/3 : {isUnknownUser ? "Envoi de vos disponibilités" : "Vérification des informations"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -458,13 +465,25 @@ export function SimpleSurveillantAvailabilityForm() {
                   <span className="font-semibold"> "Demander une modification" </span>
                   ci-dessous.
                 </div>
+
+                {/* Bouton de modification plus visible */}
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setModalOpen(true)}
+                    className="w-full border-orange-500 text-orange-700 hover:bg-orange-50"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Demander une modification de mes informations
+                  </Button>
+                </div>
               </div>
             ) : (
               // Profil inconnu
               <div className="border p-4 rounded mb-3 bg-yellow-50">
-                <div className="text-orange-700 font-bold mb-1">👤 Profil non trouvé - Candidature spontanée</div>
+                <div className="text-orange-700 font-bold mb-1">👤 Profil non trouvé - Envoi des disponibilités</div>
                 <div className="text-sm text-gray-600 mb-3">
-                  Votre email n'est pas dans notre base de données. Vous pouvez tout de même postuler en remplissant vos informations ci-dessous.
+                  Votre email n'est pas dans notre base de données. Vous pouvez tout de même nous envoyer vos disponibilités en remplissant vos informations ci-dessous.
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -484,26 +503,18 @@ export function SimpleSurveillantAvailabilityForm() {
 
             <div>
               <Label htmlFor="telephone">Téléphone *</Label>
-              <div className="flex space-x-2">
-                <div className="flex-1">
-                  <Input
-                    id="telephone"
-                    type="tel"
-                    placeholder="+32476..."
-                    value={telephone}
-                    onChange={(e) => setTelephone(e.target.value)}
-                  />
+              <div className="space-y-2">
+                <Input
+                  id="telephone"
+                  type="tel"
+                  placeholder="+32476..."
+                  value={telephone}
+                  onChange={(e) => setTelephone(e.target.value)}
+                />
+                <div className="bg-gray-50 p-2 rounded text-xs text-gray-600">
+                  <Phone className="h-3 w-3 inline mr-1" />
+                  Votre numéro ne sera pas communiqué, mais uniquement utilisé en cas de souci (annulation de dernière minute, changement des consignes, etc.)
                 </div>
-                {surveillant && !isUnknownUser && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setModalOpen(true)}
-                    title="Demander une modification"
-                  >
-                    <AlertCircle className="h-4 w-4" />
-                  </Button>
-                )}
               </div>
             </div>
 
@@ -625,54 +636,77 @@ export function SimpleSurveillantAvailabilityForm() {
 
                               {dispo.dispo && (
                                 <div className="bg-blue-50 p-3 rounded-md space-y-3">
-                                  <div className="flex items-center space-x-3">
-                                    <label className="flex items-center space-x-2">
-                                      <input
-                                        type="radio"
-                                        name={`type_${key}`}
-                                        checked={dispo.type_choix === "obligatoire"}
-                                        onChange={() => 
+                                  {/* Case à cocher facultative pour spécifier si c'est obligatoire/souhaité */}
+                                  <div className="flex items-center space-x-2">
+                                    <Checkbox
+                                      id={`specify-${key}`}
+                                      checked={dispo.type_choix !== 'souhaitee' || !!dispo.nom_examen}
+                                      onCheckedChange={(checked) => {
+                                        if (!checked) {
                                           setDisponibilites(prev => ({
                                             ...prev,
-                                            [key]: { ...prev[key], type_choix: "obligatoire" }
-                                          }))
+                                            [key]: { ...prev[key], type_choix: 'souhaitee', nom_examen: '' }
+                                          }));
                                         }
-                                        className="accent-blue-500"
-                                      />
-                                      <span>Obligatoire</span>
-                                    </label>
-                                    <label className="flex items-center space-x-2">
-                                      <input
-                                        type="radio"
-                                        name={`type_${key}`}
-                                        checked={dispo.type_choix !== "obligatoire"}
-                                        onChange={() => 
-                                          setDisponibilites(prev => ({
-                                            ...prev,
-                                            [key]: { ...prev[key], type_choix: "souhaitee" }
-                                          }))
-                                        }
-                                        className="accent-green-500"
-                                      />
-                                      <span>Souhaité</span>
-                                    </label>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                      Nom de l'examen (optionnel)
-                                    </label>
-                                    <Input
-                                      placeholder="Ex: Math Analyse"
-                                      value={dispo.nom_examen || ""}
-                                      onChange={e => 
-                                        setDisponibilites(prev => ({
-                                          ...prev,
-                                          [key]: { ...prev[key], nom_examen: e.target.value }
-                                        }))
-                                      }
-                                      className="text-sm"
+                                      }}
                                     />
+                                    <Label htmlFor={`specify-${key}`} className="text-sm font-medium">
+                                      Ce créneau est une surveillance obligatoire ou souhaitée
+                                    </Label>
                                   </div>
+
+                                  {(dispo.type_choix !== 'souhaitee' || !!dispo.nom_examen) && (
+                                    <div className="space-y-3 ml-6">
+                                      <div className="flex items-center space-x-3">
+                                        <label className="flex items-center space-x-2">
+                                          <input
+                                            type="radio"
+                                            name={`type_${key}`}
+                                            checked={dispo.type_choix === "obligatoire"}
+                                            onChange={() => 
+                                              setDisponibilites(prev => ({
+                                                ...prev,
+                                                [key]: { ...prev[key], type_choix: "obligatoire" }
+                                              }))
+                                            }
+                                            className="accent-red-500"
+                                          />
+                                          <span>Obligatoire</span>
+                                        </label>
+                                        <label className="flex items-center space-x-2">
+                                          <input
+                                            type="radio"
+                                            name={`type_${key}`}
+                                            checked={dispo.type_choix === "souhaitee"}
+                                            onChange={() => 
+                                              setDisponibilites(prev => ({
+                                                ...prev,
+                                                [key]: { ...prev[key], type_choix: "souhaitee" }
+                                              }))
+                                            }
+                                            className="accent-green-500"
+                                          />
+                                          <span>Souhaité</span>
+                                        </label>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                                          Code cours ou nom de l'examen
+                                        </label>
+                                        <Input
+                                          placeholder="Ex: LMATH1102 ou Mathématiques"
+                                          value={dispo.nom_examen || ""}
+                                          onChange={e => 
+                                            setDisponibilites(prev => ({
+                                              ...prev,
+                                              [key]: { ...prev[key], nom_examen: e.target.value }
+                                            }))
+                                          }
+                                          className="text-sm"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
