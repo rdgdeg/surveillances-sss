@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -280,6 +279,11 @@ export const CollecteSurveillants = () => {
     setDisposEnregistrees(true);
   };
 
+  // Ajout état pour check présence et gestion personnes amenées
+  const [isPresentSelf, setIsPresentSelf] = useState(true); // Présence par défaut = true 
+  const [nbAmenes, setNbAmenes] = useState(0);
+  const [personnesAmenes, setPersonnesAmenes] = useState([]);
+
   // Affichage conditionnel
   if (!email) {
     return (
@@ -417,6 +421,71 @@ export const CollecteSurveillants = () => {
                 </p>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            {/* Présence à la surveillance : */}
+            <div className="flex flex-col">
+              <div className="font-bold text-lg flex items-center">
+                <span>Votre présence à la surveillance</span>
+              </div>
+              <div className="mt-2 bg-blue-50 rounded px-3 py-2 flex items-center gap-2">
+                Surveillants théoriques nécessaires :
+                <span className="text-blue-700 font-bold">{Math.max(0, nombreSurveillantsTotaux - (isPresentSelf ? 1 : 0) - nbAmenes)}</span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={isPresentSelf}
+                onCheckedChange={checked => setIsPresentSelf(!!checked)}
+                className="scale-125"
+              />
+              <span className="font-medium">Je serai présent pour assurer la surveillance</span>
+            </div>
+            <div className="text-xs text-gray-600">
+              Par défaut, nous considérons que vous serez présent. Décochez si vous ne pouvez pas assurer la surveillance.
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="font-bold text-lg">
+              Personnes que vous amenez
+            </div>
+            <div className="mt-2 bg-orange-50 rounded px-3 py-2 text-orange-800 font-semibold">
+              Surveillants restants à attribuer : {Math.max(0, nombreSurveillantsTotaux - (isPresentSelf ? 1 : 0) - nbAmenes)}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <label className="block mb-1 font-medium">
+              Nombre de personnes que j’amenez
+            </label>
+            <Input
+              type="number"
+              min={0}
+              max={10}
+              value={nbAmenes}
+              onChange={e => {
+                const val = Math.max(0, parseInt(e.target.value) || 0);
+                setNbAmenes(val);
+                setPersonnesAmenes(arr => {
+                  const copies = arr.slice(0, val);
+                  while (copies.length < val) copies.push({ nom: "", prenom: "" });
+                  return copies;
+                });
+              }}
+              className="max-w-[100px]"
+            />
+            <div className="text-xs text-gray-700 mb-2">
+              Indiquez le nombre de personnes (assistants, collègues) que vous amenez pour aider à la surveillance.
+            </div>
+            {/* Affiche dynamiquement les champs pour noms/prénoms */}
+            <AmenesSurveillantsFields nombre={nbAmenes} personnes={personnesAmenes} setPersonnes={setPersonnesAmenes} />
           </CardContent>
         </Card>
 
