@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,66 +22,26 @@ import { Badge } from "@/components/ui/badge";
 // import { ExamenValidationProcessor } from "@/components/ExamenValidationProcessor";
 
 import { SuiviDisponibilitesAdmin } from "@/components/SuiviDisponibilitesAdmin";
+import { AppSidebar } from "@/components/AppSidebar";
 
 // Ajoute la vue admin pour le suivi des disponibilités (en bas ou rubrique dédiée)
 export default function AdminPage() {
+  // On peut à terme faire que l'onglet actif se base sur l'URL/search param etc.
   const [activeTab, setActiveTab] = useState("sessions");
 
   return (
-    <div>
-      <div className="container mx-auto py-10">
-        <Card>
-          <CardHeader>
-            <CardTitle>Administration</CardTitle>
-            <CardDescription>Gérez les sessions, les examens et les surveillants.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex space-x-4 mb-6">
-              <Button
-                variant={activeTab === "sessions" ? "default" : "outline"}
-                onClick={() => setActiveTab("sessions")}
-              >
-                Sessions
-              </Button>
-              <Button
-                variant={activeTab === "examens" ? "default" : "outline"}
-                onClick={() => setActiveTab("examens")}
-              >
-                Examens
-              </Button>
-              <Button
-                variant={activeTab === "surveillants" ? "default" : "outline"}
-                onClick={() => setActiveTab("surveillants")}
-              >
-                Surveillants
-              </Button>
-              <Button
-                variant={activeTab === "candidatures" ? "default" : "outline"}
-                onClick={() => setActiveTab("candidatures")}
-              >
-                Candidatures
-              </Button>
-              <Button
-                variant={activeTab === "disponibilites" ? "default" : "outline"}
-                onClick={() => setActiveTab("disponibilites")}
-              >
-                Disponibilités
-              </Button>
-              <Button
-                variant={activeTab === "validations" ? "default" : "outline"}
-                onClick={() => setActiveTab("validations")}
-              >
-                Validations
-              </Button>
-            </div>
-            <p>
-              Certaines fonctionnalités avancées sont momentanément désactivées en attendant la mise à disposition des composants nécessaires.
-            </p>
-            {/* Les logiques/exports restants sont désactivés temporairement */}
-          </CardContent>
-        </Card>
-      </div>
-      <SuiviDisponibilitesAdmin />
+    <div className="min-h-screen flex w-full">
+      <AppSidebar />
+      <main className="flex-1 bg-gray-50 p-5">
+        {/* Gérer ici le rendu conditionnel selon l'onglet/route (à peaufiner ou via un router imbriqué) */}
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-2xl font-bold mb-4">Administration</h1>
+          <p className="mb-6">
+            Gérez toutes les fonctions d’administration : sessions, examens, surveillants, candidatures, validations, statistiques...
+          </p>
+          {/* À brancher tes vues selon activeTab ou URL */}
+        </div>
+      </main>
     </div>
   );
 }
