@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -122,8 +121,6 @@ export const EnseignantViewManager = () => {
       enseignant_nom: null,
       enseignant_email: null,
       lien_enseignant_token: null,
-      token_expires_at: null,
-      token_used_at: null,
       is_active: true,
       updated_at: new Date().toISOString()
     }));
