@@ -5,10 +5,12 @@ import { EnseignantExamenForm } from "@/components/EnseignantExamenForm";
 
 const EnseignantConfirmation = () => {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-gray-50 w-full">
       <UCLouvainHeader />
-      <main className="flex-1 container mx-auto px-4 py-8">
-        <EnseignantExamenForm />
+      <main className="flex-1 w-full px-4 py-8">
+        <div className="max-w-7xl mx-auto">
+          <EnseignantExamenForm />
+        </div>
       </main>
       <Footer />
     </div>

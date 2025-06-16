@@ -9,6 +9,8 @@ import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import AdminDisponibilites from "./pages/AdminDisponibilites";
 import Surveillant from "./pages/Surveillant";
+import EnseignantConfirmation from "./pages/EnseignantConfirmation";
+import EnseignantToken from "./pages/EnseignantToken";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +27,8 @@ function App() {
               <Route path="/admin" element={<Admin />} />
               <Route path="/admin/disponibilites" element={<AdminDisponibilites />} />
               <Route path="/surveillant" element={<Surveillant />} />
+              <Route path="/enseignant" element={<EnseignantConfirmation />} />
+              <Route path="/enseignant/token/:token" element={<EnseignantToken />} />
             </Routes>
           </BrowserRouter>
         </SidebarProvider>
