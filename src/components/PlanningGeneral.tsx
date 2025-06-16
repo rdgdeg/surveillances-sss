@@ -9,19 +9,93 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Users, Calendar, Clock, MapPin, BookOpen, FileText } from 'lucide-react';
+import { Search, Users, Calendar, Clock, MapPin, BookOpen, FileText, Filter, ArrowUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export const PlanningGeneral = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  const [selectedFaculte, setSelectedFaculte] = useState<string>('');
+  const [sortBy, setSortBy] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
   const { data: sessions = [] } = useSessions();
   const { data: planningItems = [], isLoading } = usePlanningGeneral(selectedSessionId, searchTerm);
 
   // Filtrer seulement les sessions qui existent réellement (avec des examens)
   const availableSessions = sessions.filter(session => session.id);
+
+  // Extraire les facultés uniques des données
+  const facultesUniques = Array.from(new Set(
+    planningItems
+      .map(item => item.faculte)
+      .filter(faculte => faculte && faculte.trim() !== '')
+  )).sort();
+
+  // Filtrer par faculté
+  const filteredItems = selectedFaculte 
+    ? planningItems.filter(item => item.faculte === selectedFaculte)
+    : planningItems;
+
+  // Fonction de tri
+  const sortedItems = [...filteredItems].sort((a, b) => {
+    if (!sortBy) return 0;
+
+    let aValue: any;
+    let bValue: any;
+
+    switch (sortBy) {
+      case 'date':
+        // Tri chronologique : date puis heure de début
+        const dateA = new Date(`${a.date_examen}T${a.heure_debut}`);
+        const dateB = new Date(`${b.date_examen}T${b.heure_debut}`);
+        return sortOrder === 'asc' 
+          ? dateA.getTime() - dateB.getTime()
+          : dateB.getTime() - dateA.getTime();
+      
+      case 'matiere':
+        aValue = a.matiere.toLowerCase();
+        bValue = b.matiere.toLowerCase();
+        break;
+      
+      case 'auditoire':
+        aValue = a.auditoire.toLowerCase();
+        bValue = b.auditoire.toLowerCase();
+        break;
+      
+      case 'faculte':
+        aValue = (a.faculte || '').toLowerCase();
+        bValue = (b.faculte || '').toLowerCase();
+        break;
+      
+      case 'statut':
+        aValue = a.statut_validation;
+        bValue = b.statut_validation;
+        break;
+      
+      case 'surveillants':
+        aValue = a.surveillants.length;
+        bValue = b.surveillants.length;
+        break;
+
+      default:
+        return 0;
+    }
+
+    if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+    if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
 
   const formatDate = (dateString: string) => {
     try {
@@ -51,6 +125,23 @@ export const PlanningGeneral = () => {
         return <Badge variant="secondary">Non traité</Badge>;
     }
   };
+
+  const SortableHeader = ({ column, children }: { column: string; children: React.ReactNode }) => (
+    <TableHead 
+      className="cursor-pointer hover:bg-gray-50 select-none"
+      onClick={() => handleSort(column)}
+    >
+      <div className="flex items-center space-x-1">
+        {children}
+        <ArrowUpDown className="h-3 w-3 opacity-50" />
+        {sortBy === column && (
+          <span className="text-xs">
+            {sortOrder === 'asc' ? '↑' : '↓'}
+          </span>
+        )}
+      </div>
+    </TableHead>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -94,17 +185,39 @@ export const PlanningGeneral = () => {
                 </SelectContent>
               </Select>
             </div>
-            
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input
-                placeholder="Rechercher par matière, code examen, date, auditoire, faculté..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-                disabled={!selectedSessionId}
-              />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Rechercher par matière, code examen, date, auditoire, faculté..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                  disabled={!selectedSessionId}
+                />
+              </div>
+              
+              <div>
+                <Select value={selectedFaculte} onValueChange={setSelectedFaculte} disabled={!selectedSessionId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filtrer par faculté" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Toutes les facultés</SelectItem>
+                    {facultesUniques.map((faculte) => (
+                      <SelectItem key={faculte} value={faculte}>
+                        <div className="flex items-center space-x-2">
+                          <Filter className="h-3 w-3" />
+                          <span>{faculte}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+            
             <p className="text-sm text-gray-500">
               Exemples : "Chimie", "2025-01-15", "Auditoire 51", "FASB"
             </p>
@@ -132,18 +245,26 @@ export const PlanningGeneral = () => {
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span>Planning Complet des Examens</span>
-                <Badge variant="outline" className="flex items-center space-x-1">
-                  <Calendar className="h-3 w-3" />
-                  <span>{planningItems.length} lignes</span>
-                </Badge>
+                <div className="flex items-center space-x-4">
+                  {selectedFaculte && (
+                    <Badge variant="outline" className="flex items-center space-x-1">
+                      <Filter className="h-3 w-3" />
+                      <span>{selectedFaculte}</span>
+                    </Badge>
+                  )}
+                  <Badge variant="outline" className="flex items-center space-x-1">
+                    <Calendar className="h-3 w-3" />
+                    <span>{sortedItems.length} lignes</span>
+                  </Badge>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {planningItems.length === 0 ? (
+              {sortedItems.length === 0 ? (
                 <div className="text-center py-8">
                   <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600">
-                    {searchTerm 
+                    {searchTerm || selectedFaculte
                       ? "Aucun résultat trouvé pour votre recherche"
                       : "Aucun examen importé pour cette session"
                     }
@@ -154,48 +275,44 @@ export const PlanningGeneral = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="min-w-[140px]">
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="h-4 w-4" />
-                            <span>Date</span>
-                          </div>
-                        </TableHead>
+                        <SortableHeader column="date">
+                          <Calendar className="h-4 w-4" />
+                          <span>Date</span>
+                        </SortableHeader>
                         <TableHead className="min-w-[100px]">
                           <div className="flex items-center space-x-1">
                             <Clock className="h-4 w-4" />
                             <span>Horaire</span>
                           </div>
                         </TableHead>
-                        <TableHead className="min-w-[200px]">Matière</TableHead>
-                        <TableHead className="min-w-[120px]">
-                          <div className="flex items-center space-x-1">
-                            <MapPin className="h-4 w-4" />
-                            <span>Auditoire</span>
-                          </div>
-                        </TableHead>
-                        <TableHead className="min-w-[120px]">
-                          <div className="flex items-center space-x-1">
-                            <BookOpen className="h-4 w-4" />
-                            <span>Faculté</span>
-                          </div>
-                        </TableHead>
-                        <TableHead className="min-w-[200px]">
-                          <div className="flex items-center space-x-1">
-                            <Users className="h-4 w-4" />
-                            <span>Surveillants</span>
-                          </div>
-                        </TableHead>
+                        <SortableHeader column="matiere">
+                          <span>Matière</span>
+                        </SortableHeader>
+                        <SortableHeader column="auditoire">
+                          <MapPin className="h-4 w-4" />
+                          <span>Auditoire</span>
+                        </SortableHeader>
+                        <SortableHeader column="faculte">
+                          <BookOpen className="h-4 w-4" />
+                          <span>Faculté</span>
+                        </SortableHeader>
+                        <SortableHeader column="surveillants">
+                          <Users className="h-4 w-4" />
+                          <span>Surveillants</span>
+                        </SortableHeader>
                         <TableHead className="min-w-[120px]">
                           <div className="flex items-center space-x-1">
                             <FileText className="h-4 w-4" />
                             <span>Consignes</span>
                           </div>
                         </TableHead>
-                        <TableHead className="min-w-[100px]">Statut</TableHead>
+                        <SortableHeader column="statut">
+                          <span>Statut</span>
+                        </SortableHeader>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {planningItems.map((item) => (
+                      {sortedItems.map((item) => (
                         <TableRow key={item.id} className="hover:bg-gray-50">
                           <TableCell className="font-medium">
                             {formatDate(item.date_examen)}
