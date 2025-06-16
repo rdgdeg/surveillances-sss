@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useActiveSession } from "@/hooks/useSessions";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
 import { Calendar, Clock, Send, CheckCircle } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
@@ -40,26 +38,26 @@ interface DisponibiliteForm {
 
 interface OptimizedAvailabilityFormProps {
   surveillantId: string;
+  sessionId: string;
   email: string;
   onSuccess: () => void;
 }
 
-export const OptimizedAvailabilityForm = ({ surveillantId, email, onSuccess }: OptimizedAvailabilityFormProps) => {
-  const { data: activeSession } = useActiveSession();
+export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onSuccess }: OptimizedAvailabilityFormProps) => {
   const queryClient = useQueryClient();
   const [availabilities, setAvailabilities] = useState<Record<string, DisponibiliteForm>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Récupérer les créneaux d'examens
+  // Récupérer les créneaux d'examens pour la session spécifiée
   const { data: examSlots = [] } = useQuery({
-    queryKey: ['exam-slots', activeSession?.id],
+    queryKey: ['exam-slots', sessionId],
     queryFn: async () => {
-      if (!activeSession?.id) return [];
+      if (!sessionId) return [];
 
       const { data, error } = await supabase
         .from('examens')
         .select('id, date_examen, heure_debut, heure_fin, matiere, salle')
-        .eq('session_id', activeSession.id)
+        .eq('session_id', sessionId)
         .eq('is_active', true)
         .order('date_examen')
         .order('heure_debut');
@@ -67,25 +65,25 @@ export const OptimizedAvailabilityForm = ({ surveillantId, email, onSuccess }: O
       if (error) throw error;
       return data || [];
     },
-    enabled: !!activeSession?.id
+    enabled: !!sessionId
   });
 
   // Récupérer les disponibilités existantes
   const { data: existingDisponibilites } = useQuery({
-    queryKey: ['surveillant-disponibilites', surveillantId, activeSession?.id],
+    queryKey: ['surveillant-disponibilites', surveillantId, sessionId],
     queryFn: async () => {
-      if (!surveillantId || !activeSession?.id) return [];
+      if (!surveillantId || !sessionId) return [];
 
       const { data, error } = await supabase
         .from('disponibilites')
         .select('*')
         .eq('surveillant_id', surveillantId)
-        .eq('session_id', activeSession.id);
+        .eq('session_id', sessionId);
 
       if (error) throw error;
       return data || [];
     },
-    enabled: !!surveillantId && !!activeSession?.id
+    enabled: !!surveillantId && !!sessionId
   });
 
   // Fusionner les créneaux
@@ -198,7 +196,7 @@ export const OptimizedAvailabilityForm = ({ surveillantId, email, onSuccess }: O
   // Mutation pour sauvegarder
   const saveDisponibilitesMutation = useMutation({
     mutationFn: async () => {
-      if (!surveillantId || !activeSession?.id) throw new Error('Données manquantes');
+      if (!surveillantId || !sessionId) throw new Error('Données manquantes');
 
       const availabilityList = Object.values(availabilities).filter(av => av.est_disponible);
 
@@ -210,14 +208,14 @@ export const OptimizedAvailabilityForm = ({ surveillantId, email, onSuccess }: O
         .from('disponibilites')
         .delete()
         .eq('surveillant_id', surveillantId)
-        .eq('session_id', activeSession.id);
+        .eq('session_id', sessionId);
 
       const { error } = await supabase
         .from('disponibilites')
         .insert(
           availabilityList.map(av => ({
             surveillant_id: surveillantId,
-            session_id: activeSession.id,
+            session_id: sessionId,
             date_examen: av.date_examen,
             heure_debut: av.heure_debut,
             heure_fin: av.heure_fin,
@@ -300,7 +298,7 @@ export const OptimizedAvailabilityForm = ({ surveillantId, email, onSuccess }: O
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Calendar className="h-5 w-5" />
-            <span>Mes disponibilités - {activeSession?.name}</span>
+            <span>Mes disponibilités</span>
           </CardTitle>
           <CardDescription>
             Email : {email} • {selectedCount} créneau{selectedCount > 1 ? 'x' : ''} sélectionné{selectedCount > 1 ? 's' : ''}

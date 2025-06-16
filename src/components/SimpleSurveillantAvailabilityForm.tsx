@@ -1,29 +1,49 @@
-
 import { useState, useEffect } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { useActiveSession } from "@/hooks/useSessions";
+import { useSessions, useActiveSession } from "@/hooks/useSessions";
 import { RefreshCw, CheckCircle, AlertTriangle } from "lucide-react";
 import { AvailabilityInstructionsScreen } from "./AvailabilityInstructionsScreen";
 import { OptimizedAvailabilityForm } from "./OptimizedAvailabilityForm";
+import { SessionSelectionScreen } from "./SessionSelectionScreen";
 
 export const SimpleSurveillantAvailabilityForm = () => {
+  const { data: sessions = [] } = useSessions();
   const { data: activeSession } = useActiveSession();
   const [email, setEmail] = useState("");
   const [surveillantId, setSurveillantId] = useState<string | null>(null);
   const [surveillantData, setSurveillantData] = useState<any>(null);
-  const [currentStep, setCurrentStep] = useState<'email' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<'email' | 'session-selection' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
   
   // Pour surveillant inconnu
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
   const [telephone, setTelephone] = useState('');
   const [surveillancesADeduire, setSurveillancesADeduire] = useState(0);
+
+  // Récupérer les disponibilités existantes pour cette session
+  const { data: existingDisponibilites } = useQuery({
+    queryKey: ['existing-disponibilites', surveillantId, selectedSessionId],
+    queryFn: async () => {
+      if (!surveillantId || !selectedSessionId) return [];
+
+      const { data, error } = await supabase
+        .from('disponibilites')
+        .select('*')
+        .eq('surveillant_id', surveillantId)
+        .eq('session_id', selectedSessionId);
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!surveillantId && !!selectedSessionId
+  });
 
   // Rechercher le surveillant par email
   const handleEmailSubmit = async () => {
@@ -54,7 +74,9 @@ export const SimpleSurveillantAvailabilityForm = () => {
     setNom(data.nom);
     setPrenom(data.prenom);
     setTelephone(data.telephone || '');
-    setCurrentStep('instructions');
+    
+    // Passer à la sélection de session
+    setCurrentStep('session-selection');
     toast({
       title: "Surveillant trouvé",
       description: `Bonjour ${data.prenom} ${data.nom}`,
@@ -65,18 +87,23 @@ export const SimpleSurveillantAvailabilityForm = () => {
     setSurveillantId(null);
     setSurveillantData(null);
     setSurveillancesADeduire(0);
-    setCurrentStep('instructions');
+    setCurrentStep('session-selection');
     toast({
       title: "Email confirmé",
       description: "Vous pouvez maintenant procéder à votre candidature.",
     });
   };
 
+  const handleSessionSelect = (sessionId: string) => {
+    setSelectedSessionId(sessionId);
+    setCurrentStep('instructions');
+  };
+
   // Mutation pour créer un surveillant inconnu
   const createSurveillantMutation = useMutation({
     mutationFn: async () => {
-      if (!activeSession?.id) {
-        throw new Error('Aucune session active disponible');
+      if (!selectedSessionId) {
+        throw new Error('Aucune session sélectionnée');
       }
 
       const { data, error } = await supabase
@@ -100,7 +127,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
         .from('surveillant_sessions')
         .select('id')
         .eq('surveillant_id', data.id)
-        .eq('session_id', activeSession.id)
+        .eq('session_id', selectedSessionId)
         .single();
 
       if (!existingRelation) {
@@ -109,7 +136,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
           .from('surveillant_sessions')
           .insert({
             surveillant_id: data.id,
-            session_id: activeSession.id,
+            session_id: selectedSessionId,
             quota: 0,
             is_active: true
           });
@@ -141,7 +168,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
   // Mutation pour mettre à jour un surveillant existant
   const updateSurveillantMutation = useMutation({
     mutationFn: async () => {
-      if (!surveillantId || !activeSession?.id) throw new Error('Données manquantes');
+      if (!surveillantId || !selectedSessionId) throw new Error('Données manquantes');
 
       // Mettre à jour uniquement les champs nécessaires
       const { error } = await supabase
@@ -159,7 +186,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
         .from('surveillant_sessions')
         .select('id')
         .eq('surveillant_id', surveillantId)
-        .eq('session_id', activeSession.id)
+        .eq('session_id', selectedSessionId)
         .single();
 
       if (!existingRelation) {
@@ -167,7 +194,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
           .from('surveillant_sessions')
           .insert({
             surveillant_id: surveillantId,
-            session_id: activeSession.id,
+            session_id: selectedSessionId,
             quota: 0,
             is_active: true
           });
@@ -205,12 +232,20 @@ export const SimpleSurveillantAvailabilityForm = () => {
     setEmail("");
     setSurveillantId(null);
     setSurveillantData(null);
+    setSelectedSessionId(null);
     setNom('');
     setPrenom('');
     setTelephone('');
     setSurveillancesADeduire(0);
     setCurrentStep('email');
   };
+
+  // Sélectionner automatiquement la session active s'il n'y en a qu'une
+  useEffect(() => {
+    if (currentStep === 'session-selection' && sessions.length === 1 && activeSession) {
+      setSelectedSessionId(activeSession.id);
+    }
+  }, [currentStep, sessions, activeSession]);
 
   if (!activeSession) {
     return (
@@ -231,7 +266,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
           <div className="max-w-md mx-auto space-y-4">
             <div className="text-center">
               <h2 className="text-2xl font-bold mb-2">Déclaration de disponibilités</h2>
-              <p className="text-gray-600 mb-6">Session : {activeSession.name}</p>
+              <p className="text-gray-600 mb-6">Surveillance d'examens UCLouvain</p>
             </div>
             
             <div>
@@ -254,6 +289,19 @@ export const SimpleSurveillantAvailabilityForm = () => {
           </div>
         </CardContent>
       </Card>
+    );
+  }
+
+  if (currentStep === 'session-selection') {
+    return (
+      <SessionSelectionScreen
+        sessions={sessions}
+        activeSessionId={activeSession?.id}
+        email={email}
+        surveillantData={surveillantData}
+        onSessionSelect={handleSessionSelect}
+        existingDisponibilites={existingDisponibilites}
+      />
     );
   }
 
@@ -309,6 +357,8 @@ export const SimpleSurveillantAvailabilityForm = () => {
   }
 
   if (currentStep === 'instructions') {
+    const selectedSession = sessions.find(s => s.id === selectedSessionId);
+    
     return (
       <AvailabilityInstructionsScreen
         email={email}
@@ -322,17 +372,23 @@ export const SimpleSurveillantAvailabilityForm = () => {
         setNom={setNom}
         prenom={prenom}
         setPrenom={setPrenom}
+        selectedSession={selectedSession}
       />
     );
   }
 
-  if (currentStep === 'availability' && surveillantId) {
+  if (currentStep === 'availability' && surveillantId && selectedSessionId) {
+    const selectedSession = sessions.find(s => s.id === selectedSessionId);
+    
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <span className="text-sm text-gray-600">Étape 2/2 •</span>
             <span className="font-medium">{surveillantData?.prenom} {surveillantData?.nom}</span>
+            {selectedSession && (
+              <span className="text-sm text-gray-500">• Session : {selectedSession.name}</span>
+            )}
           </div>
           <Button
             variant="outline"
@@ -346,6 +402,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
 
         <OptimizedAvailabilityForm
           surveillantId={surveillantId}
+          sessionId={selectedSessionId}
           email={email}
           onSuccess={handleAvailabilitySuccess}
         />
