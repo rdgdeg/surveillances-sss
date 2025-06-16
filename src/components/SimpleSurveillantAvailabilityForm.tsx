@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
-import { RefreshCw, CheckCircle } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertTriangle } from "lucide-react";
 import { AvailabilityInstructionsScreen } from "./AvailabilityInstructionsScreen";
 import { OptimizedAvailabilityForm } from "./OptimizedAvailabilityForm";
 
@@ -17,7 +17,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
   const [email, setEmail] = useState("");
   const [surveillantId, setSurveillantId] = useState<string | null>(null);
   const [surveillantData, setSurveillantData] = useState<any>(null);
-  const [currentStep, setCurrentStep] = useState<'email' | 'instructions' | 'availability' | 'success'>('email');
+  const [currentStep, setCurrentStep] = useState<'email' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
   
   // Pour surveillant inconnu
   const [nom, setNom] = useState('');
@@ -43,15 +43,8 @@ export const SimpleSurveillantAvailabilityForm = () => {
       .single();
 
     if (error) {
-      // Surveillant non trouvé - on passe quand même aux instructions
-      setSurveillantId(null);
-      setSurveillantData(null);
-      setSurveillancesADeduire(0);
-      setCurrentStep('instructions');
-      toast({
-        title: "Profil non trouvé",
-        description: "Vous pouvez quand même postuler en tant que candidat.",
-      });
+      // Surveillant non trouvé - demander confirmation
+      setCurrentStep('email-confirmation');
       return;
     }
 
@@ -65,6 +58,17 @@ export const SimpleSurveillantAvailabilityForm = () => {
     toast({
       title: "Surveillant trouvé",
       description: `Bonjour ${data.prenom} ${data.nom}`,
+    });
+  };
+
+  const handleEmailConfirmation = () => {
+    setSurveillantId(null);
+    setSurveillantData(null);
+    setSurveillancesADeduire(0);
+    setCurrentStep('instructions');
+    toast({
+      title: "Email confirmé",
+      description: "Vous pouvez maintenant procéder à votre candidature.",
     });
   };
 
@@ -194,6 +198,57 @@ export const SimpleSurveillantAvailabilityForm = () => {
                 />
                 <Button onClick={handleEmailSubmit} disabled={!email.trim()}>
                   Valider
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (currentStep === 'email-confirmation') {
+    return (
+      <Card className="border-orange-200">
+        <CardContent className="pt-6">
+          <div className="max-w-lg mx-auto space-y-4">
+            <div className="text-center">
+              <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+              <h2 className="text-xl font-bold mb-2 text-orange-800">Email non reconnu</h2>
+              <p className="text-orange-700 mb-4">
+                Votre email <strong>{email}</strong> ne semble pas être reconnu dans notre système.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="font-semibold text-blue-800 mb-2">💡 Vérifications importantes :</h3>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• Avez-vous bien utilisé votre adresse email UCLouvain officielle ?</li>
+                <li>• Votre adresse doit être de la forme : prenom.nom@uclouvain.be</li>
+                <li>• Si vous êtes étudiant, utilisez votre adresse @student.uclouvain.be</li>
+                <li>• Vérifiez qu'il n'y a pas de fautes de frappe</li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600 text-center">
+                Si votre email est correct et que vous souhaitez tout de même postuler comme candidat externe, 
+                vous pouvez continuer. Sinon, vous pouvez corriger votre adresse email.
+              </p>
+              
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentStep('email')}
+                  className="flex-1"
+                >
+                  Corriger l'email
+                </Button>
+                <Button
+                  onClick={handleEmailConfirmation}
+                  className="flex-1 bg-orange-600 hover:bg-orange-700"
+                >
+                  Confirmer et continuer
                 </Button>
               </div>
             </div>
