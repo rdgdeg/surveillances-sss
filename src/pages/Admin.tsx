@@ -9,6 +9,8 @@ import { Footer } from "@/components/Footer";
 import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 import { SuiviConfirmationEnseignants } from "@/components/SuiviConfirmationEnseignants";
 import { DashboardOverview } from "@/components/DashboardOverview";
+import { DisponibilitesManager } from "@/components/DisponibilitesManager";
+import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
 
 // Import des principaux modules admin
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
@@ -45,7 +47,9 @@ function getAdminContent(tab: string | null) {
     case "candidatures":
       return <SuiviDisponibilitesAdmin />;
     case "disponibilites":
+      return <DisponibilitesManager />;
     case "matrice-disponibilites":
+      return <AvailabilityMatrix />;
     case "suivi-disponibilites":
       return <SuiviDisponibilitesAdmin />;
     case "contraintes":

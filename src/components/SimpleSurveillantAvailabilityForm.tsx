@@ -235,6 +235,8 @@ export function SimpleSurveillantAvailabilityForm() {
           };
         });
         setDisponibilites(dispoObj);
+        
+        console.log('Loaded existing availabilities:', Object.keys(dispoObj).length);
       }
 
     } catch (error: any) {
