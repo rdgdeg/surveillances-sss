@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useSessions, useActiveSession } from "@/hooks/useSessions";
-import { RefreshCw, CheckCircle, AlertTriangle, Info, Clock, Users, MessageSquare } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertTriangle, Info, Users, MessageSquare } from "lucide-react";
 import { AvailabilityInstructionsScreen } from "./AvailabilityInstructionsScreen";
 import { OptimizedAvailabilityForm } from "./OptimizedAvailabilityForm";
 import { SessionSelectionScreen } from "./SessionSelectionScreen";
@@ -304,10 +304,6 @@ export const SimpleSurveillantAvailabilityForm = () => {
                   <div className="flex items-start space-x-2">
                     <CheckCircle className="h-4 w-4 mt-0.5 text-blue-600" />
                     <span><strong>Optimisation :</strong> Plus vous indiquez de créneaux, mieux nous pouvons répartir les surveillances</span>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <Clock className="h-4 w-4 mt-0.5 text-blue-600" />
-                    <span><strong>Flexibilité :</strong> Vous pouvez modifier vos disponibilités à tout moment</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <Users className="h-4 w-4 mt-0.5 text-blue-600" />

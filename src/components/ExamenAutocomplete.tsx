@@ -42,10 +42,10 @@ export const ExamenAutocomplete = ({
         value={value}
         onValueChange={setValue}
       />
-      <CommandList>
+      <CommandList className="max-h-[500px]">
         <CommandEmpty>Aucun examen trouvé.</CommandEmpty>
         <CommandGroup>
-          {filteredExamens.map((examen) => (
+          {filteredExamens.slice(0, 20).map((examen) => (
             <CommandItem
               key={examen.id}
               onSelect={() => {
@@ -53,19 +53,21 @@ export const ExamenAutocomplete = ({
                 setOpen(false);
                 setValue("");
               }}
-              className="flex flex-col items-start p-4 cursor-pointer hover:bg-gray-50"
+              className="flex flex-col items-start p-4 cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
             >
               <div className="flex items-center justify-between w-full mb-2">
                 <div className="flex items-center space-x-2">
-                  <Badge variant="outline">{examen.code_examen || 'Sans code'}</Badge>
-                  <span className="font-medium">{examen.matiere}</span>
+                  <Badge variant="outline" className="font-mono text-xs">
+                    {examen.code_examen || 'Sans code'}
+                  </Badge>
+                  <span className="font-medium text-base">{examen.matiere}</span>
                 </div>
                 <Badge variant={examen.besoins_confirmes_par_enseignant ? "default" : "secondary"}>
                   {examen.besoins_confirmes_par_enseignant ? "Confirmé" : "En attente"}
                 </Badge>
               </div>
               
-              <div className="flex items-center space-x-4 text-sm text-gray-600">
+              <div className="flex items-center space-x-4 text-sm text-gray-600 w-full">
                 <div className="flex items-center space-x-1">
                   <Calendar className="h-3 w-3" />
                   <span>{formatDate(examen.date_examen)}</span>
@@ -76,17 +78,32 @@ export const ExamenAutocomplete = ({
                 </div>
                 <div className="flex items-center space-x-1">
                   <MapPin className="h-3 w-3" />
-                  <span>{examen.salle}</span>
+                  <span className="truncate max-w-[150px]">{examen.salle}</span>
                 </div>
                 {examen.enseignant_nom && (
                   <div className="flex items-center space-x-1">
                     <User className="h-3 w-3" />
-                    <span className="font-medium text-blue-600">{examen.enseignant_nom}</span>
+                    <span className="font-medium text-blue-600 truncate max-w-[120px]">
+                      {examen.enseignant_nom}
+                    </span>
                   </div>
                 )}
               </div>
+              
+              {filteredExamens.length > 15 && (
+                <div className="text-xs text-gray-500 mt-1 italic">
+                  {filteredExamens.length - 15} autres résultats disponibles
+                </div>
+              )}
             </CommandItem>
           ))}
+          
+          {filteredExamens.length > 20 && (
+            <div className="p-4 text-center text-sm text-gray-500 bg-gray-50">
+              Affichage de 20 résultats sur {filteredExamens.length}. 
+              Affinez votre recherche pour voir plus de résultats.
+            </div>
+          )}
         </CommandGroup>
       </CommandList>
     </Command>
