@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
-import { Calendar, Clock, Send, CheckCircle } from "lucide-react";
+import { Calendar, Clock, Send, CheckCircle, AlertCircle, HelpCircle } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -68,11 +68,13 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
     enabled: !!sessionId
   });
 
-  // Récupérer les disponibilités existantes
+  // Récupérer les disponibilités existantes avec debug
   const { data: existingDisponibilites } = useQuery({
     queryKey: ['surveillant-disponibilites', surveillantId, sessionId],
     queryFn: async () => {
       if (!surveillantId || !sessionId) return [];
+      
+      console.log('Fetching disponibilites for:', { surveillantId, sessionId });
 
       const { data, error } = await supabase
         .from('disponibilites')
@@ -80,7 +82,12 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
         .eq('surveillant_id', surveillantId)
         .eq('session_id', sessionId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching disponibilites:', error);
+        throw error;
+      }
+      
+      console.log('Found existing disponibilites:', data);
       return data || [];
     },
     enabled: !!surveillantId && !!sessionId
@@ -168,20 +175,23 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
 
   const weeklySlots = organizeByWeek(timeSlots);
 
-  // Charger les disponibilités existantes
+  // Charger les disponibilités existantes avec debug amélioré
   useEffect(() => {
     if (existingDisponibilites && existingDisponibilites.length > 0) {
+      console.log('Loading existing disponibilites:', existingDisponibilites);
       const newAvailabilities: Record<string, DisponibiliteForm> = {};
       
       existingDisponibilites.forEach(dispo => {
         const key = `${dispo.date_examen}-${dispo.heure_debut}-${dispo.heure_fin}`;
+        console.log('Processing dispo with key:', key, dispo);
+        
         const typeChoix = dispo.type_choix === 'obligatoire' ? 'obligatoire' : 'souhaitee';
         
         newAvailabilities[key] = {
           date_examen: dispo.date_examen,
           heure_debut: dispo.heure_debut,
           heure_fin: dispo.heure_fin,
-          est_disponible: dispo.est_disponible,
+          est_disponible: true, // Si elle existe en base, elle est disponible
           type_choix: typeChoix,
           nom_examen_selectionne: dispo.nom_examen_selectionne || '',
           nom_examen_obligatoire: dispo.nom_examen_obligatoire || '',
@@ -189,6 +199,7 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
         };
       });
       
+      console.log('Final availabilities object:', newAvailabilities);
       setAvailabilities(newAvailabilities);
     }
   }, [existingDisponibilites]);
@@ -368,56 +379,80 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
                               </div>
 
                               {isAvailable && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4 p-4 bg-white rounded border">
-                                  <div>
-                                    <Label className="text-sm">Type de disponibilité</Label>
+                                <div className="space-y-4 mt-4 p-4 bg-white rounded border">
+                                  {/* Question principale sur le type de surveillance */}
+                                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                                    <div className="flex items-center space-x-2 mb-2">
+                                      <HelpCircle className="h-4 w-4 text-blue-600" />
+                                      <span className="font-medium text-blue-800">
+                                        S'agit-il d'un créneau à surveiller de manière obligatoire ou souhaitée ?
+                                      </span>
+                                    </div>
                                     <Select
                                       value={availability.type_choix}
                                       onValueChange={(value: 'souhaitee' | 'obligatoire') => handleAvailabilityChange(slotKey, 'type_choix', value)}
                                     >
-                                      <SelectTrigger className="mt-1">
+                                      <SelectTrigger>
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="souhaitee">Souhaitée</SelectItem>
-                                        <SelectItem value="obligatoire">Obligatoire</SelectItem>
+                                        <SelectItem value="souhaitee">Souhaitée - Je peux surveiller ce créneau</SelectItem>
+                                        <SelectItem value="obligatoire">Obligatoire - Je dois absolument surveiller ce créneau</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
 
-                                  <div>
-                                    <Label className="text-sm">Code examen spécifique (optionnel)</Label>
-                                    <Input
-                                      value={availability.nom_examen_selectionne || ''}
-                                      onChange={(e) => handleAvailabilityChange(slotKey, 'nom_examen_selectionne', e.target.value)}
-                                      placeholder="Ex: LECON2100"
-                                      className="mt-1"
-                                    />
-                                  </div>
+                                  {/* Champs supplémentaires conditionnels */}
+                                  <div className="grid grid-cols-1 gap-4">
+                                    <div>
+                                      <Label className="text-sm">Code examen spécifique (optionnel)</Label>
+                                      <Input
+                                        value={availability.nom_examen_selectionne || ''}
+                                        onChange={(e) => handleAvailabilityChange(slotKey, 'nom_examen_selectionne', e.target.value)}
+                                        placeholder="Ex: LECON2100"
+                                        className="mt-1"
+                                      />
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Si vous souhaitez surveiller un examen particulier de ce créneau
+                                      </p>
+                                    </div>
 
-                                  {availability.type_choix === 'obligatoire' && (
-                                    <>
-                                      <div className="md:col-span-2">
-                                        <Label className="text-sm">Nom de l'examen obligatoire</Label>
-                                        <Input
-                                          value={availability.nom_examen_obligatoire || ''}
-                                          onChange={(e) => handleAvailabilityChange(slotKey, 'nom_examen_obligatoire', e.target.value)}
-                                          placeholder="Nom complet de l'examen"
-                                          className="mt-1"
-                                        />
-                                      </div>
-                                      <div className="md:col-span-2">
-                                        <Label className="text-sm">Justification (obligatoire)</Label>
-                                        <Textarea
-                                          value={availability.commentaire_surveillance_obligatoire || ''}
-                                          onChange={(e) => handleAvailabilityChange(slotKey, 'commentaire_surveillance_obligatoire', e.target.value)}
-                                          placeholder="Pourquoi cette surveillance est-elle obligatoire pour vous ?"
-                                          className="mt-1"
-                                          rows={2}
-                                        />
-                                      </div>
-                                    </>
-                                  )}
+                                    {availability.type_choix === 'obligatoire' && (
+                                      <>
+                                        <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                                          <div className="flex items-center space-x-2 mb-2">
+                                            <AlertCircle className="h-4 w-4 text-orange-600" />
+                                            <span className="font-medium text-orange-800">
+                                              Surveillance obligatoire - Informations requises
+                                            </span>
+                                          </div>
+                                          <div className="space-y-3">
+                                            <div>
+                                              <Label className="text-sm">Nom de l'examen obligatoire *</Label>
+                                              <Input
+                                                value={availability.nom_examen_obligatoire || ''}
+                                                onChange={(e) => handleAvailabilityChange(slotKey, 'nom_examen_obligatoire', e.target.value)}
+                                                placeholder="Nom complet de l'examen"
+                                                className="mt-1"
+                                                required
+                                              />
+                                            </div>
+                                            <div>
+                                              <Label className="text-sm">Justification (obligatoire) *</Label>
+                                              <Textarea
+                                                value={availability.commentaire_surveillance_obligatoire || ''}
+                                                onChange={(e) => handleAvailabilityChange(slotKey, 'commentaire_surveillance_obligatoire', e.target.value)}
+                                                placeholder="Pourquoi cette surveillance est-elle obligatoire pour vous ? (ex: vous enseignez cette matière, responsabilité spécifique, etc.)"
+                                                className="mt-1"
+                                                rows={2}
+                                                required
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </div>

@@ -1,8 +1,9 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, Clock, RefreshCw, Users } from "lucide-react";
+import { CheckCircle, Clock, RefreshCw, Users, AlertTriangle, Smartphone, Info } from "lucide-react";
 import { Session } from "@/hooks/useSessions";
 
 interface AvailabilityInstructionsScreenProps {
@@ -53,10 +54,10 @@ export const AvailabilityInstructionsScreen = ({
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Users className="h-5 w-5" />
-            <span>Bienvenue dans la collecte de disponibilités</span>
+            <span>Vos informations personnelles</span>
           </CardTitle>
           <CardDescription>
-            Email confirmé : <strong>{email}</strong>
+            Email : <strong>{email}</strong>
             {selectedSession && (
               <span className="block text-sm text-gray-500 mt-1">
                 Session : <strong>{selectedSession.name}</strong>
@@ -98,29 +99,55 @@ export const AvailabilityInstructionsScreen = ({
               </div>
             </div>
           ) : (
-            <div className="bg-green-50 border border-green-200 rounded p-4">
-              <h3 className="font-medium text-green-800 mb-2">✓ Profil trouvé</h3>
-              <p className="text-sm text-green-700">
-                Bonjour <strong>{surveillantData.prenom} {surveillantData.nom}</strong>
-              </p>
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded p-4">
+                <h3 className="font-medium text-green-800 mb-2">✓ Profil trouvé</h3>
+                <div className="space-y-1 text-sm text-green-700">
+                  <p><strong>Nom :</strong> {surveillantData.nom}</p>
+                  <p><strong>Prénom :</strong> {surveillantData.prenom}</p>
+                  <p><strong>Type :</strong> {surveillantData.type}</p>
+                  {surveillantData.eft && <p><strong>ETP :</strong> {surveillantData.eft}</p>}
+                </div>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded p-4">
+                <h3 className="font-medium text-blue-800 mb-2 flex items-center">
+                  <Info className="h-4 w-4 mr-2" />
+                  Besoin de modifier vos informations ?
+                </h3>
+                <p className="text-sm text-blue-700 mb-3">
+                  Si certaines informations affichées ne sont pas correctes (nom, prénom, statut), 
+                  veuillez contacter le service des surveillances après avoir complété ce formulaire.
+                </p>
+              </div>
             </div>
           )}
 
           <div className="mt-6 space-y-4">
             <div>
-              <Label htmlFor="telephone">Téléphone *</Label>
+              <Label htmlFor="telephone" className="flex items-center space-x-2">
+                <Smartphone className="h-4 w-4" />
+                <span>Numéro de GSM * (obligatoire)</span>
+              </Label>
               <Input
                 id="telephone"
                 value={telephone}
                 onChange={(e) => setTelephone(e.target.value)}
-                placeholder="+32 4..."
+                placeholder="+32 4XX XX XX XX"
                 required
               />
+              <div className="bg-orange-50 border border-orange-200 rounded p-3 mt-2">
+                <p className="text-xs text-orange-800">
+                  <strong>Important :</strong> Ce numéro sera utilisé uniquement pour vous contacter 
+                  en cas de problème de dernière minute (changement de salle, annulation, etc.). 
+                  Il ne sera pas communiqué à d'autres services.
+                </p>
+              </div>
             </div>
 
             {!isUnknownSurveillant && (
               <div>
-                <Label htmlFor="surveillances">Surveillances à déduire (optionnel)</Label>
+                <Label htmlFor="surveillances">Surveillances déjà effectuées cette session (optionnel)</Label>
                 <Input
                   id="surveillances"
                   type="number"
@@ -130,7 +157,7 @@ export const AvailabilityInstructionsScreen = ({
                   placeholder="0"
                 />
                 <p className="text-xs text-gray-600 mt-1">
-                  Nombre de surveillances déjà effectuées à déduire de votre quota
+                  Nombre de surveillances déjà effectuées à déduire de votre quota pour cette session
                 </p>
               </div>
             )}

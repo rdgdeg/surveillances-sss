@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useSessions, useActiveSession } from "@/hooks/useSessions";
-import { RefreshCw, CheckCircle, AlertTriangle } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertTriangle, Info, Clock, Users } from "lucide-react";
 import { AvailabilityInstructionsScreen } from "./AvailabilityInstructionsScreen";
 import { OptimizedAvailabilityForm } from "./OptimizedAvailabilityForm";
 import { SessionSelectionScreen } from "./SessionSelectionScreen";
@@ -261,34 +261,70 @@ export const SimpleSurveillantAvailabilityForm = () => {
 
   if (currentStep === 'email') {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="max-w-md mx-auto space-y-4">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold mb-2">Déclaration de disponibilités</h2>
-              <p className="text-gray-600 mb-6">Surveillance d'examens UCLouvain</p>
-            </div>
-            
-            <div>
-              <Label htmlFor="email">Votre adresse email</Label>
-              <div className="flex space-x-2 mt-1">
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="prenom.nom@uclouvain.be"
-                  className="flex-1"
-                  onKeyDown={(e) => e.key === 'Enter' && handleEmailSubmit()}
-                />
-                <Button onClick={handleEmailSubmit} disabled={!email.trim()}>
-                  Valider
-                </Button>
+      <div className="space-y-6">
+        {/* Instructions d'accueil */}
+        <Card className="border-blue-200">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <Users className="h-12 w-12 text-blue-600" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-blue-800 mb-2">Déclaration de disponibilités</h1>
+                <p className="text-lg text-gray-600 mb-4">Surveillance d'examens UCLouvain</p>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                <h3 className="font-semibold text-blue-800 mb-3 flex items-center">
+                  <Info className="h-5 w-5 mr-2" />
+                  Pourquoi déclarer vos disponibilités ?
+                </h3>
+                <div className="space-y-2 text-sm text-blue-700">
+                  <div className="flex items-start space-x-2">
+                    <CheckCircle className="h-4 w-4 mt-0.5 text-blue-600" />
+                    <span><strong>Optimisation :</strong> Plus vous indiquez de créneaux, mieux nous pouvons répartir les surveillances</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <Clock className="h-4 w-4 mt-0.5 text-blue-600" />
+                    <span><strong>Flexibilité :</strong> Vous pouvez modifier vos disponibilités à tout moment</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <Users className="h-4 w-4 mt-0.5 text-blue-600" />
+                    <span><strong>Équité :</strong> Nous tenons compte de vos préférences et contraintes</span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="max-w-md mx-auto space-y-4">
+              <div>
+                <Label htmlFor="email">Votre adresse email UCLouvain</Label>
+                <div className="flex space-x-2 mt-1">
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="prenom.nom@uclouvain.be"
+                    className="flex-1"
+                    onKeyDown={(e) => e.key === 'Enter' && handleEmailSubmit()}
+                  />
+                  <Button onClick={handleEmailSubmit} disabled={!email.trim()}>
+                    Valider
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  Utilisez votre adresse officielle UCLouvain pour accéder à vos informations
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
