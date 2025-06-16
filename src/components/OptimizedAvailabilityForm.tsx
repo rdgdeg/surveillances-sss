@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,10 +65,11 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
     enabled: !!sessionId
   });
 
-  // Fusionner les créneaux
+  // Fonction améliorée pour fusionner les créneaux qui se chevauchent
   const mergeTimeSlots = (slots: any[]): TimeSlot[] => {
     const groupedByDate: Record<string, any[]> = {};
     
+    // Grouper par date
     slots.forEach(slot => {
       if (!groupedByDate[slot.date_examen]) {
         groupedByDate[slot.date_examen] = [];
@@ -80,32 +80,83 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
     const timeSlots: TimeSlot[] = [];
 
     Object.entries(groupedByDate).forEach(([date, dateSlots]) => {
+      // Trier les créneaux par heure de début
       const sortedSlots = [...dateSlots].sort((a, b) => a.heure_debut.localeCompare(b.heure_debut));
       
-      const mergedSlots: TimeSlot[] = [];
-      
-      sortedSlots.forEach(slot => {
+      // Convertir en créneaux de surveillance (début - 45 minutes)
+      const surveillanceSlots = sortedSlots.map(slot => {
         const startTime = new Date(`2000-01-01T${slot.heure_debut}`);
         startTime.setMinutes(startTime.getMinutes() - 45);
         const heureDebutSurveillance = startTime.toTimeString().slice(0, 5);
         
-        const existingSlot = mergedSlots.find(existing => 
-          existing.date_examen === date &&
-          existing.heure_debut <= heureDebutSurveillance &&
-          existing.heure_fin >= slot.heure_fin
-        );
+        return {
+          ...slot,
+          heure_debut_surveillance: heureDebutSurveillance,
+          heure_fin_surveillance: slot.heure_fin
+        };
+      });
 
-        if (existingSlot) {
-          existingSlot.examens.push({
-            id: slot.id,
-            matiere: slot.matiere,
-            salle: slot.salle
-          });
-        } else {
+      // Fusionner les créneaux qui se chevauchent
+      const mergedSlots: TimeSlot[] = [];
+      
+      for (const slot of surveillanceSlots) {
+        let merged = false;
+        
+        // Chercher un créneau existant qui peut être fusionné
+        for (let i = 0; i < mergedSlots.length; i++) {
+          const existingSlot = mergedSlots[i];
+          
+          // Vérifier si les créneaux se chevauchent ou sont adjacents
+          const newStart = slot.heure_debut_surveillance;
+          const newEnd = slot.heure_fin_surveillance;
+          const existingStart = existingSlot.heure_debut;
+          const existingEnd = existingSlot.heure_fin;
+          
+          // Convertir en minutes pour faciliter la comparaison
+          const toMinutes = (time: string) => {
+            const [h, m] = time.split(':').map(Number);
+            return h * 60 + m;
+          };
+          
+          const newStartMin = toMinutes(newStart);
+          const newEndMin = toMinutes(newEnd);
+          const existingStartMin = toMinutes(existingStart);
+          const existingEndMin = toMinutes(existingEnd);
+          
+          // Vérifier le chevauchement ou l'adjacence
+          const overlap = !(newEndMin <= existingStartMin || newStartMin >= existingEndMin);
+          const adjacent = Math.abs(newStartMin - existingEndMin) <= 15 || Math.abs(existingStartMin - newEndMin) <= 15;
+          
+          if (overlap || adjacent) {
+            // Fusionner les créneaux
+            const mergedStart = Math.min(newStartMin, existingStartMin);
+            const mergedEnd = Math.max(newEndMin, existingEndMin);
+            
+            const formatTime = (minutes: number) => {
+              const h = Math.floor(minutes / 60);
+              const m = minutes % 60;
+              return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            };
+            
+            existingSlot.heure_debut = formatTime(mergedStart);
+            existingSlot.heure_fin = formatTime(mergedEnd);
+            existingSlot.examens.push({
+              id: slot.id,
+              matiere: slot.matiere,
+              salle: slot.salle
+            });
+            
+            merged = true;
+            break;
+          }
+        }
+        
+        // Si aucune fusion n'a été possible, créer un nouveau créneau
+        if (!merged) {
           mergedSlots.push({
             date_examen: date,
-            heure_debut: heureDebutSurveillance,
-            heure_fin: slot.heure_fin,
+            heure_debut: slot.heure_debut_surveillance,
+            heure_fin: slot.heure_fin_surveillance,
             examens: [{
               id: slot.id,
               matiere: slot.matiere,
@@ -113,7 +164,7 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
             }]
           });
         }
-      });
+      }
 
       timeSlots.push(...mergedSlots);
     });
