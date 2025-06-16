@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useExamensImportTemp, useUpdateExamenImportTemp, useBatchValidateExamensImport } from "@/hooks/useExamensImportTemp";
 import { useActiveSession } from "@/hooks/useSessions";
 import { toast } from "@/hooks/use-toast";
-import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
+import { useContraintesAuditoiresMap } from "@/hooks/useContraintesAuditoires";
 import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Delete } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,7 +35,7 @@ export function ExamensImportRevision({ batchId }: { batchId?: string }) {
   const { data: rows = [], isLoading } = useExamensImportTemp(batchId);
   const updateMutation = useUpdateExamenImportTemp();
   const batchValidate = useBatchValidateExamensImport();
-  const { data: contraintesAuditoires } = useContraintesAuditoires();
+  const { data: contraintesAuditoires } = useContraintesAuditoiresMap();
   const queryClient = useQueryClient();
 
   const [editRow, setEditRow] = useState<string | null>(null);
