@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Shield, LogOut } from 'lucide-react';
+import { Shield, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
 
 interface AdminProtectionProps {
@@ -15,15 +15,23 @@ interface AdminProtectionProps {
 
 const AdminLogin = () => {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { login } = useAdminAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = login(email);
-    if (!success) {
-      setError('Accès refusé. Seul l\'administrateur autorisé peut accéder à cette section.');
+    setError('');
+    setIsLoading(true);
+    
+    const { error: loginError } = await login(email, password);
+    
+    if (loginError) {
+      setError(loginError);
     }
+    
+    setIsLoading(false);
   };
 
   return (
@@ -46,6 +54,20 @@ const AdminLogin = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="raphael.degand@ldmedia.be"
                 required
+                disabled={isLoading}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="password">Mot de passe</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Votre mot de passe"
+                required
+                disabled={isLoading}
               />
             </div>
             
@@ -53,8 +75,8 @@ const AdminLogin = () => {
               <p className="text-red-600 text-sm">{error}</p>
             )}
             
-            <Button type="submit" className="w-full">
-              Se connecter
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Connexion...' : 'Se connecter'}
             </Button>
           </form>
           
@@ -70,7 +92,7 @@ const AdminLogin = () => {
 };
 
 export const AdminProtection = ({ children }: AdminProtectionProps) => {
-  const { isAdmin, isLoading, logout } = useAdminAuth();
+  const { isAdmin, user, isLoading, logout } = useAdminAuth();
   const navigate = useNavigate();
 
   if (isLoading) {
@@ -88,21 +110,28 @@ export const AdminProtection = ({ children }: AdminProtectionProps) => {
     return <AdminLogin />;
   }
 
+  const handleLogout = async () => {
+    await logout();
+    navigate('/');
+  };
+
   return (
     <div className="min-h-screen">
       <div className="bg-white border-b border-gray-200 px-4 py-2">
         <div className="flex justify-between items-center max-w-7xl mx-auto">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             <Shield className="h-4 w-4 text-green-600" />
-            <span className="text-sm text-gray-700">Session administrateur active</span>
+            <div className="flex items-center space-x-2">
+              <User className="h-3 w-3 text-gray-600" />
+              <span className="text-sm text-gray-700">
+                Connecté en tant que <strong>{user?.email}</strong>
+              </span>
+            </div>
           </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              logout();
-              navigate('/');
-            }}
+            onClick={handleLogout}
             className="flex items-center space-x-1"
           >
             <LogOut className="h-3 w-3" />
