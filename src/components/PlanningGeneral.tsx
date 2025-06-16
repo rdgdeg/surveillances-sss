@@ -20,6 +20,9 @@ export const PlanningGeneral = () => {
   const { data: sessions = [] } = useSessions();
   const { data: planningItems = [], isLoading } = usePlanningGeneral(selectedSessionId, searchTerm);
 
+  // Filtrer seulement les sessions qui existent réellement (avec des examens)
+  const availableSessions = sessions.filter(session => session.id);
+
   const formatDate = (dateString: string) => {
     try {
       return format(new Date(dateString), 'EEEE dd MMMM yyyy', { locale: fr });
@@ -78,7 +81,7 @@ export const PlanningGeneral = () => {
                   <SelectValue placeholder="Sélectionnez une session" />
                 </SelectTrigger>
                 <SelectContent>
-                  {sessions.map((session) => (
+                  {availableSessions.map((session) => (
                     <SelectItem key={session.id} value={session.id}>
                       {session.name} - {session.year} (Période {session.period})
                       {session.is_active && (

@@ -34,6 +34,32 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
         return [];
       }
 
+      // Récupérer les contraintes d'auditoires
+      const { data: contraintes, error: contraintesError } = await supabase
+        .from('contraintes_auditoires')
+        .select('auditoire, nombre_surveillants_requis');
+      
+      if (contraintesError) {
+        console.error('Error fetching contraintes:', contraintesError);
+      }
+
+      // Créer une map des contraintes
+      const contraintesMap: Record<string, number> = {};
+      (contraintes || []).forEach((item) => {
+        const auditoire = item.auditoire.trim();
+        // Ajouter plusieurs variations pour améliorer la correspondance
+        const variations = [
+          auditoire.toLowerCase(),
+          auditoire,
+          auditoire.toLowerCase().replace(/\s+/g, ''),
+          auditoire.toLowerCase().replace(/\s+/g, ' '),
+        ];
+        
+        variations.forEach(variation => {
+          contraintesMap[variation] = item.nombre_surveillants_requis;
+        });
+      });
+
       // Requête pour récupérer tous les examens actifs avec leurs attributions
       let query = supabase
         .from('examens')
@@ -102,6 +128,13 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
 
         // Créer une ligne par auditoire
         auditoires.forEach((auditoire: string) => {
+          // Calculer le nombre de surveillants requis selon les contraintes
+          const auditoireNormalized = auditoire.toLowerCase().trim();
+          const nombreRequis = contraintesMap[auditoireNormalized] || 
+                              contraintesMap[auditoire] || 
+                              contraintesMap[auditoire.toLowerCase().replace(/\s+/g, '')] ||
+                              examen.nombre_surveillants || 1;
+
           const item: PlanningGeneralItem = {
             id: `${examen.id}_${auditoire.replace(/\s+/g, '_')}`,
             date_examen: examen.date_examen,
@@ -115,7 +148,7 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
             enseignant_email: examen.enseignant_email || '',
             statut_validation: examen.statut_validation || 'NON_TRAITE',
             surveillants: surveillants,
-            nombre_surveillants_requis: examen.nombre_surveillants || 1
+            nombre_surveillants_requis: nombreRequis
           };
 
           // Filtrage par terme de recherche
