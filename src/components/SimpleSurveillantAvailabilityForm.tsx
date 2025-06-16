@@ -75,6 +75,10 @@ export const SimpleSurveillantAvailabilityForm = () => {
   // Mutation pour créer un surveillant inconnu
   const createSurveillantMutation = useMutation({
     mutationFn: async () => {
+      if (!activeSession?.id) {
+        throw new Error('Aucune session active disponible');
+      }
+
       const { data, error } = await supabase
         .from('surveillants')
         .insert({
@@ -89,6 +93,19 @@ export const SimpleSurveillantAvailabilityForm = () => {
         .single();
 
       if (error) throw error;
+
+      // Créer la relation surveillant_sessions
+      const { error: sessionError } = await supabase
+        .from('surveillant_sessions')
+        .insert({
+          surveillant_id: data.id,
+          session_id: activeSession.id,
+          quota: 0,
+          is_active: true
+        });
+
+      if (sessionError) throw sessionError;
+
       return data;
     },
     onSuccess: (data) => {
