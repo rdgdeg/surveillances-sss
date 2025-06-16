@@ -1,10 +1,12 @@
 
 import { useState } from 'react';
 import { usePlanningGeneral } from '@/hooks/usePlanningGeneral';
+import { useSessions } from '@/hooks/useSessions';
 import { UCLouvainHeader } from '@/components/UCLouvainHeader';
 import { Footer } from '@/components/Footer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Search, Users, Calendar, Clock, MapPin, UserCheck, FileText } from 'lucide-react';
@@ -13,7 +15,10 @@ import { fr } from 'date-fns/locale';
 
 export const PlanningGeneral = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const { data: planningItems = [], isLoading } = usePlanningGeneral(searchTerm);
+  const [selectedSessionId, setSelectedSessionId] = useState<string>('');
+  
+  const { data: sessions = [] } = useSessions();
+  const { data: planningItems = [], isLoading } = usePlanningGeneral(selectedSessionId, searchTerm);
 
   const formatDate = (dateString: string) => {
     try {
@@ -60,10 +65,33 @@ export const PlanningGeneral = () => {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Search className="h-5 w-5" />
-              <span>Recherche</span>
+              <span>Sélection et recherche</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Session d'examens
+              </label>
+              <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionnez une session" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sessions.map((session) => (
+                    <SelectItem key={session.id} value={session.id}>
+                      {session.name} - {session.year} (Période {session.period})
+                      {session.is_active && (
+                        <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                          Active
+                        </span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -71,15 +99,25 @@ export const PlanningGeneral = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
+                disabled={!selectedSessionId}
               />
             </div>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500">
               Exemples : "Dubois", "Chimie", "2025-01-15", "Auditoire 51"
             </p>
           </CardContent>
         </Card>
 
-        {isLoading ? (
+        {!selectedSessionId ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600">
+                Veuillez sélectionner une session d'examens pour afficher le planning
+              </p>
+            </CardContent>
+          </Card>
+        ) : isLoading ? (
           <Card>
             <CardContent className="p-8 text-center">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-uclouvain-blue mx-auto mb-4"></div>
@@ -104,7 +142,7 @@ export const PlanningGeneral = () => {
                   <p className="text-gray-600">
                     {searchTerm 
                       ? "Aucun résultat trouvé pour votre recherche"
-                      : "Aucun examen importé pour le moment"
+                      : "Aucun examen importé pour cette session"
                     }
                   </p>
                 </div>

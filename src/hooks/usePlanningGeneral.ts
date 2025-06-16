@@ -1,7 +1,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useActiveSession } from "@/hooks/useSessions";
 
 export interface PlanningGeneralItem {
   id: string;
@@ -24,16 +23,14 @@ export interface PlanningGeneralItem {
   nombre_surveillants_requis: number;
 }
 
-export const usePlanningGeneral = (searchTerm?: string) => {
-  const { data: activeSession } = useActiveSession();
-
+export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
   return useQuery({
-    queryKey: ['planning-general', activeSession?.id, searchTerm],
+    queryKey: ['planning-general', sessionId, searchTerm],
     queryFn: async () => {
-      console.log('Fetching planning data for session:', activeSession?.id);
+      console.log('Fetching planning data for session:', sessionId);
       
-      if (!activeSession?.id) {
-        console.log('No active session found');
+      if (!sessionId) {
+        console.log('No session selected');
         return [];
       }
 
@@ -62,12 +59,9 @@ export const usePlanningGeneral = (searchTerm?: string) => {
               prenom,
               email
             )
-          ),
-          contraintes_auditoires (
-            nombre_surveillants_requis
           )
         `)
-        .eq('session_id', activeSession.id)
+        .eq('session_id', sessionId)
         .eq('is_active', true)
         .order('date_examen')
         .order('heure_debut');
@@ -82,7 +76,7 @@ export const usePlanningGeneral = (searchTerm?: string) => {
       }
 
       if (!examens || examens.length === 0) {
-        console.log('No examens found for session:', activeSession.id);
+        console.log('No examens found for session:', sessionId);
         return [];
       }
 
@@ -121,7 +115,7 @@ export const usePlanningGeneral = (searchTerm?: string) => {
             enseignant_email: examen.enseignant_email || '',
             statut_validation: examen.statut_validation || 'NON_TRAITE',
             surveillants: surveillants,
-            nombre_surveillants_requis: examen.contraintes_auditoires?.[0]?.nombre_surveillants_requis || examen.nombre_surveillants || 1
+            nombre_surveillants_requis: examen.nombre_surveillants || 1
           };
 
           // Filtrage par terme de recherche
@@ -152,6 +146,6 @@ export const usePlanningGeneral = (searchTerm?: string) => {
       console.log('Final planning items:', planningItems.length);
       return planningItems;
     },
-    enabled: !!activeSession?.id
+    enabled: !!sessionId
   });
 };
