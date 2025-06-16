@@ -518,6 +518,8 @@ export type Database = {
           surveillants_amenes: number | null
           surveillants_enseignant: number | null
           surveillants_pre_assignes: number | null
+          token_expires_at: string | null
+          token_used_at: string | null
           type_requis: string
           updated_at: string
         }
@@ -548,6 +550,8 @@ export type Database = {
           surveillants_amenes?: number | null
           surveillants_enseignant?: number | null
           surveillants_pre_assignes?: number | null
+          token_expires_at?: string | null
+          token_used_at?: string | null
           type_requis: string
           updated_at?: string
         }
@@ -578,6 +582,8 @@ export type Database = {
           surveillants_amenes?: number | null
           surveillants_enseignant?: number | null
           surveillants_pre_assignes?: number | null
+          token_expires_at?: string | null
+          token_used_at?: string | null
           type_requis?: string
           updated_at?: string
         }
@@ -1074,6 +1080,14 @@ export type Database = {
       }
       is_admin: {
         Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      is_surveillant_email: {
+        Args: { email_to_check: string }
+        Returns: boolean
+      }
+      is_valid_token: {
+        Args: { token_to_check: string }
         Returns: boolean
       }
     }

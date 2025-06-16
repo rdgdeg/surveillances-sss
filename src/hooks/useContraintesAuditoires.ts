@@ -11,7 +11,10 @@ export function useContraintesAuditoires() {
         .select("*")
         .order("auditoire");
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching contraintes auditoires:', error);
+        throw error;
+      }
       return data || [];
     }
   });
@@ -25,7 +28,12 @@ export function useContraintesAuditoiresMap() {
       const { data, error } = await supabase
         .from("contraintes_auditoires")
         .select("auditoire, nombre_surveillants_requis");
-      if (error) throw error;
+      
+      if (error) {
+        console.error('Error fetching contraintes auditoires map:', error);
+        throw error;
+      }
+      
       return (data || []).reduce(
         (map: Record<string, number>, curr: { auditoire: string; nombre_surveillants_requis: number }) => {
           map[curr.auditoire.trim().toLowerCase()] = curr.nombre_surveillants_requis;

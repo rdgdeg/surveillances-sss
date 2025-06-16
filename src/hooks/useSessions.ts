@@ -23,7 +23,10 @@ export const useSessions = () => {
         .order('year', { ascending: false })
         .order('period', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching sessions:', error);
+        throw error;
+      }
       return data as Session[];
     }
   });
@@ -39,7 +42,10 @@ export const useActiveSession = () => {
         .eq('is_active', true)
         .single();
       
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching active session:', error);
+        throw error;
+      }
       return data as Session | null;
     }
   });
@@ -59,7 +65,10 @@ export const useCreateSession = () => {
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating session:', error);
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -70,6 +79,7 @@ export const useCreateSession = () => {
       });
     },
     onError: (error: any) => {
+      console.error('Create session mutation error:', error);
       toast({
         title: "Erreur",
         description: error.message || "Impossible de créer la session.",
@@ -98,7 +108,10 @@ export const useActivateSession = () => {
         .select()
         .single();
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error activating session:', error);
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
@@ -110,6 +123,7 @@ export const useActivateSession = () => {
       });
     },
     onError: (error: any) => {
+      console.error('Activate session mutation error:', error);
       toast({
         title: "Erreur",
         description: error.message || "Impossible d'activer la session.",
