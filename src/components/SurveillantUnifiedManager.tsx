@@ -19,7 +19,7 @@ import { NewFileUploader } from "./NewFileUploader";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-// Liste FAUTES & AFFECTATIONS : inclus FSM + Autre
+// Liste FAUTES & AFFECTATIONS : inclus FSM + Autre
 const FACULTES = [
   { value: "FASB", label: "FASB" },
   { value: "EPL", label: "EPL" },
@@ -71,6 +71,9 @@ interface NewSurveillant {
   telephone?: string;
   campus?: string;
   affectation_fac?: string;
+  eft?: number;
+  date_fin_contrat?: string;
+  quota?: number;
 }
 
 export function SurveillantUnifiedManager() {
@@ -101,7 +104,10 @@ export function SurveillantUnifiedManager() {
     type: '',
     telephone: '',
     campus: '',
-    affectation_fac: ''
+    affectation_fac: '',
+    eft: undefined,
+    date_fin_contrat: '',
+    quota: undefined
   });
 
   const statutsDisponibles = [...BASE_STATUTS, ...customStatuts, "Ajouter..."];
@@ -345,7 +351,7 @@ export function SurveillantUnifiedManager() {
       targetIsActive: boolean;
     }) => {
       // update surveillant_sessions SET is_active=targetIsActive
-      // Attention : Il faut requêter surveillant_sessions (liaison session/surveillant)
+      // Attention : Il faut requêter surveillant_sessions (liaison session/surveillant)
       if (!activeSession) throw new Error("Session non sélectionnée");
       // Récupère les row surveillant_sessions à modifier
       const { data: sessionsRows, error } = await supabase
@@ -381,7 +387,7 @@ export function SurveillantUnifiedManager() {
     },
   });
 
-  // CORRIGE : Calcule le quota théorique correctement selon le statut
+  // CORRIGE : Calcule le quota théorique correctement selon le statut
   function getTheoreticalQuota(statut: string | undefined | null, etp: number | undefined | null): number {
     if (!statut) return 0;
     const statutNorm = (statut || "").toLowerCase();
@@ -457,12 +463,19 @@ export function SurveillantUnifiedManager() {
           telephone: surveillantData.telephone || null,
           campus: surveillantData.campus || null,
           affectation_fac: surveillantData.affectation_fac || null,
+          eft: surveillantData.eft || null,
+          date_fin_contrat: surveillantData.date_fin_contrat || null,
           statut: 'actif'
         })
         .select()
         .single();
 
       if (surveillantError) throw surveillantError;
+
+      // Calculer le quota par défaut si non spécifié
+      const defaultQuota = surveillantData.quota || (
+        surveillantData.type === 'PAT FASB' ? 12 : 6
+      );
 
       // L'associer à la session
       const { error: sessionError } = await supabase
@@ -471,7 +484,7 @@ export function SurveillantUnifiedManager() {
           session_id: activeSession.id,
           surveillant_id: surveillant.id,
           is_active: true,
-          quota: surveillantData.type === 'PAT FASB' ? 12 : 6
+          quota: defaultQuota
         });
 
       if (sessionError) throw sessionError;
@@ -488,7 +501,10 @@ export function SurveillantUnifiedManager() {
         type: '',
         telephone: '',
         campus: '',
-        affectation_fac: ''
+        affectation_fac: '',
+        eft: undefined,
+        date_fin_contrat: '',
+        quota: undefined
       });
       toast({
         title: "Surveillant ajouté",
@@ -544,7 +560,7 @@ export function SurveillantUnifiedManager() {
                   Ajouter un surveillant
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Ajouter un nouveau surveillant</DialogTitle>
                   <DialogDescription>
@@ -596,6 +612,50 @@ export function SurveillantUnifiedManager() {
                         <SelectItem value="Externe">Externe</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">ETP (Équivalent Temps Plein)</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="1"
+                        value={newSurveillant.eft || ''}
+                        onChange={(e) => setNewSurveillant(prev => ({ 
+                          ...prev, 
+                          eft: e.target.value ? parseFloat(e.target.value) : undefined 
+                        }))}
+                        placeholder="0.5"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Valeur entre 0 et 1 (ex: 0.5 pour 50%)</p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Quota surveillances</label>
+                      <Input
+                        type="number"
+                        min="0"
+                        value={newSurveillant.quota || ''}
+                        onChange={(e) => setNewSurveillant(prev => ({ 
+                          ...prev, 
+                          quota: e.target.value ? parseInt(e.target.value) : undefined 
+                        }))}
+                        placeholder="6"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Laissez vide pour valeur par défaut (6 ou 12 selon type)</p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Date de fin de contrat</label>
+                    <Input
+                      type="date"
+                      value={newSurveillant.date_fin_contrat || ''}
+                      onChange={(e) => setNewSurveillant(prev => ({ ...prev, date_fin_contrat: e.target.value }))}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Laissez vide pour contrat permanent</p>
                   </div>
                   
                   <div>
