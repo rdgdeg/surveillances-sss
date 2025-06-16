@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,6 +45,30 @@ export function SimpleSurveillantAvailabilityForm() {
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
   const [isUnknownUser, setIsUnknownUser] = useState(false);
+
+  // Fonction pour vérifier le contrôle PAT FASB
+  const verifierControlePatFasb = async (surveillantData: Surveillant, nbDisponibilites: number) => {
+    if (surveillantData.type === "PAT") {
+      const quotaMinimumRequis = Math.ceil(surveillantData.quota * 1.3); // quota + 30%
+      
+      if (nbDisponibilites < quotaMinimumRequis) {
+        toast({
+          title: "⚠️ Disponibilités insuffisantes",
+          description: `En tant que PAT FASB, vous devez indiquer au moins ${quotaMinimumRequis} disponibilités (votre quota de ${surveillantData.quota} + 30%). Vous n'en avez sélectionné que ${nbDisponibilites}. Cela pourrait compliquer la gestion des surveillances.`,
+          variant: "destructive",
+          duration: 10000
+        });
+        return false;
+      } else {
+        toast({
+          title: "✅ Disponibilités suffisantes",
+          description: `Parfait ! Vous avez indiqué ${nbDisponibilites} disponibilités, ce qui respecte le minimum requis de ${quotaMinimumRequis} pour une bonne gestion des surveillances.`,
+          duration: 5000
+        });
+      }
+    }
+    return true;
+  };
 
   // Charger le profil surveillant
   const chargerProfil = async () => {
@@ -233,6 +256,15 @@ export function SimpleSurveillantAvailabilityForm() {
         variant: "destructive"
       });
       return;
+    }
+
+    // Compter les disponibilités sélectionnées pour le contrôle PAT FASB
+    const nbDisponibilites = Object.values(disponibilites).filter(d => d.dispo).length;
+
+    // Vérifier le contrôle PAT FASB si utilisateur connu
+    if (surveillant && !isUnknownUser) {
+      const controleOk = await verifierControlePatFasb(surveillant, nbDisponibilites);
+      // On continue même si le contrôle échoue, mais on a affiché un avertissement
     }
 
     setLoading(true);
