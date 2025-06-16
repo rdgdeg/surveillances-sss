@@ -120,12 +120,16 @@ export const SimpleSurveillantAvailabilityForm = () => {
       
       existingDisponibilites.forEach(dispo => {
         const key = `${dispo.date_examen}-${dispo.heure_debut}-${dispo.heure_fin}`;
+        
+        // S'assurer que type_choix est du bon type
+        const typeChoix = dispo.type_choix === 'obligatoire' ? 'obligatoire' : 'souhaitee';
+        
         newAvailabilities[key] = {
           date_examen: dispo.date_examen,
           heure_debut: dispo.heure_debut,
           heure_fin: dispo.heure_fin,
           est_disponible: dispo.est_disponible,
-          type_choix: dispo.type_choix || 'souhaitee',
+          type_choix: typeChoix,
           nom_examen_selectionne: dispo.nom_examen_selectionne || '',
           nom_examen_obligatoire: dispo.nom_examen_obligatoire || '',
           commentaire_surveillance_obligatoire: dispo.commentaire_surveillance_obligatoire || ''
@@ -351,7 +355,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
                                       <Label className="text-sm">Type de disponibilité</Label>
                                       <Select
                                         value={availability.type_choix}
-                                        onValueChange={(value) => handleAvailabilityChange(slotKey, 'type_choix', value)}
+                                        onValueChange={(value: 'souhaitee' | 'obligatoire') => handleAvailabilityChange(slotKey, 'type_choix', value)}
                                       >
                                         <SelectTrigger className="mt-1">
                                           <SelectValue />
