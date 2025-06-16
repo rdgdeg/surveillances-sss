@@ -1,9 +1,9 @@
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, Clock, RefreshCw, Users } from "lucide-react";
+import { Session } from "@/hooks/useSessions";
 
 interface AvailabilityInstructionsScreenProps {
   email: string;
@@ -13,6 +13,7 @@ interface AvailabilityInstructionsScreenProps {
   surveillancesADeduire: number;
   setSurveillancesADeduire: (value: number) => void;
   onContinue: () => void;
+  selectedSession?: Session;
   // Pour surveillant inconnu
   nom?: string;
   setNom?: (value: string) => void;
@@ -28,6 +29,7 @@ export const AvailabilityInstructionsScreen = ({
   surveillancesADeduire,
   setSurveillancesADeduire,
   onContinue,
+  selectedSession,
   nom,
   setNom,
   prenom,
@@ -55,6 +57,11 @@ export const AvailabilityInstructionsScreen = ({
           </CardTitle>
           <CardDescription>
             Email confirmé : <strong>{email}</strong>
+            {selectedSession && (
+              <span className="block text-sm text-gray-500 mt-1">
+                Session : <strong>{selectedSession.name}</strong>
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
