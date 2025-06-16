@@ -11,6 +11,8 @@ import { SuiviConfirmationEnseignants } from "@/components/SuiviConfirmationEnse
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { DisponibilitesManager } from "@/components/DisponibilitesManager";
 import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { AdminHeader } from "@/components/AdminHeader";
 
 // Import des principaux modules admin
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
@@ -72,8 +74,9 @@ export default function AdminPage() {
   const currentTab = params.get("tab");
 
   return (
-    <>
+    <ProtectedRoute requireAdmin={true}>
       <UCLouvainHeader />
+      <AdminHeader />
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
           <AppSidebar />
@@ -86,6 +89,6 @@ export default function AdminPage() {
           </main>
         </div>
       </SidebarProvider>
-    </>
+    </ProtectedRoute>
   );
 }
