@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,18 +74,25 @@ export const CollecteSurveillants = () => {
   useEffect(() => {
     if (!email || !activeSession) return;
     let isCancelled = false;
+    console.log('Checking email:', email.trim().toLowerCase());
+    
     (async () => {
       const { data, error } = await supabase
         .from('surveillants')
-        .select('id, nom, prenom, type, surveillances_a_deduire, eft')
-        .eq('email', email.trim())
+        .select('id, nom, prenom, type, surveillances_a_deduire, eft, email')
+        .eq('email', email.trim().toLowerCase())
         .maybeSingle();
+      
+      console.log('Surveillant lookup result:', { data, error, email: email.trim().toLowerCase() });
+      
       if (!isCancelled) {
         if (!data) {
+          console.log('No surveillant found for email:', email.trim().toLowerCase());
           setSurveillantId(null);
           setSurveillantData(null);
           setSurveillancesADeduire(0);
         } else {
+          console.log('Found surveillant:', data);
           setSurveillantId(data.id);
           setSurveillantData(data);
           setSurveillancesADeduire(data.surveillances_a_deduire || 0);
@@ -219,7 +225,7 @@ export const CollecteSurveillants = () => {
       const { data: surveillantObj } = await supabase
         .from('surveillants')
         .insert({
-          email: email,
+          email: email.trim().toLowerCase(),
           nom,
           prenom,
           telephone: telephone,
@@ -472,7 +478,7 @@ export const CollecteSurveillants = () => {
           </CardHeader>
           <CardContent>
             <label className="block mb-1 font-medium">
-              Nombre de personnes que j'amène
+              Nombre de personnes que j'amenez
             </label>
             <Input
               type="number"

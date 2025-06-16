@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,18 +58,30 @@ export const SimpleSurveillantAvailabilityForm = () => {
       return;
     }
 
+    console.log('Searching for surveillant with email:', email.trim().toLowerCase());
+
     const { data, error } = await supabase
       .from('surveillants')
-      .select('id, nom, prenom, type, surveillances_a_deduire, telephone')
+      .select('id, nom, prenom, type, surveillances_a_deduire, telephone, email')
       .eq('email', email.trim().toLowerCase())
-      .single();
+      .maybeSingle();
+
+    console.log('Surveillant search result:', { data, error, searchEmail: email.trim().toLowerCase() });
 
     if (error) {
+      console.error('Error searching for surveillant:', error);
       // Surveillant non trouvé - demander confirmation
       setCurrentStep('email-confirmation');
       return;
     }
 
+    if (!data) {
+      console.log('No surveillant found with email:', email.trim().toLowerCase());
+      setCurrentStep('email-confirmation');
+      return;
+    }
+
+    console.log('Found surveillant:', data);
     setSurveillantId(data.id);
     setSurveillantData(data);
     setSurveillancesADeduire(data.surveillances_a_deduire || 0);
