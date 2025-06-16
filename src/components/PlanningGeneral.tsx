@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Users, Calendar, Clock, MapPin } from 'lucide-react';
+import { Search, Users, Calendar, Clock, MapPin, UserCheck, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -31,15 +31,28 @@ export const PlanningGeneral = () => {
     }
   };
 
+  const getStatutBadge = (statut: string) => {
+    switch (statut) {
+      case 'VALIDE':
+        return <Badge variant="default" className="bg-green-600">Validé</Badge>;
+      case 'NECESSITE_VALIDATION':
+        return <Badge variant="destructive">À valider</Badge>;
+      case 'REJETE':
+        return <Badge variant="outline" className="text-red-600 border-red-600">Rejeté</Badge>;
+      default:
+        return <Badge variant="secondary">Non traité</Badge>;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <UCLouvainHeader />
       
       <main className="container mx-auto px-4 py-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Planning Général des Surveillances</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Planning Général des Examens</h1>
           <p className="text-gray-600">
-            Horaire complet des examens avec attributions des surveillants par auditoire
+            Liste complète des examens importés avec détail par auditoire
           </p>
         </div>
 
@@ -54,7 +67,7 @@ export const PlanningGeneral = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Rechercher par surveillant, examen, date, auditoire..."
+                placeholder="Rechercher par enseignant, examen, date, auditoire..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -77,7 +90,7 @@ export const PlanningGeneral = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Planning des Examens</span>
+                <span>Planning Complet des Examens</span>
                 <Badge variant="outline" className="flex items-center space-x-1">
                   <Calendar className="h-3 w-3" />
                   <span>{planningItems.length} lignes</span>
@@ -91,7 +104,7 @@ export const PlanningGeneral = () => {
                   <p className="text-gray-600">
                     {searchTerm 
                       ? "Aucun résultat trouvé pour votre recherche"
-                      : "Aucun examen planifié pour le moment"
+                      : "Aucun examen importé pour le moment"
                     }
                   </p>
                 </div>
@@ -119,13 +132,25 @@ export const PlanningGeneral = () => {
                             <span>Auditoire</span>
                           </div>
                         </TableHead>
-                        <TableHead className="min-w-[250px]">
+                        <TableHead className="min-w-[180px]">
+                          <div className="flex items-center space-x-1">
+                            <UserCheck className="h-4 w-4" />
+                            <span>Enseignant</span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="min-w-[200px]">
                           <div className="flex items-center space-x-1">
                             <Users className="h-4 w-4" />
                             <span>Surveillants</span>
                           </div>
                         </TableHead>
-                        <TableHead className="min-w-[100px]">Faculté</TableHead>
+                        <TableHead className="min-w-[120px]">
+                          <div className="flex items-center space-x-1">
+                            <FileText className="h-4 w-4" />
+                            <span>Consignes</span>
+                          </div>
+                        </TableHead>
+                        <TableHead className="min-w-[100px]">Statut</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -154,6 +179,18 @@ export const PlanningGeneral = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
+                            {item.enseignant_nom ? (
+                              <div>
+                                <div className="font-medium text-sm">{item.enseignant_nom}</div>
+                                {item.enseignant_email && (
+                                  <div className="text-xs text-gray-500">{item.enseignant_email}</div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-500 italic text-sm">Non renseigné</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
                             <div className="space-y-1">
                               {item.surveillants.length > 0 ? (
                                 item.surveillants.map((surveillant) => (
@@ -165,9 +202,9 @@ export const PlanningGeneral = () => {
                                   </div>
                                 ))
                               ) : (
-                                <div className="flex items-center space-x-2 text-orange-600">
-                                  <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                                  <span className="text-sm italic">Non attribué</span>
+                                <div className="flex items-center space-x-2 text-blue-600">
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  <span className="text-sm italic">À venir</span>
                                 </div>
                               )}
                               <div className="text-xs text-gray-500 mt-1">
@@ -176,9 +213,13 @@ export const PlanningGeneral = () => {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="secondary" className="text-xs">
-                              {item.faculte || 'Non définie'}
-                            </Badge>
+                            <div className="flex items-center space-x-2 text-blue-600">
+                              <FileText className="h-3 w-3" />
+                              <span className="text-sm italic">À venir</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {getStatutBadge(item.statut_validation)}
                           </TableCell>
                         </TableRow>
                       ))}

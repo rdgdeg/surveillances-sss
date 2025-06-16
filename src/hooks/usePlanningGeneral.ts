@@ -12,6 +12,9 @@ export interface PlanningGeneralItem {
   auditoire: string;
   code_examen: string;
   faculte: string;
+  enseignant_nom: string;
+  enseignant_email: string;
+  statut_validation: string;
   surveillants: Array<{
     id: string;
     nom: string;
@@ -29,7 +32,7 @@ export const usePlanningGeneral = (searchTerm?: string) => {
     queryFn: async () => {
       if (!activeSession?.id) return [];
 
-      // Requête pour récupérer tous les examens validés avec leurs attributions
+      // Requête pour récupérer TOUS les examens avec leurs attributions
       let query = supabase
         .from('examens')
         .select(`
@@ -41,8 +44,11 @@ export const usePlanningGeneral = (searchTerm?: string) => {
           salle,
           code_examen,
           faculte,
-          nombre_surveillants,
+          enseignant_nom,
+          enseignant_email,
           statut_validation,
+          nombre_surveillants,
+          is_active,
           attributions (
             surveillant_id,
             surveillants (
@@ -57,7 +63,6 @@ export const usePlanningGeneral = (searchTerm?: string) => {
           )
         `)
         .eq('session_id', activeSession.id)
-        .eq('statut_validation', 'VALIDE')
         .eq('is_active', true)
         .order('date_examen')
         .order('heure_debut');
@@ -95,6 +100,9 @@ export const usePlanningGeneral = (searchTerm?: string) => {
             auditoire: auditoire,
             code_examen: examen.code_examen || '',
             faculte: examen.faculte || '',
+            enseignant_nom: examen.enseignant_nom || '',
+            enseignant_email: examen.enseignant_email || '',
+            statut_validation: examen.statut_validation || 'NON_TRAITE',
             surveillants: surveillants,
             nombre_surveillants_requis: examen.contraintes_auditoires?.[0]?.nombre_surveillants_requis || examen.nombre_surveillants || 1
           };
@@ -107,6 +115,7 @@ export const usePlanningGeneral = (searchTerm?: string) => {
               item.auditoire.toLowerCase().includes(searchLower) ||
               item.code_examen.toLowerCase().includes(searchLower) ||
               item.faculte.toLowerCase().includes(searchLower) ||
+              item.enseignant_nom.toLowerCase().includes(searchLower) ||
               item.date_examen.includes(searchTerm) ||
               item.surveillants.some(s => 
                 s.nom.toLowerCase().includes(searchLower) ||
