@@ -164,6 +164,12 @@ export function SurveillantUnifiedManager() {
     enabled: !!activeSession?.id,
   });
 
+  // Derived data - filter surveillants by active status
+  const allRows = Array.isArray(surveillants) ? surveillants : [];
+  const surveillantsActifs = allRows.filter(r => r.is_active);
+  const surveillantsDesactives = allRows.filter(r => !r.is_active);
+  const currentRows = activeTab === "actifs" ? surveillantsActifs : surveillantsDesactives;
+
   // 2. MUTATIONS : update ETP OU quota session 
   const updateSurveillantMutation = useMutation({
     mutationFn: async ({
@@ -414,7 +420,6 @@ export function SurveillantUnifiedManager() {
   });
 
   // Ajout : calculs pour tuiles récapitulatives
-  const allRows = Array.isArray(surveillants) ? surveillants : [];
   const total = allRows.length;
   const actifs = allRows.filter(r => r.is_active).length;
   const inactifs = allRows.filter(r => !r.is_active).length;
