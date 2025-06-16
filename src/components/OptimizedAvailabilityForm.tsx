@@ -4,14 +4,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
-import { Calendar, Clock, Send, CheckCircle, AlertCircle, HelpCircle } from "lucide-react";
+import { Calendar, Clock, Send, CheckCircle, AlertCircle } from "lucide-react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -32,7 +30,6 @@ interface DisponibiliteForm {
   heure_fin: string;
   est_disponible: boolean;
   type_choix: 'souhaitee' | 'obligatoire';
-  nom_examen_selectionne: string;
   nom_examen_obligatoire?: string;
   commentaire_surveillance_obligatoire?: string;
 }
@@ -179,7 +176,6 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
             heure_fin: av.heure_fin,
             est_disponible: true,
             type_choix: av.type_choix,
-            nom_examen_selectionne: av.nom_examen_selectionne,
             nom_examen_obligatoire: av.nom_examen_obligatoire,
             commentaire_surveillance_obligatoire: av.commentaire_surveillance_obligatoire
           }))
@@ -234,11 +230,24 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
           heure_debut: slot.heure_debut,
           heure_fin: slot.heure_fin,
           est_disponible: true,
-          type_choix: 'souhaitee',
-          nom_examen_selectionne: ''
+          type_choix: 'souhaitee', // Par défaut souhaitée
+          nom_examen_obligatoire: ''
         }
       }));
     }
+  };
+
+  const toggleObligatoire = (slotKey: string) => {
+    setAvailabilities(prev => ({
+      ...prev,
+      [slotKey]: {
+        ...prev[slotKey],
+        type_choix: prev[slotKey]?.type_choix === 'obligatoire' ? 'souhaitee' : 'obligatoire',
+        // Effacer le code examen si on passe en souhaité
+        nom_examen_obligatoire: prev[slotKey]?.type_choix === 'obligatoire' ? '' : prev[slotKey]?.nom_examen_obligatoire || '',
+        commentaire_surveillance_obligatoire: prev[slotKey]?.type_choix === 'obligatoire' ? '' : 'Surveillance obligatoire'
+      }
+    }));
   };
 
   const handleSubmit = async () => {
@@ -275,6 +284,9 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
           Plus vous sélectionnez de créneaux, plus nous pourrons optimiser la répartition. 
           Sélectionnez tous les créneaux où vous pourriez être disponible !
         </p>
+        <p className="text-xs text-gray-600 mt-2">
+          <strong>Temps de préparation :</strong> Maximum 45 minutes mais dépend du secrétariat (peut être inférieur).
+        </p>
       </div>
 
       {Object.keys(weeklySlots).length === 0 ? (
@@ -300,112 +312,74 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
                     const slotKey = `${slot.date_examen}-${slot.heure_debut}-${slot.heure_fin}`;
                     const availability = availabilities[slotKey];
                     const isAvailable = availability?.est_disponible || false;
+                    const isObligatoire = availability?.type_choix === 'obligatoire';
 
                     return (
                       <Card key={index} className={`border transition-colors ${isAvailable ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
                         <CardContent className="pt-4">
-                          <div className="flex items-start space-x-4">
-                            <Checkbox
-                              checked={isAvailable}
-                              onCheckedChange={() => toggleAvailability(slot)}
-                              className="mt-1"
-                            />
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-4 mb-2">
-                                <div className="flex items-center space-x-2">
-                                  <Calendar className="h-4 w-4 text-gray-500" />
-                                  <span className="font-medium">
-                                    {formatDateBelgian(slot.date_examen)}
-                                  </span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <Clock className="h-4 w-4 text-gray-500" />
-                                  <span>{formatTimeRange(slot.heure_debut, slot.heure_fin)}</span>
-                                  <span className="text-xs text-gray-500">
-                                    (incl. 45min préparation)
-                                  </span>
+                          <div className="space-y-3">
+                            {/* Sélection du créneau */}
+                            <div className="flex items-start space-x-4">
+                              <Checkbox
+                                checked={isAvailable}
+                                onCheckedChange={() => toggleAvailability(slot)}
+                                className="mt-1"
+                              />
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-4">
+                                  <div className="flex items-center space-x-2">
+                                    <Calendar className="h-4 w-4 text-gray-500" />
+                                    <span className="font-medium">
+                                      {formatDateBelgian(slot.date_examen)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <Clock className="h-4 w-4 text-gray-500" />
+                                    <span>{formatTimeRange(slot.heure_debut, slot.heure_fin)}</span>
+                                    <span className="text-xs text-gray-500">
+                                      (incl. préparation)
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
+                            </div>
 
-                              {/* Interface progressive : afficher les options seulement si sélectionné */}
-                              {isAvailable && (
-                                <div className="space-y-4 mt-4 p-4 bg-white rounded border">
-                                  {/* Question principale sur le type de surveillance */}
-                                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                            {/* Options supplémentaires si le créneau est sélectionné */}
+                            {isAvailable && (
+                              <div className="ml-8 space-y-3 p-3 bg-white rounded border">
+                                {/* Case surveillance obligatoire */}
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox
+                                    checked={isObligatoire}
+                                    onCheckedChange={() => toggleObligatoire(slotKey)}
+                                  />
+                                  <Label className="text-sm font-medium">
+                                    Surveillance obligatoire
+                                  </Label>
+                                </div>
+
+                                {/* Code examen si obligatoire */}
+                                {isObligatoire && (
+                                  <div className="bg-orange-50 border border-orange-200 rounded p-3">
                                     <div className="flex items-center space-x-2 mb-2">
-                                      <HelpCircle className="h-4 w-4 text-blue-600" />
-                                      <span className="font-medium text-blue-800">
-                                        S'agit-il d'un créneau à surveiller de manière obligatoire ou souhaitée ?
+                                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                                      <span className="font-medium text-orange-800 text-sm">
+                                        Code de l'examen obligatoire
                                       </span>
                                     </div>
-                                    <Select
-                                      value={availability.type_choix}
-                                      onValueChange={(value: 'souhaitee' | 'obligatoire') => handleAvailabilityChange(slotKey, 'type_choix', value)}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="souhaitee">Souhaitée - Je peux surveiller ce créneau</SelectItem>
-                                        <SelectItem value="obligatoire">Obligatoire - Je dois absolument surveiller ce créneau</SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                    <Input
+                                      value={availability.nom_examen_obligatoire || ''}
+                                      onChange={(e) => handleAvailabilityChange(slotKey, 'nom_examen_obligatoire', e.target.value)}
+                                      placeholder="Ex: LECON2100"
+                                      className="text-sm"
+                                    />
+                                    <p className="text-xs text-orange-700 mt-1">
+                                      Indiquez le code exact de l'examen que vous devez absolument surveiller
+                                    </p>
                                   </div>
-
-                                  {/* Champs supplémentaires conditionnels */}
-                                  <div className="grid grid-cols-1 gap-4">
-                                    <div>
-                                      <Label className="text-sm">Code examen spécifique (optionnel)</Label>
-                                      <Input
-                                        value={availability.nom_examen_selectionne || ''}
-                                        onChange={(e) => handleAvailabilityChange(slotKey, 'nom_examen_selectionne', e.target.value)}
-                                        placeholder="Ex: LECON2100"
-                                        className="mt-1"
-                                      />
-                                      <p className="text-xs text-gray-500 mt-1">
-                                        Si vous souhaitez surveiller un examen particulier de ce créneau
-                                      </p>
-                                    </div>
-
-                                    {availability.type_choix === 'obligatoire' && (
-                                      <>
-                                        <div className="bg-orange-50 border border-orange-200 rounded p-3">
-                                          <div className="flex items-center space-x-2 mb-2">
-                                            <AlertCircle className="h-4 w-4 text-orange-600" />
-                                            <span className="font-medium text-orange-800">
-                                              Surveillance obligatoire - Informations requises
-                                            </span>
-                                          </div>
-                                          <div className="space-y-3">
-                                            <div>
-                                              <Label className="text-sm">Nom de l'examen obligatoire *</Label>
-                                              <Input
-                                                value={availability.nom_examen_obligatoire || ''}
-                                                onChange={(e) => handleAvailabilityChange(slotKey, 'nom_examen_obligatoire', e.target.value)}
-                                                placeholder="Nom complet de l'examen"
-                                                className="mt-1"
-                                                required
-                                              />
-                                            </div>
-                                            <div>
-                                              <Label className="text-sm">Justification (obligatoire) *</Label>
-                                              <Textarea
-                                                value={availability.commentaire_surveillance_obligatoire || ''}
-                                                onChange={(e) => handleAvailabilityChange(slotKey, 'commentaire_surveillance_obligatoire', e.target.value)}
-                                                placeholder="Pourquoi cette surveillance est-elle obligatoire pour vous ? (ex: vous enseignez cette matière, responsabilité spécifique, etc.)"
-                                                className="mt-1"
-                                                rows={2}
-                                                required
-                                              />
-                                            </div>
-                                          </div>
-                                        </div>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
