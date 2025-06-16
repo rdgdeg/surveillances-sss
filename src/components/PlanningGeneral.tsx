@@ -16,7 +16,7 @@ import { fr } from 'date-fns/locale';
 export const PlanningGeneral = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
-  const [selectedFaculte, setSelectedFaculte] = useState<string>('');
+  const [selectedFaculte, setSelectedFaculte] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
@@ -34,9 +34,9 @@ export const PlanningGeneral = () => {
   )).sort();
 
   // Filtrer par faculté
-  const filteredItems = selectedFaculte 
-    ? planningItems.filter(item => item.faculte === selectedFaculte)
-    : planningItems;
+  const filteredItems = selectedFaculte === 'all' 
+    ? planningItems
+    : planningItems.filter(item => item.faculte === selectedFaculte);
 
   // Fonction de tri
   const sortedItems = [...filteredItems].sort((a, b) => {
@@ -204,7 +204,7 @@ export const PlanningGeneral = () => {
                     <SelectValue placeholder="Filtrer par faculté" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Toutes les facultés</SelectItem>
+                    <SelectItem value="all">Toutes les facultés</SelectItem>
                     {facultesUniques.map((faculte) => (
                       <SelectItem key={faculte} value={faculte}>
                         <div className="flex items-center space-x-2">
@@ -246,7 +246,7 @@ export const PlanningGeneral = () => {
               <CardTitle className="flex items-center justify-between">
                 <span>Planning Complet des Examens</span>
                 <div className="flex items-center space-x-4">
-                  {selectedFaculte && (
+                  {selectedFaculte !== 'all' && (
                     <Badge variant="outline" className="flex items-center space-x-1">
                       <Filter className="h-3 w-3" />
                       <span>{selectedFaculte}</span>
@@ -264,7 +264,7 @@ export const PlanningGeneral = () => {
                 <div className="text-center py-8">
                   <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600">
-                    {searchTerm || selectedFaculte
+                    {searchTerm || selectedFaculte !== 'all'
                       ? "Aucun résultat trouvé pour votre recherche"
                       : "Aucun examen importé pour cette session"
                     }
