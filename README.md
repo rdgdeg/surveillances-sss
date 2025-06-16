@@ -257,8 +257,10 @@ npm run dev
 
 ### Variables d'Environnement
 ```
-VITE_SUPABASE_URL=votre-url-supabase
-VITE_SUPABASE_ANON_KEY=votre-cle-publique
+cp .env.example .env
+# Puis renseignez les valeurs suivantes :
+VITE_SUPABASE_URL=<votre-url-supabase>
+VITE_SUPABASE_ANON_KEY=<votre-cle-publique>
 ```
 
 ### Sauvegarde
