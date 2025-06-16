@@ -30,9 +30,14 @@ export const usePlanningGeneral = (searchTerm?: string) => {
   return useQuery({
     queryKey: ['planning-general', activeSession?.id, searchTerm],
     queryFn: async () => {
-      if (!activeSession?.id) return [];
+      console.log('Fetching planning data for session:', activeSession?.id);
+      
+      if (!activeSession?.id) {
+        console.log('No active session found');
+        return [];
+      }
 
-      // Requête pour récupérer TOUS les examens avec leurs attributions
+      // Requête pour récupérer tous les examens actifs avec leurs attributions
       let query = supabase
         .from('examens')
         .select(`
@@ -69,12 +74,24 @@ export const usePlanningGeneral = (searchTerm?: string) => {
 
       const { data: examens, error } = await query;
       
-      if (error) throw error;
+      console.log('Query result:', { examens, error });
+      
+      if (error) {
+        console.error('Error fetching examens:', error);
+        throw error;
+      }
+
+      if (!examens || examens.length === 0) {
+        console.log('No examens found for session:', activeSession.id);
+        return [];
+      }
 
       // Traitement des données pour split des auditoires multiples
       const planningItems: PlanningGeneralItem[] = [];
       
-      examens?.forEach((examen: any) => {
+      examens.forEach((examen: any) => {
+        console.log('Processing examen:', examen.id, examen.matiere);
+        
         // Split des auditoires (ex: "51 B, 71 - Simonart" → ["51 B", "71 - Simonart"])
         const auditoires = examen.salle
           .split(',')
@@ -132,6 +149,7 @@ export const usePlanningGeneral = (searchTerm?: string) => {
         });
       });
 
+      console.log('Final planning items:', planningItems.length);
       return planningItems;
     },
     enabled: !!activeSession?.id
