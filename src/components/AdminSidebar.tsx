@@ -4,38 +4,13 @@ import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  Calendar,
-  Users,
-  FileText,
-  Settings,
-  ClipboardList,
-  UserCheck,
-  MapPin,
-  AlertTriangle,
-  Grid3X3,
-  Eye,
   CheckSquare,
-  MessageSquare,
-  UserPlus,
-  FileSpreadsheet
+  Settings,
 } from "lucide-react";
 
 const menuItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "Sessions", href: "/admin/sessions", icon: Calendar },
-  { name: "Examens", href: "/admin/examens", icon: FileText },
-  { name: "Surveillants", href: "/admin/surveillants", icon: Users },
-  { name: "Candidatures", href: "/admin/candidatures", icon: UserPlus },
-  { name: "Collecte Dispos", href: "/admin/collecte", icon: ClipboardList },
   { name: "Disponibilités", href: "/admin/disponibilites", icon: CheckSquare },
-  { name: "Suivi Dispos", href: "/admin/suivi-disponibilites", icon: Eye },
-  { name: "Gestion Dispos", href: "/admin/gestion-disponibilites", icon: FileSpreadsheet },
-  { name: "Matrice", href: "/admin/matrice", icon: Grid3X3 },
-  { name: "Attributions", href: "/admin/attributions", icon: UserCheck },
-  { name: "Auditoires", href: "/admin/auditoires", icon: MapPin },
-  { name: "Demandes Modif", href: "/admin/demandes-modification", icon: MessageSquare },
-  { name: "Problèmes", href: "/admin/problemes", icon: AlertTriangle },
-  { name: "Paramètres", href: "/admin/settings", icon: Settings },
 ];
 
 export const AdminSidebar = () => {
