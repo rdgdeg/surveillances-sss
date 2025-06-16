@@ -8,13 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { UploadCloud, Save, Plus, X, RotateCcw } from "lucide-react";
+import { Plus, X, RotateCcw } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CustomStatusModal } from "./CustomStatusModal";
 import { FacultesMultiSelect, FACULTES_FILTERED } from "./FacultesMultiSelect";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SurveillantStatsRecap } from "./SurveillantStatsRecap";
 import { SurveillantTable } from "./SurveillantTable";
+import { NewFileUploader } from "./NewFileUploader";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Liste FAUTES & AFFECTATIONS : inclus FSM + Autre
 const FACULTES = [
@@ -44,31 +47,36 @@ interface SurveillantJoin {
   email: string;
   type: string;
   statut: string;
-  faculte_interdite?: string; // du Supabase (pour join), on reconstruit après en tableau
+  faculte_interdite?: string;
   affectation_fac?: string;
   campus?: string;
   eft?: number;
-  /** AJOUTER date_fin_contrat */
   date_fin_contrat?: string | null;
-  // Session fields
   session_entry_id?: string;
   quota?: number | null;
   is_active?: boolean;
 }
 
-// On reconstruit partout en interne avec ce type (toujours un tableau pour faculte_interdite)
 type SurveillantJoinWithArray = Omit<SurveillantJoin, "faculte_interdite"> & {
   faculte_interdite: string[];
-  /** AJOUT date_fin_contrat pour TypeScript */
   date_fin_contrat?: string | null;
   is_active: boolean;
 };
+
+interface NewSurveillant {
+  nom: string;
+  prenom: string;
+  email: string;
+  type: string;
+  telephone?: string;
+  campus?: string;
+  affectation_fac?: string;
+}
 
 export function SurveillantUnifiedManager() {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
   const [editRow, setEditRow] = useState<string | null>(null);
-  // CORRECTION: Utilisation correcte de useState<...>()
   const [editValues, setEditValues] = useState<{
     etp?: number;
     quota?: number;
@@ -83,6 +91,18 @@ export function SurveillantUnifiedManager() {
   const [activeTab, setActiveTab] = useState<"actifs" | "desactives">("actifs");
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
+  
+  // États pour l'ajout manuel
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newSurveillant, setNewSurveillant] = useState<NewSurveillant>({
+    nom: '',
+    prenom: '',
+    email: '',
+    type: '',
+    telephone: '',
+    campus: '',
+    affectation_fac: ''
+  });
 
   const statutsDisponibles = [...BASE_STATUTS, ...customStatuts, "Ajouter..."];
 
@@ -128,7 +148,6 @@ export function SurveillantUnifiedManager() {
         email: row.surveillants.email,
         type: row.surveillants.type,
         statut: row.surveillants.statut,
-        // string|null > tableau (filtre "NONE" => [])
         faculte_interdite:
           row.surveillants.faculte_interdite && row.surveillants.faculte_interdite !== "NONE"
             ? row.surveillants.faculte_interdite.split(",").map((x: string) => x.trim())
@@ -136,28 +155,14 @@ export function SurveillantUnifiedManager() {
         affectation_fac: row.surveillants.affectation_fac,
         campus: row.surveillants.campus,
         eft: row.surveillants.eft ?? undefined,
-        date_fin_contrat: row.surveillants.date_fin_contrat ?? null, // AJOUT
+        date_fin_contrat: row.surveillants.date_fin_contrat ?? null,
         session_entry_id: row.id,
         quota: row.quota ?? null,
-        is_active: row.is_active === undefined ? true : row.is_active, // NOUVEAU: récupère statut session
+        is_active: row.is_active === undefined ? true : row.is_active,
       })) as SurveillantJoinWithArray[];
     },
     enabled: !!activeSession?.id,
   });
-
-  // 2. Calcule les surveillants actifs/désactivés pour affichage par onglet
-  const surveillantsActifs = Array.isArray(surveillants)
-    ? surveillants.filter(s => s.is_active)
-    : [];
-  const surveillantsDesactives = Array.isArray(surveillants)
-    ? surveillants.filter(s => !s.is_active)
-    : [];
-
-  // 3. Sélection selon onglet actif
-  const currentRows =
-    activeTab === "actifs"
-      ? surveillantsActifs
-      : surveillantsDesactives;
 
   // 2. MUTATIONS : update ETP OU quota session 
   const updateSurveillantMutation = useMutation({
@@ -418,6 +423,96 @@ export function SurveillantUnifiedManager() {
     return acc;
   }, {});
 
+  // Mutation pour ajouter un surveillant manuellement
+  const addSurveillantMutation = useMutation({
+    mutationFn: async (surveillantData: NewSurveillant) => {
+      if (!activeSession?.id) throw new Error("Session non sélectionnée");
+
+      // Vérifier si l'email existe déjà
+      const { data: existing, error: checkError } = await supabase
+        .from('surveillants')
+        .select('id')
+        .eq('email', surveillantData.email)
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+
+      if (existing) {
+        throw new Error(`Un surveillant avec l'email ${surveillantData.email} existe déjà.`);
+      }
+
+      // Créer le surveillant
+      const { data: surveillant, error: surveillantError } = await supabase
+        .from('surveillants')
+        .insert({
+          nom: surveillantData.nom,
+          prenom: surveillantData.prenom,
+          email: surveillantData.email,
+          type: surveillantData.type,
+          telephone: surveillantData.telephone || null,
+          campus: surveillantData.campus || null,
+          affectation_fac: surveillantData.affectation_fac || null,
+          statut: 'actif'
+        })
+        .select()
+        .single();
+
+      if (surveillantError) throw surveillantError;
+
+      // L'associer à la session
+      const { error: sessionError } = await supabase
+        .from('surveillant_sessions')
+        .insert({
+          session_id: activeSession.id,
+          surveillant_id: surveillant.id,
+          is_active: true,
+          quota: surveillantData.type === 'PAT FASB' ? 12 : 6
+        });
+
+      if (sessionError) throw sessionError;
+
+      return surveillant;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unified-surveillants'] });
+      setIsAddDialogOpen(false);
+      setNewSurveillant({
+        nom: '',
+        prenom: '',
+        email: '',
+        type: '',
+        telephone: '',
+        campus: '',
+        affectation_fac: ''
+      });
+      toast({
+        title: "Surveillant ajouté",
+        description: "Le surveillant a été ajouté avec succès à la session.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible d'ajouter le surveillant.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Ajout manuel : gestion du formulaire
+  const handleAddSurveillant = () => {
+    if (!newSurveillant.nom || !newSurveillant.prenom || !newSurveillant.email || !newSurveillant.type) {
+      toast({
+        title: "Champs obligatoires",
+        description: "Veuillez remplir tous les champs obligatoires.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    addSurveillantMutation.mutate(newSurveillant);
+  };
+
   return (
     <div className="space-y-4 px-0 md:px-8 max-w-screen-2xl w-full mx-auto">
       {/* --- Recap --- */}
@@ -427,21 +522,134 @@ export function SurveillantUnifiedManager() {
         inactifs={inactifs}
         typeMap={typeMap}
       />
+      
       <Card className="w-full max-w-none">
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div>
             <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-1">Liste des surveillants</CardTitle>
             <CardDescription className="text-base text-gray-600">
-              Gérez tous les surveillants, ETP, quotas, restrictions de facultés, et import sur la session courante.
+              Gérez tous les surveillants, ETP, quotas, restrictions de facultés, et import/ajout sur la session courante.
             </CardDescription>
           </div>
-          <Button variant="outline" onClick={handleOpenUpload}>
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Importer surveillants (Excel)
-          </Button>
+          <div className="flex gap-2">
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Ajouter un surveillant
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Ajouter un nouveau surveillant</DialogTitle>
+                  <DialogDescription>
+                    Ajoutez manuellement un nouveau surveillant à la session.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Nom *</label>
+                      <Input
+                        value={newSurveillant.nom}
+                        onChange={(e) => setNewSurveillant(prev => ({ ...prev, nom: e.target.value }))}
+                        placeholder="Nom"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Prénom *</label>
+                      <Input
+                        value={newSurveillant.prenom}
+                        onChange={(e) => setNewSurveillant(prev => ({ ...prev, prenom: e.target.value }))}
+                        placeholder="Prénom"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Email *</label>
+                    <Input
+                      type="email"
+                      value={newSurveillant.email}
+                      onChange={(e) => setNewSurveillant(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="email@example.com"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Type *</label>
+                    <Select value={newSurveillant.type} onValueChange={(value) => setNewSurveillant(prev => ({ ...prev, type: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Personnel Académique">Personnel Académique</SelectItem>
+                        <SelectItem value="Personnel Administratif">Personnel Administratif</SelectItem>
+                        <SelectItem value="Jobiste">Jobiste</SelectItem>
+                        <SelectItem value="PAT">PAT</SelectItem>
+                        <SelectItem value="PAT FASB">PAT FASB</SelectItem>
+                        <SelectItem value="Externe">Externe</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Téléphone</label>
+                    <Input
+                      value={newSurveillant.telephone || ''}
+                      onChange={(e) => setNewSurveillant(prev => ({ ...prev, telephone: e.target.value }))}
+                      placeholder="Numéro de téléphone"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Campus</label>
+                    <Input
+                      value={newSurveillant.campus || ''}
+                      onChange={(e) => setNewSurveillant(prev => ({ ...prev, campus: e.target.value }))}
+                      placeholder="Campus"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Affectation Faculté</label>
+                    <Input
+                      value={newSurveillant.affectation_fac || ''}
+                      onChange={(e) => setNewSurveillant(prev => ({ ...prev, affectation_fac: e.target.value }))}
+                      placeholder="Faculté d'affectation"
+                    />
+                  </div>
+                  
+                  <div className="flex justify-end space-x-2 pt-4">
+                    <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                      Annuler
+                    </Button>
+                    <Button 
+                      onClick={handleAddSurveillant} 
+                      disabled={addSurveillantMutation.isPending}
+                    >
+                      Ajouter
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+            
+            <Button variant="outline" onClick={() => setShowUpload(!showUpload)}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              {showUpload ? 'Fermer' : 'Importer'} (Excel)
+            </Button>
+          </div>
         </CardHeader>
+        
         <CardContent className="p-0">
-          {/* --- Tabs, Table, Import, Modal, remain unchanged --- */}
+          {/* Section Import */}
+          {showUpload && (
+            <div className="p-6 border-b">
+              <NewFileUploader />
+            </div>
+          )}
+
           <Tabs value={activeTab} onValueChange={v => setActiveTab(v as "actifs" | "desactives")}>
             <TabsList className="mb-3 ml-4">
               <TabsTrigger value="actifs">Actifs</TabsTrigger>
@@ -489,28 +697,6 @@ export function SurveillantUnifiedManager() {
             </TabsContent>
           </Tabs>
         </CardContent>
-
-        {/* Section Import - à brancher avec l'import Excel existant si souhaité */}
-        {showUpload && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Importer des surveillants</CardTitle>
-              <CardDescription>
-                Sélectionnez un fichier Excel pour mettre à jour la liste.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* À remplacer par ton FileUploader existant */}
-              <div className="flex gap-4">
-                <Input type="file" accept=".xlsx,.xls" />
-                <Button variant="outline" onClick={() => setShowUpload(false)}>Fermer</Button>
-              </div>
-              <div className="mt-2 text-xs text-muted">
-                Fonctionnalité à connecter à ton composant d'import.
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* MODALE AJOUT STATUT */}
         <CustomStatusModal
