@@ -1,5 +1,6 @@
 
 import { SimpleSurveillantAvailabilityForm } from "@/components/SimpleSurveillantAvailabilityForm";
+import { PatFasbDisponibilitesChecker } from "@/components/PatFasbDisponibilitesChecker";
 import { Footer } from "@/components/Footer";
 import { UCLouvainHeader } from "@/components/UCLouvainHeader";
 
@@ -7,7 +8,8 @@ const Surveillant = () => {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <UCLouvainHeader />
-      <main className="flex-1 container mx-auto px-4 py-8">
+      <main className="flex-1 container mx-auto px-4 py-8 space-y-8">
+        <PatFasbDisponibilitesChecker />
         <SimpleSurveillantAvailabilityForm />
       </main>
       <Footer />
