@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useSessions, useActiveSession } from "@/hooks/useSessions";
-import { RefreshCw, CheckCircle, AlertTriangle, Info, Clock, Users } from "lucide-react";
+import { RefreshCw, CheckCircle, AlertTriangle, Info, Clock, Users, MessageSquare } from "lucide-react";
 import { AvailabilityInstructionsScreen } from "./AvailabilityInstructionsScreen";
 import { OptimizedAvailabilityForm } from "./OptimizedAvailabilityForm";
 import { SessionSelectionScreen } from "./SessionSelectionScreen";
+import { ModificationRequestForm } from "./ModificationRequestForm";
 
 export const SimpleSurveillantAvailabilityForm = () => {
   const { data: sessions = [] } = useSessions();
@@ -19,7 +20,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
   const [surveillantId, setSurveillantId] = useState<string | null>(null);
   const [surveillantData, setSurveillantData] = useState<any>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState<'email' | 'session-selection' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
+  const [currentStep, setCurrentStep] = useState<'email' | 'existing-availabilities' | 'modification-request' | 'session-selection' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
   
   // Pour surveillant inconnu
   const [nom, setNom] = useState('');
@@ -27,22 +28,22 @@ export const SimpleSurveillantAvailabilityForm = () => {
   const [telephone, setTelephone] = useState('');
   const [surveillancesADeduire, setSurveillancesADeduire] = useState(0);
 
-  // Récupérer les disponibilités existantes pour cette session
+  // Vérifier les disponibilités existantes
   const { data: existingDisponibilites } = useQuery({
-    queryKey: ['existing-disponibilites', surveillantId, selectedSessionId],
+    queryKey: ['check-existing-disponibilites', email, selectedSessionId],
     queryFn: async () => {
-      if (!surveillantId || !selectedSessionId) return [];
+      if (!email.trim() || !selectedSessionId) return [];
 
       const { data, error } = await supabase
         .from('disponibilites')
         .select('*')
-        .eq('surveillant_id', surveillantId)
-        .eq('session_id', selectedSessionId);
+        .eq('session_id', selectedSessionId)
+        .eq('surveillant_id', surveillantId);
 
       if (error) throw error;
       return data || [];
     },
-    enabled: !!surveillantId && !!selectedSessionId
+    enabled: !!email && !!selectedSessionId && !!surveillantId
   });
 
   // Rechercher le surveillant par email
@@ -96,8 +97,28 @@ export const SimpleSurveillantAvailabilityForm = () => {
 
   const handleSessionSelect = (sessionId: string) => {
     setSelectedSessionId(sessionId);
-    setCurrentStep('instructions');
+    
+    // Si un surveillant est trouvé et qu'on a une session, vérifier les disponibilités existantes
+    if (surveillantId) {
+      // On va déclencher le useQuery pour vérifier les disponibilités existantes
+      setCurrentStep('existing-availabilities');
+    } else {
+      setCurrentStep('instructions');
+    }
   };
+
+  // Effet pour gérer les disponibilités existantes
+  useEffect(() => {
+    if (currentStep === 'existing-availabilities' && existingDisponibilites !== undefined) {
+      if (existingDisponibilites.length > 0) {
+        // Des disponibilités existent déjà, rester sur l'écran d'information
+        return;
+      } else {
+        // Pas de disponibilités existantes, continuer vers les instructions
+        setCurrentStep('instructions');
+      }
+    }
+  }, [currentStep, existingDisponibilites]);
 
   // Mutation pour créer un surveillant inconnu
   const createSurveillantMutation = useMutation({
@@ -328,6 +349,72 @@ export const SimpleSurveillantAvailabilityForm = () => {
     );
   }
 
+  if (currentStep === 'existing-availabilities' && existingDisponibilites && existingDisponibilites.length > 0) {
+    const selectedSession = sessions.find(s => s.id === selectedSessionId);
+    
+    return (
+      <Card className="max-w-2xl mx-auto border-orange-200">
+        <CardContent className="pt-6">
+          <div className="text-center space-y-4">
+            <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto" />
+            <div>
+              <h2 className="text-xl font-bold text-orange-800 mb-2">
+                Disponibilités déjà enregistrées
+              </h2>
+              <p className="text-orange-700 mb-4">
+                Vous avez déjà introduit vos disponibilités pour la session <strong>{selectedSession?.name}</strong>.
+              </p>
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-orange-800">
+                  <strong>{existingDisponibilites.length}</strong> créneaux ont été déclarés et sont en cours de traitement.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 text-blue-800 mb-2">
+                <MessageSquare className="h-5 w-5" />
+                <span className="font-medium">Souhaitez-vous modifier vos disponibilités ?</span>
+              </div>
+              <p className="text-sm text-blue-700">
+                Utilisez le formulaire ci-dessous pour demander des modifications. 
+                Votre demande sera traitée par l'équipe administrative.
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <Button
+                variant="outline"
+                onClick={resetForm}
+                className="flex-1"
+              >
+                Retour
+              </Button>
+              <Button
+                onClick={() => setCurrentStep('modification-request')}
+                className="flex-1 bg-orange-600 hover:bg-orange-700"
+              >
+                Demander une modification
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (currentStep === 'modification-request') {
+    const selectedSession = sessions.find(s => s.id === selectedSessionId);
+    
+    return (
+      <ModificationRequestForm
+        email={email}
+        selectedSession={selectedSession!}
+        onSuccess={() => setCurrentStep('success')}
+      />
+    );
+  }
+
   if (currentStep === 'session-selection') {
     return (
       <SessionSelectionScreen
@@ -336,7 +423,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
         email={email}
         surveillantData={surveillantData}
         onSessionSelect={handleSessionSelect}
-        existingDisponibilites={existingDisponibilites}
+        existingDisponibilites={[]}
       />
     );
   }
@@ -453,21 +540,21 @@ export const SimpleSurveillantAvailabilityForm = () => {
           <div className="text-center space-y-4">
             <CheckCircle className="h-16 w-16 text-green-600 mx-auto" />
             <div>
-              <h2 className="text-2xl font-bold text-green-800 mb-2">Disponibilités enregistrées !</h2>
+              <h2 className="text-2xl font-bold text-green-800 mb-2">
+                {currentStep === 'success' && existingDisponibilites && existingDisponibilites.length > 0 
+                  ? 'Demande envoyée !' 
+                  : 'Disponibilités enregistrées !'}
+              </h2>
               <p className="text-gray-600 mb-4">
-                Merci {surveillantData?.prenom}. Vos disponibilités ont été transmises au service des surveillances.
+                {currentStep === 'success' && existingDisponibilites && existingDisponibilites.length > 0
+                  ? `Merci ${surveillantData?.prenom}. Votre demande de modification a été transmise au service des surveillances.`
+                  : `Merci ${surveillantData?.prenom}. Vos disponibilités ont été transmises au service des surveillances.`}
               </p>
               <p className="text-sm text-gray-500 mb-6">
                 Vous recevrez une confirmation par email une fois les attributions finalisées.
               </p>
             </div>
             <div className="flex justify-center space-x-4">
-              <Button
-                variant="outline"
-                onClick={() => setCurrentStep('availability')}
-              >
-                Modifier mes disponibilités
-              </Button>
               <Button onClick={resetForm}>
                 Nouvelle déclaration
               </Button>

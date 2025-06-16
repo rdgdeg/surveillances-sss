@@ -311,6 +311,56 @@ export type Database = {
           },
         ]
       }
+      demandes_modification_disponibilites: {
+        Row: {
+          commentaire_admin: string | null
+          created_at: string
+          email: string
+          id: string
+          message: string
+          nom: string
+          prenom: string
+          session_id: string
+          statut: string
+          traite_par: string | null
+          updated_at: string
+        }
+        Insert: {
+          commentaire_admin?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          nom: string
+          prenom: string
+          session_id: string
+          statut?: string
+          traite_par?: string | null
+          updated_at?: string
+        }
+        Update: {
+          commentaire_admin?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          nom?: string
+          prenom?: string
+          session_id?: string
+          statut?: string
+          traite_par?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "demandes_modification_disponibilites_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demandes_modification_info: {
         Row: {
           anciennes_donnees: Json | null

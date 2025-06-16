@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,31 +67,6 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
       return data || [];
     },
     enabled: !!sessionId
-  });
-
-  // Récupérer les disponibilités existantes avec debug
-  const { data: existingDisponibilites } = useQuery({
-    queryKey: ['surveillant-disponibilites', surveillantId, sessionId],
-    queryFn: async () => {
-      if (!surveillantId || !sessionId) return [];
-      
-      console.log('Fetching disponibilites for:', { surveillantId, sessionId });
-
-      const { data, error } = await supabase
-        .from('disponibilites')
-        .select('*')
-        .eq('surveillant_id', surveillantId)
-        .eq('session_id', sessionId);
-
-      if (error) {
-        console.error('Error fetching disponibilites:', error);
-        throw error;
-      }
-      
-      console.log('Found existing disponibilites:', data);
-      return data || [];
-    },
-    enabled: !!surveillantId && !!sessionId
   });
 
   // Fusionner les créneaux
@@ -175,35 +151,6 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
 
   const weeklySlots = organizeByWeek(timeSlots);
 
-  // Charger les disponibilités existantes avec debug amélioré
-  useEffect(() => {
-    if (existingDisponibilites && existingDisponibilites.length > 0) {
-      console.log('Loading existing disponibilites:', existingDisponibilites);
-      const newAvailabilities: Record<string, DisponibiliteForm> = {};
-      
-      existingDisponibilites.forEach(dispo => {
-        const key = `${dispo.date_examen}-${dispo.heure_debut}-${dispo.heure_fin}`;
-        console.log('Processing dispo with key:', key, dispo);
-        
-        const typeChoix = dispo.type_choix === 'obligatoire' ? 'obligatoire' : 'souhaitee';
-        
-        newAvailabilities[key] = {
-          date_examen: dispo.date_examen,
-          heure_debut: dispo.heure_debut,
-          heure_fin: dispo.heure_fin,
-          est_disponible: true, // Si elle existe en base, elle est disponible
-          type_choix: typeChoix,
-          nom_examen_selectionne: dispo.nom_examen_selectionne || '',
-          nom_examen_obligatoire: dispo.nom_examen_obligatoire || '',
-          commentaire_surveillance_obligatoire: dispo.commentaire_surveillance_obligatoire || ''
-        };
-      });
-      
-      console.log('Final availabilities object:', newAvailabilities);
-      setAvailabilities(newAvailabilities);
-    }
-  }, [existingDisponibilites]);
-
   // Mutation pour sauvegarder
   const saveDisponibilitesMutation = useMutation({
     mutationFn: async () => {
@@ -272,12 +219,14 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
     const currentAvailability = availabilities[slotKey];
     
     if (currentAvailability?.est_disponible) {
+      // Désélectionner le créneau
       setAvailabilities(prev => {
         const newState = { ...prev };
         delete newState[slotKey];
         return newState;
       });
     } else {
+      // Sélectionner le créneau avec valeurs par défaut
       setAvailabilities(prev => ({
         ...prev,
         [slotKey]: {
@@ -378,6 +327,7 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
                                 </div>
                               </div>
 
+                              {/* Interface progressive : afficher les options seulement si sélectionné */}
                               {isAvailable && (
                                 <div className="space-y-4 mt-4 p-4 bg-white rounded border">
                                   {/* Question principale sur le type de surveillance */}
