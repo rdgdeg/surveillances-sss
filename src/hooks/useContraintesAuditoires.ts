@@ -26,13 +26,25 @@ export function useContraintesAuditoiresMap() {
         .from("contraintes_auditoires")
         .select("auditoire, nombre_surveillants_requis");
       if (error) throw error;
-      return (data || []).reduce(
-        (map: Record<string, number>, curr: { auditoire: string; nombre_surveillants_requis: number }) => {
-          map[curr.auditoire.trim().toLowerCase()] = curr.nombre_surveillants_requis;
-          return map;
-        },
-        {}
-      );
+      
+      const map: Record<string, number> = {};
+      
+      (data || []).forEach((item: { auditoire: string; nombre_surveillants_requis: number }) => {
+        const auditoire = item.auditoire.trim();
+        // Ajouter plusieurs variations pour améliorer la correspondance
+        const variations = [
+          auditoire.toLowerCase(), // Version lowercase
+          auditoire, // Version originale
+          auditoire.toLowerCase().replace(/\s+/g, ''), // Sans espaces
+          auditoire.toLowerCase().replace(/\s+/g, ' '), // Espaces normalisés
+        ];
+        
+        variations.forEach(variation => {
+          map[variation] = item.nombre_surveillants_requis;
+        });
+      });
+      
+      return map;
     }
   });
 }
