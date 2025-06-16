@@ -8,6 +8,22 @@ export function useContraintesAuditoires() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contraintes_auditoires")
+        .select("*")
+        .order("auditoire");
+      
+      if (error) throw error;
+      return data || [];
+    }
+  });
+}
+
+// Export a separate hook for the lookup map if needed elsewhere
+export function useContraintesAuditoiresMap() {
+  return useQuery({
+    queryKey: ["contraintes-auditoires-map"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contraintes_auditoires")
         .select("auditoire, nombre_surveillants_requis");
       if (error) throw error;
       return (data || []).reduce(
