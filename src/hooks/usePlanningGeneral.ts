@@ -95,6 +95,13 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
       const { data: examens, error } = await query;
       
       console.log('Query result:', { examens, error });
+      console.log('Examens details for enseignant check:', examens?.slice(0, 3)?.map(ex => ({
+        id: ex.id,
+        matiere: ex.matiere,
+        enseignant_nom: ex.enseignant_nom,
+        enseignant_email: ex.enseignant_email,
+        faculte: ex.faculte
+      })));
       
       if (error) {
         console.error('Error fetching examens:', error);
@@ -110,7 +117,7 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
       const planningItems: PlanningGeneralItem[] = [];
       
       examens.forEach((examen: any) => {
-        console.log('Processing examen:', examen.id, examen.matiere);
+        console.log('Processing examen:', examen.id, examen.matiere, 'Enseignant:', examen.enseignant_nom);
         
         // Split des auditoires (ex: "51 B, 71 - Simonart" → ["51 B", "71 - Simonart"])
         const auditoires = examen.salle

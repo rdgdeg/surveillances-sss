@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Users, Calendar, Clock, MapPin, UserCheck, FileText } from 'lucide-react';
+import { Search, Users, Calendar, Clock, MapPin, BookOpen, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -98,7 +98,7 @@ export const PlanningGeneral = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Rechercher par enseignant, examen, date, auditoire..."
+                placeholder="Rechercher par matière, code examen, date, auditoire, faculté..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
@@ -106,7 +106,7 @@ export const PlanningGeneral = () => {
               />
             </div>
             <p className="text-sm text-gray-500">
-              Exemples : "Dubois", "Chimie", "2025-01-15", "Auditoire 51"
+              Exemples : "Chimie", "2025-01-15", "Auditoire 51", "FASB"
             </p>
           </CardContent>
         </Card>
@@ -173,10 +173,10 @@ export const PlanningGeneral = () => {
                             <span>Auditoire</span>
                           </div>
                         </TableHead>
-                        <TableHead className="min-w-[180px]">
+                        <TableHead className="min-w-[120px]">
                           <div className="flex items-center space-x-1">
-                            <UserCheck className="h-4 w-4" />
-                            <span>Enseignant</span>
+                            <BookOpen className="h-4 w-4" />
+                            <span>Faculté</span>
                           </div>
                         </TableHead>
                         <TableHead className="min-w-[200px]">
@@ -220,13 +220,10 @@ export const PlanningGeneral = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {item.enseignant_nom ? (
-                              <div>
-                                <div className="font-medium text-sm">{item.enseignant_nom}</div>
-                                {item.enseignant_email && (
-                                  <div className="text-xs text-gray-500">{item.enseignant_email}</div>
-                                )}
-                              </div>
+                            {item.faculte ? (
+                              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                {item.faculte}
+                              </Badge>
                             ) : (
                               <span className="text-gray-500 italic text-sm">Non renseigné</span>
                             )}
