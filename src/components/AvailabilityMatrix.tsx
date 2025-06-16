@@ -4,10 +4,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Users, Download, Upload } from "lucide-react";
+import { Calendar, Clock, Users, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { toast } from "@/hooks/use-toast";
+import { formatDateBelgian } from "@/lib/dateUtils";
+import * as XLSX from 'xlsx';
 
 interface Disponibilite {
   id: string;
@@ -16,6 +18,8 @@ interface Disponibilite {
   heure_debut: string;
   heure_fin: string;
   est_disponible: boolean;
+  type_choix: string;
+  nom_examen_selectionne: string;
 }
 
 interface Surveillant {
@@ -36,9 +40,8 @@ interface TimeSlot {
 export const AvailabilityMatrix = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
-  const [selectedSlots, setSelectedSlots] = useState<Record<string, boolean>>({});
 
-  // Récupérer les surveillants
+  // Récupérer les surveillants actifs triés par nom de famille
   const { data: surveillants = [] } = useQuery({
     queryKey: ['surveillants', activeSession?.id],
     queryFn: async () => {
@@ -55,12 +58,23 @@ export const AvailabilityMatrix = () => {
         .eq('is_active', true);
       
       if (error) throw error;
-      return data.map(item => item.surveillants).filter(Boolean) as Surveillant[];
+      
+      const surveillantsList = data.map(item => item.surveillants).filter(Boolean) as Surveillant[];
+      
+      // Trier par nom de famille puis prénom
+      return surveillantsList.sort((a, b) => {
+        const nomA = a.nom.toLowerCase();
+        const nomB = b.nom.toLowerCase();
+        if (nomA === nomB) {
+          return a.prenom.toLowerCase().localeCompare(b.prenom.toLowerCase());
+        }
+        return nomA.localeCompare(nomB);
+      });
     },
     enabled: !!activeSession
   });
 
-  // Récupérer les créneaux d'examens uniques
+  // Récupérer les créneaux d'examens uniques triés par date et heure
   const { data: timeSlots = [] } = useQuery({
     queryKey: ['time-slots', activeSession?.id],
     queryFn: async () => {
@@ -70,6 +84,7 @@ export const AvailabilityMatrix = () => {
         .from('examens')
         .select('date_examen, heure_debut, heure_fin')
         .eq('session_id', activeSession.id)
+        .eq('is_active', true)
         .order('date_examen')
         .order('heure_debut');
       
@@ -85,7 +100,7 @@ export const AvailabilityMatrix = () => {
             date: exam.date_examen,
             heure_debut: exam.heure_debut,
             heure_fin: exam.heure_fin,
-            label: `${exam.date_examen} ${exam.heure_debut}-${exam.heure_fin}`
+            label: `${formatDateBelgian(exam.date_examen)} ${exam.heure_debut}-${exam.heure_fin}`
           });
         }
       });
@@ -104,7 +119,8 @@ export const AvailabilityMatrix = () => {
       const { data, error } = await supabase
         .from('disponibilites')
         .select('*')
-        .eq('session_id', activeSession.id);
+        .eq('session_id', activeSession.id)
+        .eq('est_disponible', true);
       
       if (error) throw error;
       return data as Disponibilite[];
@@ -112,97 +128,16 @@ export const AvailabilityMatrix = () => {
     enabled: !!activeSession
   });
 
-  // Mutation pour sauvegarder les disponibilités
-  const saveDisponibilitesMutation = useMutation({
-    mutationFn: async (updates: Array<{
-      surveillant_id: string;
-      date_examen: string;
-      heure_debut: string;
-      heure_fin: string;
-      est_disponible: boolean;
-    }>) => {
-      if (!activeSession) throw new Error('Aucune session active');
-
-      // Supprimer les anciennes disponibilités pour cette session
-      await supabase
-        .from('disponibilites')
-        .delete()
-        .eq('session_id', activeSession.id);
-
-      // Insérer les nouvelles disponibilités
-      const { error } = await supabase
-        .from('disponibilites')
-        .insert(
-          updates.map(update => ({
-            ...update,
-            session_id: activeSession.id
-          }))
-        );
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['disponibilites'] });
-      toast({
-        title: "Disponibilités sauvegardées",
-        description: "Les disponibilités ont été mises à jour avec succès."
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible de sauvegarder les disponibilités.",
-        variant: "destructive"
-      });
-    }
-  });
-
   // Créer une map des disponibilités pour un accès rapide
-  const disponibiliteMap = new Map<string, boolean>();
+  const disponibiliteMap = new Map<string, Disponibilite>();
   disponibilites.forEach(disp => {
     const key = `${disp.surveillant_id}-${disp.date_examen}-${disp.heure_debut}-${disp.heure_fin}`;
-    disponibiliteMap.set(key, disp.est_disponible);
+    disponibiliteMap.set(key, disp);
   });
 
-  const isAvailable = (surveillantId: string, slot: TimeSlot) => {
+  const getAvailabilityInfo = (surveillantId: string, slot: TimeSlot) => {
     const key = `${surveillantId}-${slot.date}-${slot.heure_debut}-${slot.heure_fin}`;
-    return disponibiliteMap.get(key) || false;
-  };
-
-  const toggleAvailability = (surveillantId: string, slot: TimeSlot) => {
-    const key = `${surveillantId}-${slot.date}-${slot.heure_debut}-${slot.heure_fin}`;
-    const currentValue = disponibiliteMap.get(key) || false;
-    disponibiliteMap.set(key, !currentValue);
-    
-    // Forcer le re-render
-    setSelectedSlots(prev => ({ ...prev, [key]: !currentValue }));
-  };
-
-  const handleSave = () => {
-    const updates: Array<{
-      surveillant_id: string;
-      date_examen: string;
-      heure_debut: string;
-      heure_fin: string;
-      est_disponible: boolean;
-    }> = [];
-
-    surveillants.forEach(surveillant => {
-      timeSlots.forEach(slot => {
-        const key = `${surveillant.id}-${slot.date}-${slot.heure_debut}-${slot.heure_fin}`;
-        const estDisponible = disponibiliteMap.get(key) || false;
-        
-        updates.push({
-          surveillant_id: surveillant.id,
-          date_examen: slot.date,
-          heure_debut: slot.heure_debut,
-          heure_fin: slot.heure_fin,
-          est_disponible: estDisponible
-        });
-      });
-    });
-
-    saveDisponibilitesMutation.mutate(updates);
+    return disponibiliteMap.get(key);
   };
 
   const generateCallyTemplate = () => {
@@ -216,8 +151,22 @@ export const AvailabilityMatrix = () => {
     surveillants.forEach(surveillant => {
       csvContent += `${surveillant.prenom} ${surveillant.nom},${surveillant.email},${surveillant.type}`;
       timeSlots.forEach(slot => {
-        const available = isAvailable(surveillant.id, slot);
-        csvContent += `,${available ? '✓' : '✗'}`;
+        const availability = getAvailabilityInfo(surveillant.id, slot);
+        let cellValue = '✗';
+        
+        if (availability) {
+          if (availability.type_choix === 'obligatoire') {
+            cellValue = '★'; // Étoile pour obligatoire
+          } else {
+            cellValue = '✓'; // Check pour souhaité
+          }
+          
+          if (availability.nom_examen_selectionne) {
+            cellValue += ` (${availability.nom_examen_selectionne})`;
+          }
+        }
+        
+        csvContent += `,${cellValue}`;
       });
       csvContent += "\n";
     });
@@ -226,9 +175,14 @@ export const AvailabilityMatrix = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `cally_template_${activeSession?.name || 'session'}.csv`;
+    a.download = `matrice_disponibilites_${activeSession?.name || 'session'}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export réussi",
+      description: "La matrice des disponibilités a été téléchargée.",
+    });
   };
 
   if (!activeSession) {
@@ -251,20 +205,12 @@ export const AvailabilityMatrix = () => {
             <span>Matrice des Disponibilités - {activeSession.name}</span>
           </CardTitle>
           <CardDescription className="text-blue-100">
-            Gérez les disponibilités des surveillants pour tous les créneaux d'examens. 
-            Format compatible avec Cally (✓ = disponible, ✗ = non disponible).
+            Vue des disponibilités soumises par les surveillants. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
           </CardDescription>
           <div className="flex space-x-2">
             <Button onClick={generateCallyTemplate} variant="outline" size="sm" className="bg-white text-uclouvain-blue border-white hover:bg-blue-50">
               <Download className="h-4 w-4 mr-2" />
-              Télécharger template Cally
-            </Button>
-            <Button 
-              onClick={handleSave} 
-              disabled={saveDisponibilitesMutation.isPending}
-              className="bg-uclouvain-cyan text-uclouvain-blue hover:bg-blue-100"
-            >
-              Sauvegarder les disponibilités
+              Télécharger matrice CSV
             </Button>
           </div>
         </CardHeader>
@@ -284,7 +230,7 @@ export const AvailabilityMatrix = () => {
                     {timeSlots.map((slot, index) => (
                       <th key={index} className="border border-uclouvain-blue-grey p-2 text-center font-medium min-w-24 text-uclouvain-blue">
                         <div className="text-xs">
-                          <div>{slot.date}</div>
+                          <div>{formatDateBelgian(slot.date)}</div>
                           <div>{slot.heure_debut}-{slot.heure_fin}</div>
                         </div>
                       </th>
@@ -296,7 +242,7 @@ export const AvailabilityMatrix = () => {
                     <tr key={surveillant.id} className="hover:bg-blue-50">
                       <td className="border border-uclouvain-blue-grey p-2">
                         <div>
-                          <div className="font-medium text-uclouvain-blue">{surveillant.prenom} {surveillant.nom}</div>
+                          <div className="font-medium text-uclouvain-blue">{surveillant.nom} {surveillant.prenom}</div>
                           <div className="text-sm text-uclouvain-blue-grey">{surveillant.email}</div>
                         </div>
                       </td>
@@ -304,21 +250,39 @@ export const AvailabilityMatrix = () => {
                         <Badge variant="outline" className="border-uclouvain-cyan text-uclouvain-blue">{surveillant.type}</Badge>
                       </td>
                       {timeSlots.map((slot, slotIndex) => {
-                        const available = isAvailable(surveillant.id, slot);
+                        const availability = getAvailabilityInfo(surveillant.id, slot);
+                        
+                        let bgColor = 'bg-red-100';
+                        let textColor = 'text-red-800';
+                        let symbol = '✗';
+                        let title = 'Non disponible';
+                        
+                        if (availability) {
+                          if (availability.type_choix === 'obligatoire') {
+                            bgColor = 'bg-orange-100';
+                            textColor = 'text-orange-800';
+                            symbol = '★';
+                            title = 'Surveillance obligatoire';
+                          } else {
+                            bgColor = 'bg-green-100';
+                            textColor = 'text-green-800';
+                            symbol = '✓';
+                            title = 'Disponible (souhaité)';
+                          }
+                          
+                          if (availability.nom_examen_selectionne) {
+                            title += ` - Examen: ${availability.nom_examen_selectionne}`;
+                          }
+                        }
+                        
                         return (
                           <td key={slotIndex} className="border border-uclouvain-blue-grey p-1 text-center">
-                            <Button
-                              variant={available ? "default" : "outline"}
-                              size="sm"
-                              className={`w-8 h-8 p-0 ${
-                                available 
-                                  ? 'bg-green-500 hover:bg-green-600 text-white' 
-                                  : 'bg-red-100 hover:bg-red-200 text-red-800 border-red-300'
-                              }`}
-                              onClick={() => toggleAvailability(surveillant.id, slot)}
+                            <div 
+                              className={`w-8 h-8 flex items-center justify-center text-sm font-medium rounded ${bgColor} ${textColor}`}
+                              title={title}
                             >
-                              {available ? '✓' : '✗'}
-                            </Button>
+                              {symbol}
+                            </div>
                           </td>
                         );
                       })}
@@ -326,6 +290,23 @@ export const AvailabilityMatrix = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          
+          {surveillants.length > 0 && timeSlots.length > 0 && (
+            <div className="mt-4 text-sm text-gray-600 flex items-center space-x-4">
+              <div className="flex items-center space-x-1">
+                <span className="w-4 h-4 bg-green-100 text-green-800 flex items-center justify-center text-xs rounded">✓</span>
+                <span>Disponible (souhaité)</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <span className="w-4 h-4 bg-orange-100 text-orange-800 flex items-center justify-center text-xs rounded">★</span>
+                <span>Surveillance obligatoire</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <span className="w-4 h-4 bg-red-100 text-red-800 flex items-center justify-center text-xs rounded">✗</span>
+                <span>Non disponible</span>
+              </div>
             </div>
           )}
         </CardContent>
