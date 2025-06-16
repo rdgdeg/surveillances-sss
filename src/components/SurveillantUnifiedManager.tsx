@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +35,17 @@ const FACULTES = [
   { value: "NONE", label: "Aucune restriction" },
   { value: "AUTRE", label: "Autre" }
 ];
+
+// Liste des facultés pour l'affectation
+const FACULTES_AFFECTATION = [
+  { value: "ASS", label: "ASS" },
+  { value: "FASB", label: "FASB" },
+  { value: "FSM", label: "FSM" },
+  { value: "FSP", label: "FSP" },
+  { value: "MEDE", label: "MEDE" },
+  { value: "Autre", label: "Autre" }
+];
+
 // Liste statuts enrichie selon workflow + option ajout
 const BASE_STATUTS = [
   "Jobiste", "Assistant", "Doctorant", "PAT", "PAT FASB", "Autres"
@@ -103,7 +115,7 @@ export function SurveillantUnifiedManager() {
     email: '',
     type: '',
     telephone: '',
-    campus: '',
+    campus: 'Woluwe', // Valeur par défaut
     affectation_fac: '',
     eft: undefined,
     date_fin_contrat: '',
@@ -472,10 +484,14 @@ export function SurveillantUnifiedManager() {
 
       if (surveillantError) throw surveillantError;
 
-      // Calculer le quota par défaut si non spécifié
-      const defaultQuota = surveillantData.quota || (
-        surveillantData.type === 'PAT FASB' ? 12 : 6
-      );
+      // Utiliser le quota spécifié ou calculer un quota par défaut si non spécifié
+      let finalQuota;
+      if (surveillantData.quota !== undefined && surveillantData.quota !== null) {
+        finalQuota = surveillantData.quota;
+      } else {
+        // Calculer selon le type seulement si aucun quota n'est spécifié
+        finalQuota = surveillantData.type === 'PAT FASB' ? 12 : 6;
+      }
 
       // L'associer à la session
       const { error: sessionError } = await supabase
@@ -484,7 +500,7 @@ export function SurveillantUnifiedManager() {
           session_id: activeSession.id,
           surveillant_id: surveillant.id,
           is_active: true,
-          quota: defaultQuota
+          quota: finalQuota
         });
 
       if (sessionError) throw sessionError;
@@ -500,7 +516,7 @@ export function SurveillantUnifiedManager() {
         email: '',
         type: '',
         telephone: '',
-        campus: '',
+        campus: 'Woluwe', // Reset avec la valeur par défaut
         affectation_fac: '',
         eft: undefined,
         date_fin_contrat: '',
@@ -607,9 +623,12 @@ export function SurveillantUnifiedManager() {
                         <SelectItem value="Personnel Académique">Personnel Académique</SelectItem>
                         <SelectItem value="Personnel Administratif">Personnel Administratif</SelectItem>
                         <SelectItem value="Jobiste">Jobiste</SelectItem>
+                        <SelectItem value="Assistant">Assistant</SelectItem>
+                        <SelectItem value="Doctorant">Doctorant</SelectItem>
                         <SelectItem value="PAT">PAT</SelectItem>
                         <SelectItem value="PAT FASB">PAT FASB</SelectItem>
                         <SelectItem value="Externe">Externe</SelectItem>
+                        <SelectItem value="Autres">Autres</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -622,14 +641,14 @@ export function SurveillantUnifiedManager() {
                         step="0.01"
                         min="0"
                         max="1"
-                        value={newSurveillant.eft || ''}
+                        value={newSurveillant.eft !== undefined ? newSurveillant.eft.toString() : ''}
                         onChange={(e) => setNewSurveillant(prev => ({ 
                           ...prev, 
                           eft: e.target.value ? parseFloat(e.target.value) : undefined 
                         }))}
-                        placeholder="0.5"
+                        placeholder="0.8"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Valeur entre 0 et 1 (ex: 0.5 pour 50%)</p>
+                      <p className="text-xs text-gray-500 mt-1">Valeur entre 0 et 1 (ex: 0.8 pour 80%)</p>
                     </div>
                     
                     <div>
@@ -637,14 +656,14 @@ export function SurveillantUnifiedManager() {
                       <Input
                         type="number"
                         min="0"
-                        value={newSurveillant.quota || ''}
+                        value={newSurveillant.quota !== undefined ? newSurveillant.quota.toString() : ''}
                         onChange={(e) => setNewSurveillant(prev => ({ 
                           ...prev, 
                           quota: e.target.value ? parseInt(e.target.value) : undefined 
                         }))}
-                        placeholder="6"
+                        placeholder="Laisser vide pour valeur automatique"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Laissez vide pour valeur par défaut (6 ou 12 selon type)</p>
+                      <p className="text-xs text-gray-500 mt-1">Laissez vide pour calcul automatique selon le type</p>
                     </div>
                   </div>
                   
@@ -669,20 +688,33 @@ export function SurveillantUnifiedManager() {
                   
                   <div>
                     <label className="block text-sm font-medium mb-1">Campus</label>
-                    <Input
-                      value={newSurveillant.campus || ''}
-                      onChange={(e) => setNewSurveillant(prev => ({ ...prev, campus: e.target.value }))}
-                      placeholder="Campus"
-                    />
+                    <Select value={newSurveillant.campus || 'Woluwe'} onValueChange={(value) => setNewSurveillant(prev => ({ ...prev, campus: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un campus" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Woluwe">Woluwe</SelectItem>
+                        <SelectItem value="Louvain-la-Neuve">Louvain-la-Neuve</SelectItem>
+                        <SelectItem value="Mons">Mons</SelectItem>
+                        <SelectItem value="Bruxelles">Bruxelles</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium mb-1">Affectation Faculté</label>
-                    <Input
-                      value={newSurveillant.affectation_fac || ''}
-                      onChange={(e) => setNewSurveillant(prev => ({ ...prev, affectation_fac: e.target.value }))}
-                      placeholder="Faculté d'affectation"
-                    />
+                    <Select value={newSurveillant.affectation_fac || ''} onValueChange={(value) => setNewSurveillant(prev => ({ ...prev, affectation_fac: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner une faculté" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FACULTES_AFFECTATION.map(faculte => (
+                          <SelectItem key={faculte.value} value={faculte.value}>
+                            {faculte.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   
                   <div className="flex justify-end space-x-2 pt-4">
