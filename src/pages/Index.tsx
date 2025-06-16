@@ -29,7 +29,13 @@ const Index = () => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center space-x-3">
+              <Link to="/planning-general">
+                <Button variant="outline" className="border-uclouvain-cyan text-uclouvain-cyan hover:bg-uclouvain-cyan hover:text-uclouvain-blue transition-colors text-sm">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  Planning Général
+                </Button>
+              </Link>
               <Link to="/admin">
                 <Button variant="outline" className="border-uclouvain-cyan text-uclouvain-cyan hover:bg-uclouvain-cyan hover:text-uclouvain-blue transition-colors text-sm">
                   <ClipboardList className="h-3 w-3 mr-1" />
@@ -54,7 +60,29 @@ const Index = () => {
           </div>
 
           {/* Cards Grid optimisées pour desktop */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 max-w-6xl mx-auto">
+            {/* Planning Général - Nouvelle carte */}
+            <Card className="flex flex-col justify-between h-64 p-4 shadow-sm border text-center hover:shadow-md transition-shadow">
+              <div className="flex flex-col items-center flex-1">
+                <div className="bg-purple-100 w-12 h-12 rounded-full flex items-center justify-center mb-3">
+                  <Calendar className="h-6 w-6 text-purple-600" />
+                </div>
+                <CardTitle className="text-lg font-bold text-uclouvain-blue mb-2">
+                  Planning Général
+                </CardTitle>
+                <CardDescription className="text-sm text-gray-700 mb-4">
+                  Consultez l'horaire complet des examens avec les surveillants attribués par auditoire.
+                </CardDescription>
+              </div>
+              <div className="flex justify-center">
+                <Link to="/planning-general" className="w-full">
+                  <Button className="w-full bg-purple-600 hover:bg-purple-700 text-sm font-medium rounded-lg h-9">
+                    Voir le planning complet
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+
             {/* Enseignants */}
             <Card className="flex flex-col justify-between h-64 p-4 shadow-sm border text-center hover:shadow-md transition-shadow">
               <div className="flex flex-col items-center flex-1">
@@ -125,7 +153,16 @@ const Index = () => {
           {/* Features section compacte */}
           <div className="bg-white rounded-lg shadow-sm p-4 max-w-4xl mx-auto">
             <h3 className="text-lg font-bold text-center mb-4">Fonctionnalités principales</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="flex flex-col items-center text-center">
+                <div className="bg-purple-100 w-10 h-10 rounded-full flex items-center justify-center mb-2">
+                  <Calendar className="h-5 w-5 text-purple-600" />
+                </div>
+                <h4 className="font-medium mb-1 text-sm">Planning Centralisé</h4>
+                <p className="text-gray-600 text-xs">
+                  Accès complet à l'horaire des examens et attributions par auditoire pour tous.
+                </p>
+              </div>
               <div className="flex flex-col items-center text-center">
                 <div className="bg-blue-100 w-10 h-10 rounded-full flex items-center justify-center mb-2">
                   <Users className="h-5 w-5 text-blue-600" />
@@ -137,7 +174,7 @@ const Index = () => {
               </div>
               <div className="flex flex-col items-center text-center">
                 <div className="bg-green-100 w-10 h-10 rounded-full flex items-center justify-center mb-2">
-                  <Calendar className="h-5 w-5 text-green-600" />
+                  <GraduationCap className="h-5 w-5 text-green-600" />
                 </div>
                 <h4 className="font-medium mb-1 text-sm">Workflow Enseignant</h4>
                 <p className="text-gray-600 text-xs">
