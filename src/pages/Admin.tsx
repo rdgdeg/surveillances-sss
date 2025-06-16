@@ -21,7 +21,7 @@ import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
 // Dashboard d'accueil avec les statistiques principales
 function DashboardAdmin() {
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-none space-y-6">
       <h2 className="text-xl font-semibold mb-4 text-uclouvain-blue">Tableau de bord - Vue d'ensemble</h2>
       <DashboardOverview />
     </div>
@@ -32,7 +32,6 @@ function DashboardAdmin() {
 function getAdminContent(tab: string | null) {
   switch (tab) {
     case "examens":
-      // Modification : vue avancée pour tout gérer (import, validation, configuration)
       return <ExamenAdvancedManager />;
     case "import-codes":
     case "planning":
@@ -72,20 +71,24 @@ export default function AdminPage() {
   const currentTab = params.get("tab");
 
   return (
-    <>
+    <div className="min-h-screen w-full">
       <UCLouvainHeader />
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
           <AppSidebar />
-          <main className="flex-1 bg-gray-50 p-5 flex flex-col min-h-screen">
-            <div className="max-w-full w-full px-2 mx-auto flex-1">
-              <h1 className="text-2xl font-bold mb-4">Administration</h1>
-              {getAdminContent(currentTab)}
+          <main className="flex-1 bg-gray-50 flex flex-col min-h-screen w-full max-w-none">
+            <div className="flex-1 w-full max-w-none p-6">
+              <div className="w-full max-w-none">
+                <h1 className="text-2xl font-bold mb-6 text-gray-900">Administration</h1>
+                <div className="w-full max-w-none">
+                  {getAdminContent(currentTab)}
+                </div>
+              </div>
             </div>
             <Footer />
           </main>
         </div>
       </SidebarProvider>
-    </>
+    </div>
   );
 }
