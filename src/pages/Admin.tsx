@@ -11,6 +11,7 @@ import { SuiviConfirmationEnseignants } from "@/components/SuiviConfirmationEnse
 import { DashboardOverview } from "@/components/DashboardOverview";
 import { DisponibilitesManager } from "@/components/DisponibilitesManager";
 import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
+import { FeatureLockManager } from "@/components/FeatureLockManager";
 
 // Import des principaux modules admin
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
@@ -53,6 +54,8 @@ function getAdminContent(tab: string | null) {
       return <SuiviDisponibilitesAdmin />;
     case "contraintes":
       return <ContraintesAuditoires />;
+    case "feature-locks":
+      return <FeatureLockManager />;
     case "historique":
       return <div className="text-gray-700">Historique des actions administratives (module à intégrer).</div>;
     case "donnees-sensibles":

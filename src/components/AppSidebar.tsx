@@ -1,3 +1,4 @@
+
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +28,7 @@ import {
   Shield,
   MapPin,
   Code2,
+  Lock,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -72,7 +74,8 @@ const menu = [
     icon: Settings,
     children: [
       { label: "Contraintes Auditoires", icon: MapPin, route: "/admin?tab=contraintes" },
-      { label: "Pré-assignations", icon: Shield, route: "/admin?tab=pre-assignations" }
+      { label: "Pré-assignations", icon: Shield, route: "/admin?tab=pre-assignations" },
+      { label: "Verrouillage Fonctionnalités", icon: Lock, route: "/admin?tab=feature-locks" }
     ]
   },
   {

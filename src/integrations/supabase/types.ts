@@ -748,6 +748,48 @@ export type Database = {
           },
         ]
       }
+      feature_locks: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          feature_name: string
+          id: string
+          is_locked: boolean
+          locked_at: string | null
+          locked_by: string | null
+          notes: string | null
+          unlocked_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description: string
+          feature_name: string
+          id?: string
+          is_locked?: boolean
+          locked_at?: string | null
+          locked_by?: string | null
+          notes?: string | null
+          unlocked_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          feature_name?: string
+          id?: string
+          is_locked?: boolean
+          locked_at?: string | null
+          locked_by?: string | null
+          notes?: string | null
+          unlocked_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       indisponibilites: {
         Row: {
           created_at: string
