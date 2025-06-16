@@ -87,24 +87,35 @@ export const SimpleSurveillantAvailabilityForm = () => {
           prenom,
           telephone,
           statut: 'candidat',
-          type: 'Candidat'
+          type: 'Candidat',
+          surveillances_a_deduire: 0
         })
         .select('id')
         .single();
 
       if (error) throw error;
 
-      // Créer la relation surveillant_sessions
-      const { error: sessionError } = await supabase
+      // Vérifier si la relation surveillant_sessions existe déjà
+      const { data: existingRelation } = await supabase
         .from('surveillant_sessions')
-        .insert({
-          surveillant_id: data.id,
-          session_id: activeSession.id,
-          quota: 0,
-          is_active: true
-        });
+        .select('id')
+        .eq('surveillant_id', data.id)
+        .eq('session_id', activeSession.id)
+        .single();
 
-      if (sessionError) throw sessionError;
+      if (!existingRelation) {
+        // Créer la relation surveillant_sessions seulement si elle n'existe pas
+        const { error: sessionError } = await supabase
+          .from('surveillant_sessions')
+          .insert({
+            surveillant_id: data.id,
+            session_id: activeSession.id,
+            quota: 0,
+            is_active: true
+          });
+
+        if (sessionError) throw sessionError;
+      }
 
       return data;
     },
@@ -130,8 +141,9 @@ export const SimpleSurveillantAvailabilityForm = () => {
   // Mutation pour mettre à jour un surveillant existant
   const updateSurveillantMutation = useMutation({
     mutationFn: async () => {
-      if (!surveillantId) throw new Error('ID surveillant manquant');
+      if (!surveillantId || !activeSession?.id) throw new Error('Données manquantes');
 
+      // Mettre à jour uniquement les champs nécessaires
       const { error } = await supabase
         .from('surveillants')
         .update({ 
@@ -141,6 +153,27 @@ export const SimpleSurveillantAvailabilityForm = () => {
         .eq('id', surveillantId);
 
       if (error) throw error;
+
+      // Vérifier/créer la relation surveillant_sessions si nécessaire
+      const { data: existingRelation } = await supabase
+        .from('surveillant_sessions')
+        .select('id')
+        .eq('surveillant_id', surveillantId)
+        .eq('session_id', activeSession.id)
+        .single();
+
+      if (!existingRelation) {
+        const { error: sessionError } = await supabase
+          .from('surveillant_sessions')
+          .insert({
+            surveillant_id: surveillantId,
+            session_id: activeSession.id,
+            quota: 0,
+            is_active: true
+          });
+
+        if (sessionError) throw sessionError;
+      }
     },
     onSuccess: () => {
       setCurrentStep('availability');
