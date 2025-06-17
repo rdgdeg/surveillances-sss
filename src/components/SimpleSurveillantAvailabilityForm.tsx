@@ -12,6 +12,7 @@ import { AvailabilityInstructionsScreen } from "./AvailabilityInstructionsScreen
 import { OptimizedAvailabilityForm } from "./OptimizedAvailabilityForm";
 import { SessionSelectionScreen } from "./SessionSelectionScreen";
 import { ModificationRequestForm } from "./ModificationRequestForm";
+import { ExistingAvailabilitiesEditor } from "./ExistingAvailabilitiesEditor";
 
 export const SimpleSurveillantAvailabilityForm = () => {
   const { data: sessions = [] } = useSessions();
@@ -20,7 +21,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
   const [surveillantId, setSurveillantId] = useState<string | null>(null);
   const [surveillantData, setSurveillantData] = useState<any>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState<'email' | 'existing-availabilities' | 'modification-request' | 'session-selection' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
+  const [currentStep, setCurrentStep] = useState<'email' | 'existing-availabilities' | 'modification-request' | 'edit-availabilities' | 'session-selection' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
   
   // Pour surveillant inconnu
   const [nom, setNom] = useState('');
@@ -69,7 +70,6 @@ export const SimpleSurveillantAvailabilityForm = () => {
 
     if (error) {
       console.error('Error searching for surveillant:', error);
-      // Surveillant non trouvé - demander confirmation
       setCurrentStep('email-confirmation');
       return;
     }
@@ -88,7 +88,6 @@ export const SimpleSurveillantAvailabilityForm = () => {
     setPrenom(data.prenom);
     setTelephone(data.telephone || '');
     
-    // Passer à la sélection de session
     setCurrentStep('session-selection');
     toast({
       title: "Surveillant trouvé",
@@ -110,23 +109,18 @@ export const SimpleSurveillantAvailabilityForm = () => {
   const handleSessionSelect = (sessionId: string) => {
     setSelectedSessionId(sessionId);
     
-    // Si un surveillant est trouvé et qu'on a une session, vérifier les disponibilités existantes
     if (surveillantId) {
-      // On va déclencher le useQuery pour vérifier les disponibilités existantes
       setCurrentStep('existing-availabilities');
     } else {
       setCurrentStep('instructions');
     }
   };
 
-  // Effet pour gérer les disponibilités existantes
   useEffect(() => {
     if (currentStep === 'existing-availabilities' && existingDisponibilites !== undefined) {
       if (existingDisponibilites.length > 0) {
-        // Des disponibilités existent déjà, rester sur l'écran d'information
         return;
       } else {
-        // Pas de disponibilités existantes, continuer vers les instructions
         setCurrentStep('instructions');
       }
     }
@@ -155,7 +149,6 @@ export const SimpleSurveillantAvailabilityForm = () => {
 
       if (error) throw error;
 
-      // Vérifier si la relation surveillant_sessions existe déjà
       const { data: existingRelation } = await supabase
         .from('surveillant_sessions')
         .select('id')
@@ -164,7 +157,6 @@ export const SimpleSurveillantAvailabilityForm = () => {
         .single();
 
       if (!existingRelation) {
-        // Créer la relation surveillant_sessions seulement si elle n'existe pas
         const { error: sessionError } = await supabase
           .from('surveillant_sessions')
           .insert({
@@ -203,7 +195,6 @@ export const SimpleSurveillantAvailabilityForm = () => {
     mutationFn: async () => {
       if (!surveillantId || !selectedSessionId) throw new Error('Données manquantes');
 
-      // Mettre à jour uniquement les champs nécessaires
       const { error } = await supabase
         .from('surveillants')
         .update({ 
@@ -214,7 +205,6 @@ export const SimpleSurveillantAvailabilityForm = () => {
 
       if (error) throw error;
 
-      // Vérifier/créer la relation surveillant_sessions si nécessaire
       const { data: existingRelation } = await supabase
         .from('surveillant_sessions')
         .select('id')
@@ -249,10 +239,8 @@ export const SimpleSurveillantAvailabilityForm = () => {
 
   const handleContinueFromInstructions = async () => {
     if (surveillantId) {
-      // Surveillant existant - mettre à jour les infos
       await updateSurveillantMutation.mutateAsync();
     } else {
-      // Nouveau surveillant - créer le profil
       await createSurveillantMutation.mutateAsync();
     }
   };
@@ -385,8 +373,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
                 <span className="font-medium">Souhaitez-vous modifier vos disponibilités ?</span>
               </div>
               <p className="text-sm text-blue-700">
-                Utilisez le formulaire ci-dessous pour demander des modifications. 
-                Votre demande sera traitée par l'équipe administrative.
+                Vous pouvez modifier directement vos disponibilités existantes ou en ajouter de nouvelles.
               </p>
             </div>
 
@@ -399,15 +386,33 @@ export const SimpleSurveillantAvailabilityForm = () => {
                 Retour
               </Button>
               <Button
-                onClick={() => setCurrentStep('modification-request')}
-                className="flex-1 bg-orange-600 hover:bg-orange-700"
+                onClick={() => setCurrentStep('edit-availabilities')}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
               >
-                Demander une modification
+                Modifier mes disponibilités
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep('modification-request')}
+                className="flex-1 border-orange-600 text-orange-600"
+              >
+                Demander aide admin
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+    );
+  }
+
+  if (currentStep === 'edit-availabilities' && surveillantId && selectedSessionId) {
+    return (
+      <ExistingAvailabilitiesEditor
+        surveillantId={surveillantId}
+        sessionId={selectedSessionId}
+        email={email}
+        onComplete={() => setCurrentStep('success')}
+      />
     );
   }
 
@@ -550,12 +555,12 @@ export const SimpleSurveillantAvailabilityForm = () => {
             <div>
               <h2 className="text-2xl font-bold text-green-800 mb-2">
                 {currentStep === 'success' && existingDisponibilites && existingDisponibilites.length > 0 
-                  ? 'Demande envoyée !' 
+                  ? 'Modifications enregistrées !' 
                   : 'Disponibilités enregistrées !'}
               </h2>
               <p className="text-gray-600 mb-4">
                 {currentStep === 'success' && existingDisponibilites && existingDisponibilites.length > 0
-                  ? `Merci ${surveillantData?.prenom}. Votre demande de modification a été transmise au service des surveillances.`
+                  ? `Merci ${surveillantData?.prenom}. Vos modifications ont été enregistrées avec succès.`
                   : `Merci ${surveillantData?.prenom}. Vos disponibilités ont été transmises au service des surveillances.`}
               </p>
               <p className="text-sm text-gray-500 mb-6">
