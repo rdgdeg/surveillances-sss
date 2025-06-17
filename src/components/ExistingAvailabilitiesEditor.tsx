@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -5,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus, Save, AlertCircle, CheckCircle, Calendar, Clock, Edit3 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -34,11 +34,6 @@ interface TimeSlot {
   date_examen: string;
   heure_debut: string;
   heure_fin: string;
-  examens: Array<{
-    id: string;
-    matiere: string;
-    salle: string;
-  }>;
 }
 
 export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, onComplete }: ExistingAvailabilitiesEditorProps) => {
@@ -146,34 +141,11 @@ export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, 
       creneauxNecessaires.forEach(creneauKey => {
         const [debut, fin] = creneauKey.split('-');
         
-        // Trouver tous les examens couverts par ce créneau
-        const examensCouverts = dateSlots.filter(exam => {
-          const toMinutes = (time: string) => {
-            const [h, m] = time.split(':').map(Number);
-            return h * 60 + m;
-          };
-          
-          const creneauDebutMin = toMinutes(debut);
-          const creneauFinMin = toMinutes(fin);
-          const examDebutMin = toMinutes(exam.heure_debut);
-          const examFinMin = toMinutes(exam.heure_fin);
-          const debutSurveillanceMin = examDebutMin - 45;
-          
-          return debutSurveillanceMin >= creneauDebutMin && examFinMin <= creneauFinMin;
+        timeSlots.push({
+          date_examen: date,
+          heure_debut: debut,
+          heure_fin: fin
         });
-        
-        if (examensCouverts.length > 0) {
-          timeSlots.push({
-            date_examen: date,
-            heure_debut: debut,
-            heure_fin: fin,
-            examens: examensCouverts.map(exam => ({
-              id: exam.id,
-              matiere: exam.matiere,
-              salle: exam.salle
-            }))
-          });
-        }
       });
     });
 
@@ -569,18 +541,6 @@ export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, 
                                     />
                                   </div>
                                 )}
-                              </div>
-                            )}
-                            
-                            {/* Afficher les examens couverts par ce créneau */}
-                            {slot.examens.length > 0 && (
-                              <div className="mt-2 p-2 bg-gray-50 rounded">
-                                <p className="text-xs text-gray-600 font-medium mb-1">Examens couverts :</p>
-                                {slot.examens.map((examen, idx) => (
-                                  <p key={idx} className="text-xs text-gray-500">
-                                    {examen.matiere} - {examen.salle}
-                                  </p>
-                                ))}
                               </div>
                             )}
                           </div>
