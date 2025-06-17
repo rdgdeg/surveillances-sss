@@ -1,33 +1,19 @@
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Calendar, Clock, Check, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
-import { Calendar, Clock, Send, CheckCircle, AlertCircle } from "lucide-react";
+import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
-
-interface TimeSlot {
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-}
-
-interface DisponibiliteForm {
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-  est_disponible: boolean;
-  type_choix: 'souhaitee' | 'obligatoire';
-  nom_examen_obligatoire?: string;
-  commentaire_surveillance_obligatoire?: string;
-}
 
 interface OptimizedAvailabilityFormProps {
   surveillantId: string;
@@ -36,129 +22,24 @@ interface OptimizedAvailabilityFormProps {
   onSuccess: () => void;
 }
 
-export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onSuccess }: OptimizedAvailabilityFormProps) => {
+interface DisponibiliteData {
+  type_choix: 'souhaitee' | 'obligatoire';
+  nom_examen_obligatoire: string;
+}
+
+export const OptimizedAvailabilityForm = ({ 
+  surveillantId, 
+  sessionId, 
+  email, 
+  onSuccess 
+}: OptimizedAvailabilityFormProps) => {
   const queryClient = useQueryClient();
-  const [availabilities, setAvailabilities] = useState<Record<string, DisponibiliteForm>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Récupérer les créneaux d'examens pour la session spécifiée
-  const { data: examSlots = [] } = useQuery({
-    queryKey: ['exam-slots', sessionId],
-    queryFn: async () => {
-      if (!sessionId) return [];
-
-      const { data, error } = await supabase
-        .from('examens')
-        .select('id, date_examen, heure_debut, heure_fin, matiere, salle')
-        .eq('session_id', sessionId)
-        .eq('is_active', true)
-        .order('date_examen')
-        .order('heure_debut');
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!sessionId
-  });
-
-  // Récupérer les créneaux de surveillance configurés et validés pour la session
-  const { data: creneauxConfig = [] } = useQuery({
-    queryKey: ['creneaux-surveillance-config-valides', sessionId],
-    queryFn: async () => {
-      if (!sessionId) return [];
-
-      const { data, error } = await supabase
-        .from('creneaux_surveillance_config')
-        .select('heure_debut, heure_fin')
-        .eq('session_id', sessionId)
-        .eq('is_active', true)
-        .eq('is_validated', true)
-        .order('heure_debut');
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!sessionId
-  });
-
-  // Convertir les créneaux configurés au format attendu
-  const creneauxSurveillance = creneauxConfig.map(c => ({
-    debut: c.heure_debut,
-    fin: c.heure_fin
-  }));
-
-  // Fonction pour convertir les examens en créneaux de surveillance selon vos spécifications
-  const mergeTimeSlots = (slots: any[]): TimeSlot[] => {
-    const groupedByDate: Record<string, any[]> = {};
-    
-    // Grouper par date
-    slots.forEach(slot => {
-      if (!groupedByDate[slot.date_examen]) {
-        groupedByDate[slot.date_examen] = [];
-      }
-      groupedByDate[slot.date_examen].push(slot);
-    });
-
-    const timeSlots: TimeSlot[] = [];
-
-    Object.entries(groupedByDate).forEach(([date, dateSlots]) => {
-      // Pour chaque date, déterminer quels créneaux de surveillance sont nécessaires
-      const creneauxNecessaires = new Set<string>();
-      
-      dateSlots.forEach(exam => {
-        const examDebut = exam.heure_debut;
-        const examFin = exam.heure_fin;
-        
-        // Déterminer quel(s) créneau(x) de surveillance couvre(nt) cet examen
-        // L'examen doit commencer au plus tôt 45 minutes après le début du créneau
-        // et finir au plus tard à la fin du créneau
-        creneauxSurveillance.forEach(creneau => {
-          // Convertir en minutes pour faciliter la comparaison
-          const toMinutes = (time: string) => {
-            const [h, m] = time.split(':').map(Number);
-            return h * 60 + m;
-          };
-          
-          const creneauDebutMin = toMinutes(creneau.debut);
-          const creneauFinMin = toMinutes(creneau.fin);
-          const examDebutMin = toMinutes(examDebut);
-          const examFinMin = toMinutes(examFin);
-          
-          // Vérifier si l'examen est couvert par ce créneau de surveillance
-          // L'examen doit commencer au plus tôt 45 minutes après le début du créneau
-          // et finir au plus tard à la fin du créneau
-          const debutSurveillanceMin = examDebutMin - 45;
-          
-          if (debutSurveillanceMin >= creneauDebutMin && examFinMin <= creneauFinMin) {
-            creneauxNecessaires.add(`${creneau.debut}-${creneau.fin}`);
-          }
-        });
-      });
-      
-      // Créer les créneaux de surveillance pour cette date
-      creneauxNecessaires.forEach(creneauKey => {
-        const [debut, fin] = creneauKey.split('-');
-        
-        timeSlots.push({
-          date_examen: date,
-          heure_debut: debut,
-          heure_fin: fin
-        });
-      });
-    });
-
-    return timeSlots.sort((a, b) => {
-      const dateCompare = a.date_examen.localeCompare(b.date_examen);
-      if (dateCompare !== 0) return dateCompare;
-      return a.heure_debut.localeCompare(b.heure_debut);
-    });
-  };
-
-  const timeSlots = mergeTimeSlots(examSlots);
+  const { data: optimizedCreneaux = [], isLoading } = useOptimizedCreneaux(sessionId);
+  const [selectedSlots, setSelectedSlots] = useState<Record<string, DisponibiliteData>>({});
 
   // Organiser par semaine
-  const organizeByWeek = (slots: TimeSlot[]) => {
-    const weeks: Record<string, TimeSlot[]> = {};
+  const organizeByWeek = (slots: any[]) => {
+    const weeks: Record<string, any[]> = {};
 
     slots.forEach(slot => {
       const date = new Date(slot.date_examen);
@@ -172,52 +53,59 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
       weeks[weekKey].push(slot);
     });
 
+    // Trier les créneaux dans chaque semaine
+    Object.keys(weeks).forEach(weekKey => {
+      weeks[weekKey].sort((a, b) => {
+        const dateCompare = a.date_examen.localeCompare(b.date_examen);
+        if (dateCompare !== 0) return dateCompare;
+        return a.heure_debut.localeCompare(b.heure_debut);
+      });
+    });
+
     return weeks;
   };
 
-  const weeklySlots = organizeByWeek(timeSlots);
+  const weeklySlots = organizeByWeek(optimizedCreneaux);
 
-  // Mutation pour sauvegarder
-  const saveDisponibilitesMutation = useMutation({
+  // Mutation pour sauvegarder les disponibilités
+  const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!surveillantId || !sessionId) throw new Error('Données manquantes');
-
-      const availabilityList = Object.values(availabilities).filter(av => av.est_disponible);
-
-      if (availabilityList.length === 0) {
-        throw new Error('Veuillez sélectionner au moins une disponibilité');
-      }
-
+      // Supprimer les anciennes disponibilités
       await supabase
         .from('disponibilites')
         .delete()
         .eq('surveillant_id', surveillantId)
         .eq('session_id', sessionId);
 
-      const { error } = await supabase
-        .from('disponibilites')
-        .insert(
-          availabilityList.map(av => ({
-            surveillant_id: surveillantId,
-            session_id: sessionId,
-            date_examen: av.date_examen,
-            heure_debut: av.heure_debut,
-            heure_fin: av.heure_fin,
-            est_disponible: true,
-            type_choix: av.type_choix,
-            nom_examen_obligatoire: av.nom_examen_obligatoire,
-            commentaire_surveillance_obligatoire: av.commentaire_surveillance_obligatoire
-          }))
-        );
+      // Préparer les nouvelles disponibilités
+      const disponibilites = Object.entries(selectedSlots).map(([key, data]) => {
+        const [date_examen, heure_debut, heure_fin] = key.split('|');
+        return {
+          surveillant_id: surveillantId,
+          session_id: sessionId,
+          date_examen,
+          heure_debut,
+          heure_fin,
+          est_disponible: true,
+          type_choix: data.type_choix,
+          nom_examen_obligatoire: data.nom_examen_obligatoire || null
+        };
+      });
 
-      if (error) throw error;
+      if (disponibilites.length > 0) {
+        const { error } = await supabase
+          .from('disponibilites')
+          .insert(disponibilites);
+        
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       toast({
-        title: "Disponibilités sauvegardées",
+        title: "Disponibilités enregistrées",
         description: "Vos disponibilités ont été enregistrées avec succès.",
       });
-      queryClient.invalidateQueries({ queryKey: ['surveillant-disponibilites'] });
+      queryClient.invalidateQueries({ queryKey: ['existing-disponibilites'] });
       onSuccess();
     },
     onError: (error: any) => {
@@ -229,187 +117,184 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
     }
   });
 
-  const handleAvailabilityChange = (slotKey: string, field: keyof DisponibiliteForm, value: any) => {
-    setAvailabilities(prev => ({
-      ...prev,
-      [slotKey]: {
-        ...prev[slotKey],
-        [field]: value
-      }
-    }));
-  };
-
-  const toggleAvailability = (slot: TimeSlot) => {
-    const slotKey = `${slot.date_examen}-${slot.heure_debut}-${slot.heure_fin}`;
-    const currentAvailability = availabilities[slotKey];
-    
-    if (currentAvailability?.est_disponible) {
-      // Désélectionner le créneau
-      setAvailabilities(prev => {
+  const handleSlotChange = (slotKey: string, checked: boolean) => {
+    if (checked) {
+      setSelectedSlots(prev => ({
+        ...prev,
+        [slotKey]: {
+          type_choix: 'souhaitee',
+          nom_examen_obligatoire: ''
+        }
+      }));
+    } else {
+      setSelectedSlots(prev => {
         const newState = { ...prev };
         delete newState[slotKey];
         return newState;
       });
-    } else {
-      // Sélectionner le créneau avec valeurs par défaut
-      setAvailabilities(prev => ({
-        ...prev,
-        [slotKey]: {
-          date_examen: slot.date_examen,
-          heure_debut: slot.heure_debut,
-          heure_fin: slot.heure_fin,
-          est_disponible: true,
-          type_choix: 'souhaitee', // Par défaut souhaitée
-          nom_examen_obligatoire: ''
-        }
-      }));
     }
   };
 
-  const toggleObligatoire = (slotKey: string) => {
-    setAvailabilities(prev => ({
+  const handleTypeChange = (slotKey: string, type: 'souhaitee' | 'obligatoire') => {
+    setSelectedSlots(prev => ({
       ...prev,
       [slotKey]: {
         ...prev[slotKey],
-        type_choix: prev[slotKey]?.type_choix === 'obligatoire' ? 'souhaitee' : 'obligatoire',
-        // Effacer le code examen si on passe en souhaité
-        nom_examen_obligatoire: prev[slotKey]?.type_choix === 'obligatoire' ? '' : prev[slotKey]?.nom_examen_obligatoire || '',
-        commentaire_surveillance_obligatoire: prev[slotKey]?.type_choix === 'obligatoire' ? '' : 'Surveillance obligatoire'
+        type_choix: type
       }
     }));
   };
 
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    try {
-      await saveDisponibilitesMutation.mutateAsync();
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleNomExamenChange = (slotKey: string, value: string) => {
+    setSelectedSlots(prev => ({
+      ...prev,
+      [slotKey]: {
+        ...prev[slotKey],
+        nom_examen_obligatoire: value
+      }
+    }));
   };
 
-  const selectedCount = Object.values(availabilities).filter(av => av.est_disponible).length;
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (Object.keys(selectedSlots).length === 0) {
+      toast({
+        title: "Aucune disponibilité sélectionnée",
+        description: "Veuillez sélectionner au moins un créneau.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    saveMutation.mutate();
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="animate-pulse text-center">
+            Chargement des créneaux optimisés...
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Calendar className="h-5 w-5" />
-            <span>Mes disponibilités</span>
+            <Check className="h-5 w-5 text-green-600" />
+            <span>Déclarez vos disponibilités</span>
           </CardTitle>
-          <CardDescription>
-            Email : {email} • {selectedCount} créneau{selectedCount > 1 ? 'x' : ''} sélectionné{selectedCount > 1 ? 's' : ''}
-          </CardDescription>
+          <p className="text-sm text-gray-600">
+            Sélectionnez les créneaux où vous êtes disponible pour surveiller des examens.
+            Les créneaux proposés sont optimisés selon les examens planifiés.
+          </p>
         </CardHeader>
       </Card>
 
-      {creneauxSurveillance.length > 0 ? (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center space-x-2 text-blue-800">
-            <CheckCircle className="h-5 w-5" />
-            <span className="font-medium">Créneaux de surveillance disponibles ({creneauxSurveillance.length})</span>
-          </div>
-          <p className="text-sm text-blue-700 mt-1">
-            Les créneaux proposés correspondent aux plages de surveillance validées pour cette session.
-          </p>
-          <p className="text-xs text-gray-600 mt-2">
-            <strong>Temps de préparation :</strong> Maximum 45 minutes mais dépend du secrétariat (peut être inférieur).
-          </p>
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-center space-x-2 text-blue-800">
+          <Check className="h-5 w-5" />
+          <span className="font-medium">Créneaux de surveillance optimisés</span>
         </div>
-      ) : (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2 text-orange-800">
-              <AlertCircle className="h-5 w-5" />
-              <span className="font-medium">Aucun créneau de surveillance configuré</span>
-            </div>
-            <p className="text-sm text-orange-700 mt-1">
-              L'administrateur doit configurer et valider des créneaux de surveillance pour cette session avant que vous puissiez saisir vos disponibilités.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        <p className="text-sm text-blue-700 mt-1">
+          Ces créneaux correspondent exactement aux besoins de surveillance des examens validés.
+          Chaque créneau inclut le temps de préparation nécessaire (45 minutes avant le premier examen).
+        </p>
+      </div>
 
-      {Object.keys(weeklySlots).length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-gray-500">
-              Aucun examen trouvé pour cette session.
-            </p>
-          </CardContent>
-        </Card>
-      ) : creneauxSurveillance.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-center text-gray-500">
-              Impossible de calculer les créneaux de disponibilité sans configuration des créneaux de surveillance.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(weeklySlots).map(([weekLabel, slots]) => (
-            <Card key={weekLabel} className="border-blue-200">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {Object.keys(weeklySlots).length === 0 ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">
+                  Aucun créneau de surveillance disponible pour cette session.
+                </p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Les créneaux apparaîtront une fois que des examens seront validés.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          Object.entries(weeklySlots).map(([weekLabel, slots]) => (
+            <Card key={weekLabel} className="border-gray-200">
               <CardHeader className="pb-4">
-                <CardTitle className="text-lg text-blue-700">
+                <CardTitle className="text-lg text-gray-700">
                   Semaine du {weekLabel}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  {slots.map((slot, index) => {
-                    const slotKey = `${slot.date_examen}-${slot.heure_debut}-${slot.heure_fin}`;
-                    const availability = availabilities[slotKey];
-                    const isAvailable = availability?.est_disponible || false;
-                    const isObligatoire = availability?.type_choix === 'obligatoire';
+                <div className="space-y-4">
+                  {slots.map((slot) => {
+                    const slotKey = `${slot.date_examen}|${slot.heure_debut}|${slot.heure_fin}`;
+                    const isSelected = slotKey in selectedSlots;
+                    const selectedData = selectedSlots[slotKey];
 
                     return (
-                      <Card key={index} className={`border transition-colors ${isAvailable ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <Card key={slotKey} className={`border transition-colors ${
+                        isSelected ? 'border-green-300 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                      }`}>
                         <CardContent className="pt-4">
                           <div className="space-y-3">
-                            {/* Sélection du créneau */}
-                            <div className="flex items-start space-x-4">
-                              <Checkbox
-                                checked={isAvailable}
-                                onCheckedChange={() => toggleAvailability(slot)}
-                                className="mt-1"
-                              />
-                              <div className="flex-1">
-                                <div className="flex items-center space-x-4">
-                                  <div className="flex items-center space-x-2">
-                                    <Calendar className="h-4 w-4 text-gray-500" />
-                                    <span className="font-medium">
-                                      {formatDateBelgian(slot.date_examen)}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <Clock className="h-4 w-4 text-gray-500" />
-                                    <span>{formatTimeRange(slot.heure_debut, slot.heure_fin)}</span>
-                                    <span className="text-xs text-gray-500">
-                                      (incl. préparation)
-                                    </span>
-                                  </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-4">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => handleSlotChange(slotKey, !!checked)}
+                                />
+                                <div className="flex items-center space-x-2">
+                                  <Calendar className="h-4 w-4 text-gray-500" />
+                                  <span className="font-medium">
+                                    {formatDateBelgian(slot.date_examen)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Clock className="h-4 w-4 text-gray-500" />
+                                  <span>{formatTimeRange(slot.heure_debut, slot.heure_fin)}</span>
                                 </div>
                               </div>
+                              <Badge variant="outline">
+                                {slot.examens.length} examen{slot.examens.length !== 1 ? 's' : ''}
+                              </Badge>
                             </div>
 
-                            {/* Options supplémentaires si le créneau est sélectionné */}
-                            {isAvailable && (
-                              <div className="ml-8 space-y-3 p-3 bg-white rounded border">
-                                {/* Case surveillance obligatoire */}
+                            {/* Afficher les examens de ce créneau */}
+                            <div className="ml-6 space-y-2">
+                              <p className="text-sm font-medium text-gray-700">Examens dans ce créneau :</p>
+                              {slot.examens.map((examen: any) => (
+                                <div key={examen.id} className="text-sm text-gray-600 pl-4 border-l-2 border-gray-200">
+                                  <span className="font-medium">{examen.matiere}</span>
+                                  <span className="mx-2">•</span>
+                                  <span>{formatTimeRange(examen.heure_debut, examen.heure_fin)}</span>
+                                  <span className="mx-2">•</span>
+                                  <span>{examen.salle}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {isSelected && (
+                              <div className="space-y-3 p-3 bg-white rounded border ml-6">
                                 <div className="flex items-center space-x-2">
                                   <Checkbox
-                                    checked={isObligatoire}
-                                    onCheckedChange={() => toggleObligatoire(slotKey)}
+                                    checked={selectedData?.type_choix === 'obligatoire'}
+                                    onCheckedChange={(checked) => 
+                                      handleTypeChange(slotKey, checked ? 'obligatoire' : 'souhaitee')
+                                    }
                                   />
                                   <Label className="text-sm font-medium">
                                     Surveillance obligatoire
                                   </Label>
                                 </div>
 
-                                {/* Code examen si obligatoire */}
-                                {isObligatoire && (
+                                {selectedData?.type_choix === 'obligatoire' && (
                                   <div className="bg-orange-50 border border-orange-200 rounded p-3">
                                     <div className="flex items-center space-x-2 mb-2">
                                       <AlertCircle className="h-4 w-4 text-orange-600" />
@@ -418,14 +303,11 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
                                       </span>
                                     </div>
                                     <Input
-                                      value={availability.nom_examen_obligatoire || ''}
-                                      onChange={(e) => handleAvailabilityChange(slotKey, 'nom_examen_obligatoire', e.target.value)}
+                                      value={selectedData.nom_examen_obligatoire}
+                                      onChange={(e) => handleNomExamenChange(slotKey, e.target.value)}
                                       placeholder="Ex: LECON2100"
                                       className="text-sm"
                                     />
-                                    <p className="text-xs text-orange-700 mt-1">
-                                      Indiquez le code exact de l'examen que vous devez absolument surveiller
-                                    </p>
                                   </div>
                                 )}
                               </div>
@@ -438,25 +320,24 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
                 </div>
               </CardContent>
             </Card>
-          ))}
+          ))
+        )}
 
+        {Object.keys(weeklySlots).length > 0 && (
           <div className="flex justify-center space-x-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{selectedCount}</div>
-              <div className="text-sm text-gray-600">créneaux sélectionnés</div>
-            </div>
             <Button
-              onClick={handleSubmit}
-              disabled={isSubmitting || selectedCount === 0}
-              size="lg"
+              type="submit"
+              disabled={saveMutation.isPending || Object.keys(selectedSlots).length === 0}
               className="px-8"
             >
-              <Send className="h-4 w-4 mr-2" />
-              {isSubmitting ? 'Sauvegarde...' : 'Enregistrer mes disponibilités'}
+              {saveMutation.isPending 
+                ? "Enregistrement..." 
+                : `Enregistrer mes ${Object.keys(selectedSlots).length} disponibilité${Object.keys(selectedSlots).length !== 1 ? 's' : ''}`
+              }
             </Button>
           </div>
-        </div>
-      )}
+        )}
+      </form>
     </div>
   );
 };
