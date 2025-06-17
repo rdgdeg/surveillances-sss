@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -474,10 +473,6 @@ export const CreneauxSurveillanceManager = () => {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="vue-par-jour" className="space-y-6">
-          <CreneauxVueParJour />
         </TabsContent>
       </Tabs>
     </div>
