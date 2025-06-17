@@ -1,311 +1,281 @@
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, CheckCircle, Users, Calendar, Clock, Target } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Database, Play, CheckCircle, AlertTriangle, Info } from "lucide-react";
 import { useActiveSession } from "@/hooks/useSessions";
+import { toast } from "@/hooks/use-toast";
 
-interface ConsistencyReport {
-  surveillantsCount: number;
-  examensCount: number;
-  disponibilitesCount: number;
-  surveillantsSansDisponibilites: string[];
-  examensWithoutDisponibilites: string[];
-  conflictsDetected: string[];
-  quotaIssues: string[];
+interface ConsistencyCheck {
+  id: string;
+  name: string;
+  description: string;
+  status: 'success' | 'warning' | 'error' | 'pending';
+  message: string;
+  count?: number;
 }
 
 export const DataConsistencyChecker = () => {
-  const [isChecking, setIsChecking] = useState(false);
-  const [report, setReport] = useState<ConsistencyReport | null>(null);
   const { data: activeSession } = useActiveSession();
+  const [checks, setChecks] = useState<ConsistencyCheck[]>([]);
+  const [isRunning, setIsRunning] = useState(false);
 
-  const runConsistencyCheck = async () => {
-    if (!activeSession) {
+  const runConsistencyChecks = async () => {
+    if (!activeSession?.id) {
       toast({
         title: "Erreur",
-        description: "Aucune session active",
+        description: "Aucune session active pour effectuer les contrôles.",
         variant: "destructive"
       });
       return;
     }
 
-    setIsChecking(true);
-    try {
-      // Récupérer les surveillants actifs
-      const { data: surveillants } = await supabase
-        .from('surveillants')
-        .select('id, nom, prenom, email, type')
-        .eq('statut', 'actif');
+    setIsRunning(true);
+    const results: ConsistencyCheck[] = [];
 
-      // Récupérer les examens de la session
-      const { data: examens } = await supabase
+    try {
+      // Check 1: Examens sans surveillants assignés
+      const { data: examensNonAssignes } = await supabase
         .from('examens')
-        .select('*')
+        .select('id')
+        .eq('session_id', activeSession.id)
+        .eq('is_active', true)
+        .eq('statut_validation', 'VALIDE')
+        .gte('nombre_surveillants', 1);
+
+      const { data: attributions } = await supabase
+        .from('attributions')
+        .select('examen_id')
         .eq('session_id', activeSession.id);
 
-      // Récupérer les disponibilités
+      const examensAvecAttributions = new Set(attributions?.map(a => a.examen_id) || []);
+      const examensNonCouvers = examensNonAssignes?.filter(e => !examensAvecAttributions.has(e.id)) || [];
+
+      results.push({
+        id: 'examens-non-assignes',
+        name: 'Examens sans surveillants',
+        description: 'Examens validés sans aucun surveillant assigné',
+        status: examensNonCouvers.length > 0 ? 'warning' : 'success',
+        message: examensNonCouvers.length > 0 
+          ? `${examensNonCouvers.length} examens sans surveillants assignés`
+          : 'Tous les examens ont des surveillants assignés',
+        count: examensNonCouvers.length
+      });
+
+      // Check 2: Surveillants avec disponibilités mais sans assignations
       const { data: disponibilites } = await supabase
         .from('disponibilites')
-        .select('*')
-        .eq('session_id', activeSession.id);
-
-      // Récupérer les quotas
-      const { data: quotas } = await supabase
-        .from('surveillant_sessions')
-        .select('surveillant_id, quota, sessions_imposees')
+        .select('surveillant_id')
         .eq('session_id', activeSession.id)
-        .eq('is_active', true);
+        .eq('est_disponible', true);
 
-      const surveillantsCount = surveillants?.length || 0;
-      const examensCount = examens?.length || 0;
-      const disponibilitesCount = disponibilites?.length || 0;
+      const surveillantsDisponibles = new Set(disponibilites?.map(d => d.surveillant_id) || []);
+      const surveillantsAssignes = new Set(attributions?.map(a => a.surveillant_id) || []);
+      
+      const surveillantsSansAssignation = Array.from(surveillantsDisponibles)
+        .filter(id => !surveillantsAssignes.has(id));
 
-      // Identifier les surveillants sans disponibilités
-      const surveillantsWithDisponibilites = new Set(
-        disponibilites?.map(d => d.surveillant_id) || []
-      );
-      const surveillantsSansDisponibilites = (surveillants || [])
-        .filter(s => !surveillantsWithDisponibilites.has(s.id))
-        .map(s => `${s.nom} ${s.prenom} (${s.email})`);
+      results.push({
+        id: 'surveillants-non-assignes',
+        name: 'Surveillants disponibles non assignés',
+        description: 'Surveillants ayant donné leurs disponibilités mais sans assignation',
+        status: surveillantsSansAssignation.length > 0 ? 'warning' : 'success',
+        message: surveillantsSansAssignation.length > 0
+          ? `${surveillantsSansAssignation.length} surveillants disponibles non assignés`
+          : 'Tous les surveillants disponibles sont assignés',
+        count: surveillantsSansAssignation.length
+      });
 
-      // Identifier les examens sans aucune disponibilité correspondante
-      const examensWithoutDisponibilites: string[] = [];
-      if (examens && disponibilites) {
-        for (const examen of examens) {
-          const hasDisponibilites = disponibilites.some(d => 
-            d.date_examen === examen.date_examen &&
-            d.heure_debut === examen.heure_debut &&
-            d.heure_fin === examen.heure_fin &&
-            d.est_disponible === true
-          );
-          if (!hasDisponibilites) {
-            examensWithoutDisponibilites.push(
-              `${examen.matiere} - ${examen.date_examen} ${examen.heure_debut}-${examen.heure_fin} (${examen.salle})`
-            );
-          }
-        }
-      }
+      // Check 3: Attributions sur des examens inactifs
+      const { data: attributionsInactives } = await supabase
+        .from('attributions')
+        .select(`
+          id,
+          examens!inner (
+            is_active,
+            statut_validation
+          )
+        `)
+        .eq('session_id', activeSession.id)
+        .or('is_active.eq.false,statut_validation.neq.VALIDE', { foreignTable: 'examens' });
 
-      // Vérifier les quotas par rapport aux types
-      const quotaIssues: string[] = [];
-      if (quotas && surveillants) {
-        for (const quota of quotas) {
-          const surveillant = surveillants.find(s => s.id === quota.surveillant_id);
-          if (surveillant) {
-            const defaultQuota = surveillant.type === 'PAT' ? 12 : 
-                                surveillant.type === 'Assistant' ? 6 : 4;
-            if (quota.sessions_imposees > quota.quota) {
-              quotaIssues.push(
-                `${surveillant.nom} ${surveillant.prenom}: Sessions imposées (${quota.sessions_imposees}) > Quota (${quota.quota})`
-              );
-            }
-            if (quota.quota > defaultQuota * 1.5) {
-              quotaIssues.push(
-                `${surveillant.nom} ${surveillant.prenom}: Quota très élevé (${quota.quota}) pour un ${surveillant.type}`
-              );
-            }
-          }
-        }
-      }
+      results.push({
+        id: 'attributions-invalides',
+        name: 'Attributions sur examens invalides',
+        description: 'Attributions sur des examens inactifs ou non validés',
+        status: (attributionsInactives?.length || 0) > 0 ? 'error' : 'success',
+        message: (attributionsInactives?.length || 0) > 0
+          ? `${attributionsInactives?.length} attributions sur examens invalides`
+          : 'Toutes les attributions sont sur des examens valides',
+        count: attributionsInactives?.length || 0
+      });
 
-      const newReport: ConsistencyReport = {
-        surveillantsCount,
-        examensCount,
-        disponibilitesCount,
-        surveillantsSansDisponibilites,
-        examensWithoutDisponibilites,
-        conflictsDetected: [], // À implémenter si nécessaire
-        quotaIssues
-      };
+      setChecks(results);
 
-      setReport(newReport);
+      toast({
+        title: "Contrôles terminés",
+        description: `${results.length} contrôles effectués avec succès.`,
+      });
 
-      // Toast de résumé
-      const issuesCount = 
-        newReport.surveillantsSansDisponibilites.length +
-        newReport.examensWithoutDisponibilites.length +
-        newReport.quotaIssues.length;
-
-      if (issuesCount === 0) {
-        toast({
-          title: "✅ Données cohérentes",
-          description: "Aucun problème de cohérence détecté.",
-        });
-      } else {
-        toast({
-          title: "⚠️ Problèmes détectés",
-          description: `${issuesCount} problème(s) de cohérence trouvé(s).`,
-          variant: "destructive"
-        });
-      }
-
-    } catch (error: any) {
-      console.error('Erreur lors du contrôle de cohérence:', error);
+    } catch (error) {
+      console.error('Erreur lors des contrôles:', error);
       toast({
         title: "Erreur",
-        description: "Impossible de vérifier la cohérence des données.",
+        description: "Erreur lors de l'exécution des contrôles de cohérence.",
         variant: "destructive"
       });
     } finally {
-      setIsChecking(false);
+      setIsRunning(false);
     }
   };
 
-  const getStatusColor = (count: number) => {
-    return count === 0 ? "text-green-600" : "text-orange-600";
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'success':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'warning':
+        return <AlertTriangle className="h-4 w-4 text-orange-600" />;
+      case 'error':
+        return <AlertTriangle className="h-4 w-4 text-red-600" />;
+      default:
+        return <Info className="h-4 w-4 text-blue-600" />;
+    }
   };
 
-  const getStatusIcon = (count: number) => {
-    return count === 0 ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />;
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'success':
+        return <Badge variant="secondary" className="text-green-700 bg-green-100">OK</Badge>;
+      case 'warning':
+        return <Badge variant="secondary" className="text-orange-700 bg-orange-100">Attention</Badge>;
+      case 'error':
+        return <Badge variant="destructive">Erreur</Badge>;
+      default:
+        return <Badge variant="outline">En attente</Badge>;
+    }
   };
+
+  if (!activeSession) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-center text-gray-500">
+            Aucune session active. Activez une session pour effectuer les contrôles.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center space-x-2">
-          <Target className="h-5 w-5" />
-          <span>Contrôle de Cohérence des Données</span>
-        </CardTitle>
-        <CardDescription>
-          Vérifiez la cohérence entre surveillants, examens, disponibilités et quotas
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {!activeSession && (
-          <div className="flex items-center space-x-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-            <AlertCircle className="h-5 w-5 text-orange-600" />
-            <span className="text-orange-800 text-sm">Aucune session active</span>
-          </div>
-        )}
-
-        <Button 
-          onClick={runConsistencyCheck}
-          disabled={!activeSession || isChecking}
-          className="w-full"
-        >
-          {isChecking ? (
-            <div className="flex items-center space-x-2">
-              <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-              <span>Vérification en cours...</span>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Database className="h-5 w-5" />
+            <span>Contrôles d'Intégrité des Données</span>
+          </CardTitle>
+          <CardDescription>
+            Vérification de la cohérence des données pour la session {activeSession.name}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between mb-6">
+            <div className="text-sm text-gray-600">
+              Session active : <strong>{activeSession.name}</strong>
             </div>
-          ) : (
-            "Lancer le contrôle de cohérence"
+            <Button 
+              onClick={runConsistencyChecks}
+              disabled={isRunning}
+              className="flex items-center space-x-2"
+            >
+              <Play className="h-4 w-4" />
+              <span>{isRunning ? "Contrôles en cours..." : "Lancer les contrôles"}</span>
+            </Button>
+          </div>
+
+          {checks.length > 0 && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <Card className="border-green-200 bg-green-50">
+                  <CardContent className="pt-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-green-600">
+                        {checks.filter(c => c.status === 'success').length}
+                      </div>
+                      <div className="text-sm text-green-700">Contrôles OK</div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="border-orange-200 bg-orange-50">
+                  <CardContent className="pt-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-orange-600">
+                        {checks.filter(c => c.status === 'warning').length}
+                      </div>
+                      <div className="text-sm text-orange-700">Avertissements</div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="border-red-200 bg-red-50">
+                  <CardContent className="pt-4">
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-red-600">
+                        {checks.filter(c => c.status === 'error').length}
+                      </div>
+                      <div className="text-sm text-red-700">Erreurs</div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-3">
+                {checks.map((check) => (
+                  <Card key={check.id} className={
+                    check.status === 'error' ? 'border-red-200 bg-red-50' :
+                    check.status === 'warning' ? 'border-orange-200 bg-orange-50' :
+                    'border-green-200 bg-green-50'
+                  }>
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          {getStatusIcon(check.status)}
+                          <div>
+                            <div className="font-medium">{check.name}</div>
+                            <div className="text-sm text-gray-600">{check.description}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {check.count !== undefined && check.count > 0 && (
+                            <Badge variant="outline">{check.count}</Badge>
+                          )}
+                          {getStatusBadge(check.status)}
+                        </div>
+                      </div>
+                      <div className="mt-2 text-sm text-gray-700">
+                        {check.message}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           )}
-        </Button>
 
-        {report && (
-          <div className="space-y-4">
-            {/* Statistiques générales */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-3 bg-blue-50 rounded-lg text-center">
-                <Users className="h-6 w-6 mx-auto mb-1 text-blue-600" />
-                <div className="text-2xl font-bold text-blue-600">{report.surveillantsCount}</div>
-                <div className="text-xs text-blue-600">Surveillants</div>
-              </div>
-              <div className="p-3 bg-green-50 rounded-lg text-center">
-                <Calendar className="h-6 w-6 mx-auto mb-1 text-green-600" />
-                <div className="text-2xl font-bold text-green-600">{report.examensCount}</div>
-                <div className="text-xs text-green-600">Examens</div>
-              </div>
-              <div className="p-3 bg-purple-50 rounded-lg text-center">
-                <Clock className="h-6 w-6 mx-auto mb-1 text-purple-600" />
-                <div className="text-2xl font-bold text-purple-600">{report.disponibilitesCount}</div>
-                <div className="text-xs text-purple-600">Disponibilités</div>
-              </div>
-              <div className="p-3 bg-orange-50 rounded-lg text-center">
-                <AlertCircle className="h-6 w-6 mx-auto mb-1 text-orange-600" />
-                <div className="text-2xl font-bold text-orange-600">
-                  {report.surveillantsSansDisponibilites.length + 
-                   report.examensWithoutDisponibilites.length + 
-                   report.quotaIssues.length}
-                </div>
-                <div className="text-xs text-orange-600">Problèmes</div>
-              </div>
-            </div>
-
-            {/* Détails des problèmes */}
-            <div className="space-y-3">
-              {/* Surveillants sans disponibilités */}
-              <div className={`p-3 rounded-lg border ${
-                report.surveillantsSansDisponibilites.length === 0 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-orange-50 border-orange-200'
-              }`}>
-                <div className={`flex items-center space-x-2 mb-2 ${getStatusColor(report.surveillantsSansDisponibilites.length)}`}>
-                  {getStatusIcon(report.surveillantsSansDisponibilites.length)}
-                  <span className="font-medium">
-                    Surveillants sans disponibilités ({report.surveillantsSansDisponibilites.length})
-                  </span>
-                </div>
-                {report.surveillantsSansDisponibilites.length > 0 && (
-                  <div className="space-y-1">
-                    {report.surveillantsSansDisponibilites.map((surveillant, index) => (
-                      <Badge key={index} variant="destructive" className="mr-2 mb-1">
-                        {surveillant}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Examens sans disponibilités */}
-              <div className={`p-3 rounded-lg border ${
-                report.examensWithoutDisponibilites.length === 0 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-orange-50 border-orange-200'
-              }`}>
-                <div className={`flex items-center space-x-2 mb-2 ${getStatusColor(report.examensWithoutDisponibilites.length)}`}>
-                  {getStatusIcon(report.examensWithoutDisponibilites.length)}
-                  <span className="font-medium">
-                    Examens sans surveillants disponibles ({report.examensWithoutDisponibilites.length})
-                  </span>
-                </div>
-                {report.examensWithoutDisponibilites.length > 0 && (
-                  <div className="space-y-1">
-                    {report.examensWithoutDisponibilites.slice(0, 5).map((examen, index) => (
-                      <div key={index} className="text-sm text-orange-800">
-                        • {examen}
-                      </div>
-                    ))}
-                    {report.examensWithoutDisponibilites.length > 5 && (
-                      <div className="text-sm text-orange-600">
-                        ... et {report.examensWithoutDisponibilites.length - 5} autres
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Problèmes de quotas */}
-              <div className={`p-3 rounded-lg border ${
-                report.quotaIssues.length === 0 
-                  ? 'bg-green-50 border-green-200' 
-                  : 'bg-orange-50 border-orange-200'
-              }`}>
-                <div className={`flex items-center space-x-2 mb-2 ${getStatusColor(report.quotaIssues.length)}`}>
-                  {getStatusIcon(report.quotaIssues.length)}
-                  <span className="font-medium">
-                    Problèmes de quotas ({report.quotaIssues.length})
-                  </span>
-                </div>
-                {report.quotaIssues.length > 0 && (
-                  <div className="space-y-1">
-                    {report.quotaIssues.map((issue, index) => (
-                      <div key={index} className="text-sm text-orange-800">
-                        • {issue}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          {checks.length === 0 && !isRunning && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Cliquez sur "Lancer les contrôles" pour vérifier l'intégrité des données de la session active.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };

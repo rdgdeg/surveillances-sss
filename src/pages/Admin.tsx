@@ -1,4 +1,3 @@
-
 import { useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -12,6 +11,7 @@ import { DashboardOverview } from "@/components/DashboardOverview";
 import { DisponibilitesManager } from "@/components/DisponibilitesManager";
 import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
 import { FeatureLockManager } from "@/components/FeatureLockManager";
+import { ControlesVerificationsManager } from "@/components/ControlesVerificationsManager";
 
 // Import des principaux modules admin
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
@@ -62,6 +62,8 @@ function getAdminContent(tab: string | null) {
       return <div className="text-gray-700">Gestion des données sensibles (accès restreint).</div>;
     case "suivi-confirm-enseignants":
       return <SuiviConfirmationEnseignants />;
+    case "controles-verifications":
+      return <ControlesVerificationsManager />;
     default:
       return <DashboardAdmin />;
   }
