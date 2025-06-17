@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,11 +9,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Users, Search, Calendar, Clock, AlertCircle, CheckCircle, UserCog } from "lucide-react";
+import { Download, Users, Search, Calendar, Clock, AlertCircle, CheckCircle, UserCog, Shield } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
 import { SurveillantDisponibilitesEditor } from "./SurveillantDisponibilitesEditor";
+import { ExamenCoverageVerification } from "./ExamenCoverageVerification";
 import * as XLSX from 'xlsx';
 
 interface DisponibiliteDetail {
@@ -155,7 +157,7 @@ export const DisponibilitesAdminView = () => {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <Users className="h-4 w-4" />
             <span>Vue d'ensemble</span>
@@ -163,6 +165,10 @@ export const DisponibilitesAdminView = () => {
           <TabsTrigger value="edit" className="flex items-center space-x-2">
             <UserCog className="h-4 w-4" />
             <span>Gestion par surveillant</span>
+          </TabsTrigger>
+          <TabsTrigger value="verification" className="flex items-center space-x-2">
+            <Shield className="h-4 w-4" />
+            <span>Vérification couverture</span>
           </TabsTrigger>
         </TabsList>
         
@@ -347,6 +353,10 @@ export const DisponibilitesAdminView = () => {
         
         <TabsContent value="edit">
           <SurveillantDisponibilitesEditor />
+        </TabsContent>
+
+        <TabsContent value="verification">
+          <ExamenCoverageVerification />
         </TabsContent>
       </Tabs>
     </div>
