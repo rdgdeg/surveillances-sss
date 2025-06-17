@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,13 +90,14 @@ export const CreneauxVueSemaines = () => {
 
       if (creneauxError) throw creneauxError;
 
+      // Fonction helper pour convertir time en minutes
+      const toMinutes = (time: string) => {
+        const [h, m] = time.split(':').map(Number);
+        return h * 60 + m;
+      };
+
       // Fonction pour vérifier si un examen est couvert par un créneau
       const verifierCouverture = (examen: any, creneau: any): boolean => {
-        const toMinutes = (time: string) => {
-          const [h, m] = time.split(':').map(Number);
-          return h * 60 + m;
-        };
-
         const creneauDebutMin = toMinutes(creneau.heure_debut);
         const creneauFinMin = toMinutes(creneau.heure_fin);
         const examDebutMin = toMinutes(examen.heure_debut);
@@ -108,25 +108,60 @@ export const CreneauxVueSemaines = () => {
         return debutSurveillanceMin >= creneauDebutMin && examFinMin <= creneauFinMin;
       };
 
-      // Fonction pour trouver le créneau optimal (le plus court) pour un examen
-      const trouverCreneauOptimal = (examen: any, creneauxPossibles: any[]): any | null => {
-        const creneauxCompatibles = creneauxPossibles.filter(creneau => verifierCouverture(examen, creneau));
+      // Fonction pour regrouper les examens par créneaux optimaux
+      const creerCreneauxOptimaux = (examensJour: any[], creneaux: any[]): CreneauAvecExamens[] => {
+        const creneauxUtilises = new Map<string, CreneauAvecExamens>();
         
-        if (creneauxCompatibles.length === 0) return null;
+        // Grouper les examens par plage horaire similaire
+        const groupesExamens = new Map<string, any[]>();
         
-        // Trier par durée croissante et prendre le plus court
-        return creneauxCompatibles.sort((a, b) => {
-          const toMinutes = (time: string) => {
-            const [h, m] = time.split(':').map(Number);
-            return h * 60 + m;
-          };
-          const dureeA = toMinutes(a.heure_fin) - toMinutes(a.heure_debut);
-          const dureeB = toMinutes(b.heure_fin) - toMinutes(b.heure_debut);
-          return dureeA - dureeB;
-        })[0];
+        examensJour.forEach(examen => {
+          // Créer une clé basée sur l'heure de début et fin (regrouper les examens simultanés)
+          const cleGroupe = `${examen.heure_debut}-${examen.heure_fin}`;
+          if (!groupesExamens.has(cleGroupe)) {
+            groupesExamens.set(cleGroupe, []);
+          }
+          groupesExamens.get(cleGroupe)!.push(examen);
+        });
+
+        // Pour chaque groupe d'examens simultanés, trouver le créneau optimal
+        Array.from(groupesExamens.values()).forEach(groupeExamens => {
+          // Trouver tous les créneaux compatibles pour ce groupe
+          const creneauxCompatibles = creneaux.filter(creneau => 
+            groupeExamens.every(examen => verifierCouverture(examen, creneau))
+          );
+          
+          if (creneauxCompatibles.length > 0) {
+            // Prendre le créneau le plus court qui couvre tous les examens du groupe
+            const creneauOptimal = creneauxCompatibles.sort((a, b) => {
+              const dureeA = toMinutes(a.heure_fin) - toMinutes(a.heure_debut);
+              const dureeB = toMinutes(b.heure_fin) - toMinutes(b.heure_debut);
+              return dureeA - dureeB;
+            })[0];
+            
+            const creneauKey = creneauOptimal.id;
+            
+            if (!creneauxUtilises.has(creneauKey)) {
+              creneauxUtilises.set(creneauKey, {
+                id: creneauOptimal.id,
+                heure_debut: creneauOptimal.heure_debut,
+                heure_fin: creneauOptimal.heure_fin,
+                nom_creneau: creneauOptimal.nom_creneau,
+                is_validated: creneauOptimal.is_validated,
+                examens: []
+              });
+            }
+            
+            // Ajouter tous les examens du groupe à ce créneau
+            creneauxUtilises.get(creneauKey)!.examens.push(...groupeExamens);
+          }
+        });
+
+        return Array.from(creneauxUtilises.values())
+          .sort((a, b) => a.heure_debut.localeCompare(b.heure_debut));
       };
 
-      // Organiser par semaine en ne gardant que les créneaux optimaux
+      // Organiser par semaine
       const semainesMap = new Map<number, SemaineCreneaux>();
 
       // Fonction pour obtenir le numéro de semaine
@@ -162,39 +197,15 @@ export const CreneauxVueSemaines = () => {
         const semaine = semainesMap.get(weekNumber)!;
         const examensJour = examens?.filter(e => e.date_examen === date) || [];
         
-        // Créer un map pour regrouper les examens par créneau optimal
-        const creneauxOptimaux = new Map<string, CreneauAvecExamens>();
-        
-        examensJour.forEach(examen => {
-          const creneauOptimal = trouverCreneauOptimal(examen, creneaux || []);
-          
-          if (creneauOptimal) {
-            const creneauKey = `${creneauOptimal.id}`;
-            
-            if (!creneauxOptimaux.has(creneauKey)) {
-              creneauxOptimaux.set(creneauKey, {
-                id: creneauOptimal.id,
-                heure_debut: creneauOptimal.heure_debut,
-                heure_fin: creneauOptimal.heure_fin,
-                nom_creneau: creneauOptimal.nom_creneau,
-                is_validated: creneauOptimal.is_validated,
-                examens: []
-              });
-            }
-            
-            creneauxOptimaux.get(creneauKey)!.examens.push(examen);
-          }
-        });
+        // Créer les créneaux optimaux pour ce jour
+        const creneauxOptimaux = creerCreneauxOptimaux(examensJour, creneaux || []);
 
         // N'ajouter le jour que s'il y a des créneaux avec des examens
-        if (creneauxOptimaux.size > 0) {
-          const creneauxArray = Array.from(creneauxOptimaux.values())
-            .sort((a, b) => a.heure_debut.localeCompare(b.heure_debut));
-          
+        if (creneauxOptimaux.length > 0) {
           semaine.jours.push({
             date,
             dayName: dateObj.toLocaleDateString('fr-FR', { weekday: 'long' }),
-            creneaux: creneauxArray
+            creneaux: creneauxOptimaux
           });
         }
       });
