@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -88,10 +87,20 @@ export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, 
     }
   });
 
-  // Fusionner les créneaux qui se chevauchent
+  // Définir les créneaux de surveillance fixes
+  const creneauxSurveillance = [
+    { debut: '08:15', fin: '11:00' },
+    { debut: '08:15', fin: '12:00' },
+    { debut: '12:15', fin: '15:00' },
+    { debut: '15:15', fin: '18:00' },
+    { debut: '15:45', fin: '18:30' }
+  ];
+
+  // Fonction pour convertir les examens en créneaux de surveillance selon vos spécifications
   const mergeTimeSlots = (slots: any[]): TimeSlot[] => {
     const groupedByDate: Record<string, any[]> = {};
     
+    // Grouper par date
     slots.forEach(slot => {
       if (!groupedByDate[slot.date_examen]) {
         groupedByDate[slot.date_examen] = [];
@@ -102,84 +111,70 @@ export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, 
     const timeSlots: TimeSlot[] = [];
 
     Object.entries(groupedByDate).forEach(([date, dateSlots]) => {
-      const sortedSlots = [...dateSlots].sort((a, b) => a.heure_debut.localeCompare(b.heure_debut));
+      // Pour chaque date, déterminer quels créneaux de surveillance sont nécessaires
+      const creneauxNecessaires = new Set<string>();
       
-      const surveillanceSlots = sortedSlots.map(slot => {
-        const startTime = new Date(`2000-01-01T${slot.heure_debut}`);
-        startTime.setMinutes(startTime.getMinutes() - 45);
-        const heureDebutSurveillance = startTime.toTimeString().slice(0, 5);
+      dateSlots.forEach(exam => {
+        const examDebut = exam.heure_debut;
+        const examFin = exam.heure_fin;
         
-        return {
-          ...slot,
-          heure_debut_surveillance: heureDebutSurveillance,
-          heure_fin_surveillance: slot.heure_fin
-        };
-      });
-
-      const mergedSlots: TimeSlot[] = [];
-      
-      for (const slot of surveillanceSlots) {
-        let merged = false;
-        
-        for (let i = 0; i < mergedSlots.length; i++) {
-          const existingSlot = mergedSlots[i];
-          
-          const newStart = slot.heure_debut_surveillance;
-          const newEnd = slot.heure_fin_surveillance;
-          const existingStart = existingSlot.heure_debut;
-          const existingEnd = existingSlot.heure_fin;
-          
+        // Déterminer quel(s) créneau(x) de surveillance couvre(nt) cet examen
+        creneauxSurveillance.forEach(creneau => {
+          // Convertir en minutes pour faciliter la comparaison
           const toMinutes = (time: string) => {
             const [h, m] = time.split(':').map(Number);
             return h * 60 + m;
           };
           
-          const newStartMin = toMinutes(newStart);
-          const newEndMin = toMinutes(newEnd);
-          const existingStartMin = toMinutes(existingStart);
-          const existingEndMin = toMinutes(existingEnd);
+          const creneauDebutMin = toMinutes(creneau.debut);
+          const creneauFinMin = toMinutes(creneau.fin);
+          const examDebutMin = toMinutes(examDebut);
+          const examFinMin = toMinutes(examFin);
           
-          const overlap = !(newEndMin <= existingStartMin || newStartMin >= existingEndMin);
-          const adjacent = Math.abs(newStartMin - existingEndMin) <= 15 || Math.abs(existingStartMin - newEndMin) <= 15;
+          // Vérifier si l'examen est couvert par ce créneau de surveillance
+          // L'examen doit commencer au plus tôt 45 minutes après le début du créneau
+          // et finir au plus tard à la fin du créneau
+          const debutSurveillanceMin = examDebutMin - 45;
           
-          if (overlap || adjacent) {
-            const mergedStart = Math.min(newStartMin, existingStartMin);
-            const mergedEnd = Math.max(newEndMin, existingEndMin);
-            
-            const formatTime = (minutes: number) => {
-              const h = Math.floor(minutes / 60);
-              const m = minutes % 60;
-              return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-            };
-            
-            existingSlot.heure_debut = formatTime(mergedStart);
-            existingSlot.heure_fin = formatTime(mergedEnd);
-            existingSlot.examens.push({
-              id: slot.id,
-              matiere: slot.matiere,
-              salle: slot.salle
-            });
-            
-            merged = true;
-            break;
+          if (debutSurveillanceMin >= creneauDebutMin && examFinMin <= creneauFinMin) {
+            creneauxNecessaires.add(`${creneau.debut}-${creneau.fin}`);
           }
-        }
+        });
+      });
+      
+      // Créer les créneaux de surveillance pour cette date
+      creneauxNecessaires.forEach(creneauKey => {
+        const [debut, fin] = creneauKey.split('-');
         
-        if (!merged) {
-          mergedSlots.push({
+        // Trouver tous les examens couverts par ce créneau
+        const examensCouverts = dateSlots.filter(exam => {
+          const toMinutes = (time: string) => {
+            const [h, m] = time.split(':').map(Number);
+            return h * 60 + m;
+          };
+          
+          const creneauDebutMin = toMinutes(debut);
+          const creneauFinMin = toMinutes(fin);
+          const examDebutMin = toMinutes(exam.heure_debut);
+          const examFinMin = toMinutes(exam.heure_fin);
+          const debutSurveillanceMin = examDebutMin - 45;
+          
+          return debutSurveillanceMin >= creneauDebutMin && examFinMin <= creneauFinMin;
+        });
+        
+        if (examensCouverts.length > 0) {
+          timeSlots.push({
             date_examen: date,
-            heure_debut: slot.heure_debut_surveillance,
-            heure_fin: slot.heure_fin_surveillance,
-            examens: [{
-              id: slot.id,
-              matiere: slot.matiere,
-              salle: slot.salle
-            }]
+            heure_debut: debut,
+            heure_fin: fin,
+            examens: examensCouverts.map(exam => ({
+              id: exam.id,
+              matiere: exam.matiere,
+              salle: exam.salle
+            }))
           });
         }
-      }
-
-      timeSlots.push(...mergedSlots);
+      });
     });
 
     return timeSlots.sort((a, b) => {
@@ -380,6 +375,19 @@ export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, 
         </CardHeader>
       </Card>
 
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="flex items-center space-x-2 text-blue-800">
+          <CheckCircle className="h-5 w-5" />
+          <span className="font-medium">Créneaux de surveillance disponibles</span>
+        </div>
+        <p className="text-sm text-blue-700 mt-1">
+          Les créneaux proposés correspondent aux plages de surveillance : 8h15-11h00, 8h15-12h00, 12h15-15h00, 15h15-18h00, 15h45-18h30
+        </p>
+        <p className="text-xs text-gray-600 mt-2">
+          Chaque créneau inclut jusqu'à 45 minutes de préparation avant le premier examen.
+        </p>
+      </div>
+
       {/* Disponibilités existantes organisées par semaine */}
       {Object.keys(existingWeeklyDispos).length > 0 && (
         <div className="space-y-6">
@@ -561,6 +569,18 @@ export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, 
                                     />
                                   </div>
                                 )}
+                              </div>
+                            )}
+                            
+                            {/* Afficher les examens couverts par ce créneau */}
+                            {slot.examens.length > 0 && (
+                              <div className="mt-2 p-2 bg-gray-50 rounded">
+                                <p className="text-xs text-gray-600 font-medium mb-1">Examens couverts :</p>
+                                {slot.examens.map((examen, idx) => (
+                                  <p key={idx} className="text-xs text-gray-500">
+                                    {examen.matiere} - {examen.salle}
+                                  </p>
+                                ))}
                               </div>
                             )}
                           </div>
