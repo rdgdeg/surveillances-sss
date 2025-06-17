@@ -108,7 +108,25 @@ export const CreneauxVueSemaines = () => {
         return debutSurveillanceMin >= creneauDebutMin && examFinMin <= creneauFinMin;
       };
 
-      // Organiser par semaine en ne gardant que les créneaux qui contiennent des examens
+      // Fonction pour trouver le créneau optimal (le plus court) pour un examen
+      const trouverCreneauOptimal = (examen: any, creneauxPossibles: any[]): any | null => {
+        const creneauxCompatibles = creneauxPossibles.filter(creneau => verifierCouverture(examen, creneau));
+        
+        if (creneauxCompatibles.length === 0) return null;
+        
+        // Trier par durée croissante et prendre le plus court
+        return creneauxCompatibles.sort((a, b) => {
+          const toMinutes = (time: string) => {
+            const [h, m] = time.split(':').map(Number);
+            return h * 60 + m;
+          };
+          const dureeA = toMinutes(a.heure_fin) - toMinutes(a.heure_debut);
+          const dureeB = toMinutes(b.heure_fin) - toMinutes(b.heure_debut);
+          return dureeA - dureeB;
+        })[0];
+      };
+
+      // Organiser par semaine en ne gardant que les créneaux optimaux
       const semainesMap = new Map<number, SemaineCreneaux>();
 
       // Fonction pour obtenir le numéro de semaine
@@ -144,31 +162,39 @@ export const CreneauxVueSemaines = () => {
         const semaine = semainesMap.get(weekNumber)!;
         const examensJour = examens?.filter(e => e.date_examen === date) || [];
         
-        // Créer les créneaux pour ce jour SEULEMENT si ils contiennent des examens
-        const creneauxAvecExamens: CreneauAvecExamens[] = [];
+        // Créer un map pour regrouper les examens par créneau optimal
+        const creneauxOptimaux = new Map<string, CreneauAvecExamens>();
         
-        creneaux?.forEach(creneau => {
-          const examensDeuxCreneau = examensJour.filter(examen => verifierCouverture(examen, creneau));
+        examensJour.forEach(examen => {
+          const creneauOptimal = trouverCreneauOptimal(examen, creneaux || []);
           
-          // Ne créer le créneau que s'il contient au moins un examen
-          if (examensDeuxCreneau.length > 0) {
-            creneauxAvecExamens.push({
-              id: creneau.id,
-              heure_debut: creneau.heure_debut,
-              heure_fin: creneau.heure_fin,
-              nom_creneau: creneau.nom_creneau,
-              is_validated: creneau.is_validated,
-              examens: examensDeuxCreneau
-            });
+          if (creneauOptimal) {
+            const creneauKey = `${creneauOptimal.id}`;
+            
+            if (!creneauxOptimaux.has(creneauKey)) {
+              creneauxOptimaux.set(creneauKey, {
+                id: creneauOptimal.id,
+                heure_debut: creneauOptimal.heure_debut,
+                heure_fin: creneauOptimal.heure_fin,
+                nom_creneau: creneauOptimal.nom_creneau,
+                is_validated: creneauOptimal.is_validated,
+                examens: []
+              });
+            }
+            
+            creneauxOptimaux.get(creneauKey)!.examens.push(examen);
           }
         });
 
         // N'ajouter le jour que s'il y a des créneaux avec des examens
-        if (creneauxAvecExamens.length > 0) {
+        if (creneauxOptimaux.size > 0) {
+          const creneauxArray = Array.from(creneauxOptimaux.values())
+            .sort((a, b) => a.heure_debut.localeCompare(b.heure_debut));
+          
           semaine.jours.push({
             date,
             dayName: dateObj.toLocaleDateString('fr-FR', { weekday: 'long' }),
-            creneaux: creneauxAvecExamens.sort((a, b) => a.heure_debut.localeCompare(b.heure_debut))
+            creneaux: creneauxArray
           });
         }
       });
@@ -312,7 +338,7 @@ export const CreneauxVueSemaines = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Calendar className="h-5 w-5" />
-              <span>Vue par semaines - Créneaux de surveillance</span>
+              <span>Vue par semaines - Créneaux de surveillance optimisés</span>
             </div>
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
@@ -371,7 +397,7 @@ export const CreneauxVueSemaines = () => {
             </Dialog>
           </CardTitle>
           <CardDescription>
-            Session {activeSession.name} - {semainesCreneaux.length} semaines, {totalCreneaux} créneaux actifs, {totalExamens} examens
+            Session {activeSession.name} - {semainesCreneaux.length} semaines, {totalCreneaux} créneaux optimisés, {totalExamens} examens
           </CardDescription>
         </CardHeader>
         <CardContent>
