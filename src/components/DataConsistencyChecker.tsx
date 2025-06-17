@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,7 +48,7 @@ export const DataConsistencyChecker = () => {
 
       const { data: attributions } = await supabase
         .from('attributions')
-        .select('examen_id')
+        .select('examen_id, surveillant_id')
         .eq('session_id', activeSession.id);
 
       const examensAvecAttributions = new Set(attributions?.map(a => a.examen_id) || []);
