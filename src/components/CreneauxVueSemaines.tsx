@@ -14,7 +14,7 @@ import { useActiveSession } from "@/hooks/useSessions";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
 import { toast } from "@/hooks/use-toast";
 
-interface CreneauWithExamens {
+interface CreneauAvecExamens {
   id: string;
   heure_debut: string;
   heure_fin: string;
@@ -27,13 +27,15 @@ interface CreneauWithExamens {
     heure_debut: string;
     heure_fin: string;
     salle: string;
+    faculte: string;
+    enseignant_nom: string;
   }>;
 }
 
 interface JourCreneaux {
   date: string;
   dayName: string;
-  creneaux: CreneauWithExamens[];
+  creneaux: CreneauAvecExamens[];
 }
 
 interface SemaineCreneaux {
@@ -54,7 +56,6 @@ export const CreneauxVueSemaines = () => {
   const queryClient = useQueryClient();
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [editingCreneau, setEditingCreneau] = useState<CreneauWithExamens | null>(null);
   const [formData, setFormData] = useState<CreneauFormData>({
     heure_debut: "",
     heure_fin: "",
@@ -70,7 +71,7 @@ export const CreneauxVueSemaines = () => {
       // Récupérer tous les examens validés
       const { data: examens, error: examensError } = await supabase
         .from('examens')
-        .select('id, date_examen, heure_debut, heure_fin, matiere, code_examen, salle')
+        .select('id, date_examen, heure_debut, heure_fin, matiere, code_examen, salle, faculte, enseignant_nom')
         .eq('session_id', activeSession.id)
         .eq('is_active', true)
         .eq('statut_validation', 'VALIDE')
@@ -102,11 +103,12 @@ export const CreneauxVueSemaines = () => {
         const examDebutMin = toMinutes(examen.heure_debut);
         const examFinMin = toMinutes(examen.heure_fin);
 
+        // L'examen doit commencer au plus tôt 45 minutes après le début du créneau
         const debutSurveillanceMin = examDebutMin - 45;
         return debutSurveillanceMin >= creneauDebutMin && examFinMin <= creneauFinMin;
       };
 
-      // Organiser par semaine
+      // Organiser par semaine en ne gardant que les créneaux qui contiennent des examens
       const semainesMap = new Map<number, SemaineCreneaux>();
 
       // Fonction pour obtenir le numéro de semaine
@@ -126,7 +128,6 @@ export const CreneauxVueSemaines = () => {
         const weekNumber = getWeekNumber(dateObj);
         
         if (!semainesMap.has(weekNumber)) {
-          // Calculer le début et la fin de la semaine
           const monday = new Date(dateObj);
           monday.setDate(dateObj.getDate() - dateObj.getDay() + 1);
           const sunday = new Date(monday);
@@ -143,29 +144,45 @@ export const CreneauxVueSemaines = () => {
         const semaine = semainesMap.get(weekNumber)!;
         const examensJour = examens?.filter(e => e.date_examen === date) || [];
         
-        // Créer les créneaux pour ce jour
-        const creneauxJour: CreneauWithExamens[] = creneaux?.map(creneau => ({
-          id: creneau.id,
-          heure_debut: creneau.heure_debut,
-          heure_fin: creneau.heure_fin,
-          nom_creneau: creneau.nom_creneau,
-          is_validated: creneau.is_validated,
-          examens: examensJour.filter(examen => verifierCouverture(examen, creneau))
-        })) || [];
-
-        semaine.jours.push({
-          date,
-          dayName: dateObj.toLocaleDateString('fr-FR', { weekday: 'long' }),
-          creneaux: creneauxJour.sort((a, b) => a.heure_debut.localeCompare(b.heure_debut))
+        // Créer les créneaux pour ce jour SEULEMENT si ils contiennent des examens
+        const creneauxAvecExamens: CreneauAvecExamens[] = [];
+        
+        creneaux?.forEach(creneau => {
+          const examensDeuxCreneau = examensJour.filter(examen => verifierCouverture(examen, creneau));
+          
+          // Ne créer le créneau que s'il contient au moins un examen
+          if (examensDeuxCreneau.length > 0) {
+            creneauxAvecExamens.push({
+              id: creneau.id,
+              heure_debut: creneau.heure_debut,
+              heure_fin: creneau.heure_fin,
+              nom_creneau: creneau.nom_creneau,
+              is_validated: creneau.is_validated,
+              examens: examensDeuxCreneau
+            });
+          }
         });
+
+        // N'ajouter le jour que s'il y a des créneaux avec des examens
+        if (creneauxAvecExamens.length > 0) {
+          semaine.jours.push({
+            date,
+            dayName: dateObj.toLocaleDateString('fr-FR', { weekday: 'long' }),
+            creneaux: creneauxAvecExamens.sort((a, b) => a.heure_debut.localeCompare(b.heure_debut))
+          });
+        }
       });
 
-      // Trier les jours dans chaque semaine
-      semainesMap.forEach(semaine => {
-        semaine.jours.sort((a, b) => a.date.localeCompare(b.date));
-      });
+      // Trier les jours dans chaque semaine et supprimer les semaines vides
+      const semainesFinales = Array.from(semainesMap.values())
+        .filter(semaine => semaine.jours.length > 0)
+        .map(semaine => ({
+          ...semaine,
+          jours: semaine.jours.sort((a, b) => a.date.localeCompare(b.date))
+        }))
+        .sort((a, b) => a.weekNumber - b.weekNumber);
 
-      return Array.from(semainesMap.values()).sort((a, b) => a.weekNumber - b.weekNumber);
+      return semainesFinales;
     },
     enabled: !!activeSession?.id
   });
@@ -282,6 +299,12 @@ export const CreneauxVueSemaines = () => {
     sum + semaine.jours.reduce((daySum, jour) => daySum + jour.creneaux.length, 0), 0
   );
 
+  const totalExamens = semainesCreneaux.reduce((sum, semaine) => 
+    sum + semaine.jours.reduce((daySum, jour) => 
+      daySum + jour.creneaux.reduce((creneauSum, creneau) => creneauSum + creneau.examens.length, 0), 0
+    ), 0
+  );
+
   return (
     <div className="space-y-6">
       <Card>
@@ -348,7 +371,7 @@ export const CreneauxVueSemaines = () => {
             </Dialog>
           </CardTitle>
           <CardDescription>
-            Session {activeSession.name} - {semainesCreneaux.length} semaines, {totalCreneaux} créneaux
+            Session {activeSession.name} - {semainesCreneaux.length} semaines, {totalCreneaux} créneaux actifs, {totalExamens} examens
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -390,85 +413,89 @@ export const CreneauxVueSemaines = () => {
                           <CardContent>
                             <div className="space-y-3">
                               {jour.creneaux.map((creneau) => (
-                                <Card 
-                                  key={creneau.id} 
-                                  className={`${
-                                    creneau.examens.length === 0 
-                                      ? 'border-orange-200 bg-orange-50' 
-                                      : 'border-green-200 bg-green-50'
-                                  }`}
-                                >
+                                <Card key={creneau.id} className="border-green-200 bg-green-50">
                                   <CardContent className="pt-4">
                                     <div className="flex items-start justify-between">
                                       <div className="flex-1">
-                                        <div className="flex items-center space-x-2 mb-2">
-                                          <Badge variant="outline">
+                                        <div className="flex items-center space-x-2 mb-3">
+                                          <Badge variant="outline" className="font-medium">
                                             {formatTimeRange(creneau.heure_debut, creneau.heure_fin)}
                                           </Badge>
                                           {creneau.nom_creneau && (
-                                            <span className="font-medium">{creneau.nom_creneau}</span>
+                                            <span className="font-medium text-blue-700">{creneau.nom_creneau}</span>
                                           )}
-                                          {creneau.examens.length === 0 ? (
-                                            <Badge variant="destructive">Vide</Badge>
-                                          ) : (
-                                            <Badge variant="default">{creneau.examens.length} examen(s)</Badge>
-                                          )}
+                                          <Badge variant="default" className="bg-green-600">
+                                            {creneau.examens.length} examen(s)
+                                          </Badge>
                                         </div>
                                         
-                                        {creneau.examens.length > 0 && (
-                                          <div className="space-y-1">
-                                            {creneau.examens.map((examen) => (
-                                              <div key={examen.id} className="text-sm bg-white p-2 rounded border">
-                                                <div className="flex items-center space-x-2 text-gray-700">
-                                                  <Clock className="h-3 w-3" />
-                                                  <span className="font-medium">{formatTimeRange(examen.heure_debut, examen.heure_fin)}</span>
-                                                  <span>•</span>
-                                                  <span className="font-medium">{examen.matiere}</span>
-                                                  <span>•</span>
-                                                  <span>{examen.salle}</span>
+                                        <div className="space-y-2">
+                                          {creneau.examens.map((examen) => (
+                                            <div key={examen.id} className="bg-white p-3 rounded border border-gray-200">
+                                              <div className="flex items-start justify-between">
+                                                <div className="space-y-1">
+                                                  <div className="font-medium text-gray-900">{examen.matiere}</div>
+                                                  <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                                    <div className="flex items-center space-x-1">
+                                                      <Clock className="h-3 w-3" />
+                                                      <span>{formatTimeRange(examen.heure_debut, examen.heure_fin)}</span>
+                                                    </div>
+                                                    <span>•</span>
+                                                    <span className="font-medium">{examen.salle}</span>
+                                                    {examen.faculte && (
+                                                      <>
+                                                        <span>•</span>
+                                                        <span className="text-blue-600">{examen.faculte}</span>
+                                                      </>
+                                                    )}
+                                                  </div>
+                                                  {examen.enseignant_nom && (
+                                                    <div className="text-xs text-gray-500">
+                                                      Enseignant: {examen.enseignant_nom}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <div className="flex flex-col items-end text-xs text-gray-500">
                                                   {examen.code_examen && (
-                                                    <>
-                                                      <span>•</span>
-                                                      <span className="text-blue-600">{examen.code_examen}</span>
-                                                    </>
+                                                    <Badge variant="outline" className="text-xs">
+                                                      {examen.code_examen}
+                                                    </Badge>
                                                   )}
                                                 </div>
                                               </div>
-                                            ))}
-                                          </div>
-                                        )}
+                                            </div>
+                                          ))}
+                                        </div>
                                       </div>
                                       
-                                      <div className="flex items-center space-x-2">
+                                      <div className="flex items-center space-x-2 ml-4">
                                         <Button size="sm" variant="outline">
                                           <Edit className="h-3 w-3" />
                                         </Button>
-                                        {creneau.examens.length === 0 && (
-                                          <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                              <Button size="sm" variant="destructive">
-                                                <Trash2 className="h-3 w-3" />
-                                              </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                              <AlertDialogHeader>
-                                                <AlertDialogTitle>Supprimer le créneau vide</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                  Êtes-vous sûr de vouloir supprimer le créneau {formatTimeRange(creneau.heure_debut, creneau.heure_fin)} 
-                                                  du {formatDateBelgian(jour.date)} ? Ce créneau n'a aucun examen associé.
-                                                </AlertDialogDescription>
-                                              </AlertDialogHeader>
-                                              <AlertDialogFooter>
-                                                <AlertDialogCancel>Annuler</AlertDialogCancel>
-                                                <AlertDialogAction
-                                                  onClick={() => deleteCreneauMutation.mutate(creneau.id)}
-                                                >
-                                                  Supprimer
-                                                </AlertDialogAction>
-                                              </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                          </AlertDialog>
-                                        )}
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button size="sm" variant="destructive">
+                                              <Trash2 className="h-3 w-3" />
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>Supprimer le créneau</AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                Êtes-vous sûr de vouloir supprimer le créneau {formatTimeRange(creneau.heure_debut, creneau.heure_fin)} 
+                                                du {formatDateBelgian(jour.date)} ? Ce créneau contient {creneau.examens.length} examen(s).
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() => deleteCreneauMutation.mutate(creneau.id)}
+                                              >
+                                                Supprimer
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
                                       </div>
                                     </div>
                                   </CardContent>
@@ -488,7 +515,8 @@ export const CreneauxVueSemaines = () => {
           {semainesCreneaux.length === 0 && (
             <div className="text-center py-8 text-gray-500">
               <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>Aucun examen validé trouvé pour cette session.</p>
+              <p>Aucun créneau avec examens trouvé pour cette session.</p>
+              <p className="text-sm mt-2">Les créneaux ne sont créés que s'ils contiennent des examens validés.</p>
             </div>
           )}
         </CardContent>
