@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,18 +61,31 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
     enabled: !!sessionId
   });
 
-  // Définir les créneaux de surveillance fixes (mis à jour avec les nouveaux créneaux)
-  const creneauxSurveillance = [
-    { debut: '08:00', fin: '10:30' }, // Nouveau créneau pour WFARM1237=E
-    { debut: '08:15', fin: '11:00' },
-    { debut: '08:15', fin: '12:00' },
-    { debut: '08:30', fin: '11:30' }, // Nouveau créneau pour WFARM1324 TPs + WFARM1325 TPs=E
-    { debut: '12:15', fin: '15:00' },
-    { debut: '12:15', fin: '16:00' }, // Nouveau créneau ajouté
-    { debut: '13:30', fin: '15:30' }, // Nouveau créneau pour WFARM1324=E
-    { debut: '15:15', fin: '18:00' },
-    { debut: '15:45', fin: '18:30' }
-  ];
+  // Récupérer les créneaux de surveillance configurés et validés pour la session
+  const { data: creneauxConfig = [] } = useQuery({
+    queryKey: ['creneaux-surveillance-config-valides', sessionId],
+    queryFn: async () => {
+      if (!sessionId) return [];
+
+      const { data, error } = await supabase
+        .from('creneaux_surveillance_config')
+        .select('heure_debut, heure_fin')
+        .eq('session_id', sessionId)
+        .eq('is_active', true)
+        .eq('is_validated', true)
+        .order('heure_debut');
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!sessionId
+  });
+
+  // Convertir les créneaux configurés au format attendu
+  const creneauxSurveillance = creneauxConfig.map(c => ({
+    debut: c.heure_debut,
+    fin: c.heure_fin
+  }));
 
   // Fonction pour convertir les examens en créneaux de surveillance selon vos spécifications
   const mergeTimeSlots = (slots: any[]): TimeSlot[] => {
@@ -290,24 +304,46 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
         </CardHeader>
       </Card>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-center space-x-2 text-blue-800">
-          <CheckCircle className="h-5 w-5" />
-          <span className="font-medium">Créneaux de surveillance disponibles</span>
+      {creneauxSurveillance.length > 0 ? (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center space-x-2 text-blue-800">
+            <CheckCircle className="h-5 w-5" />
+            <span className="font-medium">Créneaux de surveillance disponibles ({creneauxSurveillance.length})</span>
+          </div>
+          <p className="text-sm text-blue-700 mt-1">
+            Les créneaux proposés correspondent aux plages de surveillance validées pour cette session.
+          </p>
+          <p className="text-xs text-gray-600 mt-2">
+            <strong>Temps de préparation :</strong> Maximum 45 minutes mais dépend du secrétariat (peut être inférieur).
+          </p>
         </div>
-        <p className="text-sm text-blue-700 mt-1">
-          Les créneaux proposés correspondent aux plages de surveillance : 8h00-10h30, 8h15-11h00, 8h15-12h00, 8h30-11h30, 12h15-15h00, 12h15-16h00, 13h30-15h30, 15h15-18h00, 15h45-18h30
-        </p>
-        <p className="text-xs text-gray-600 mt-2">
-          <strong>Temps de préparation :</strong> Maximum 45 minutes mais dépend du secrétariat (peut être inférieur).
-        </p>
-      </div>
+      ) : (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardContent className="pt-6">
+            <div className="flex items-center space-x-2 text-orange-800">
+              <AlertCircle className="h-5 w-5" />
+              <span className="font-medium">Aucun créneau de surveillance configuré</span>
+            </div>
+            <p className="text-sm text-orange-700 mt-1">
+              L'administrateur doit configurer et valider des créneaux de surveillance pour cette session avant que vous puissiez saisir vos disponibilités.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {Object.keys(weeklySlots).length === 0 ? (
         <Card>
           <CardContent className="pt-6">
             <p className="text-center text-gray-500">
               Aucun examen trouvé pour cette session.
+            </p>
+          </CardContent>
+        </Card>
+      ) : creneauxSurveillance.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-gray-500">
+              Impossible de calculer les créneaux de disponibilité sans configuration des créneaux de surveillance.
             </p>
           </CardContent>
         </Card>

@@ -1,10 +1,11 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, CheckCircle, AlertTriangle, Settings, Database } from "lucide-react";
+import { Shield, CheckCircle, AlertTriangle, Settings, Database, Clock } from "lucide-react";
 import { ExamenCoverageVerification } from "./ExamenCoverageVerification";
 import { FeatureLockManager } from "./FeatureLockManager";
 import { DataConsistencyChecker } from "./DataConsistencyChecker";
+import { CreneauxSurveillanceManager } from "./CreneauxSurveillanceManager";
 
 export const ControlesVerificationsManager = () => {
   return (
@@ -22,10 +23,14 @@ export const ControlesVerificationsManager = () => {
       </Card>
 
       <Tabs defaultValue="coverage" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="coverage" className="flex items-center space-x-2">
             <CheckCircle className="h-4 w-4" />
             <span>Couverture Examens</span>
+          </TabsTrigger>
+          <TabsTrigger value="creneaux" className="flex items-center space-x-2">
+            <Clock className="h-4 w-4" />
+            <span>Créneaux Surveillance</span>
           </TabsTrigger>
           <TabsTrigger value="data-integrity" className="flex items-center space-x-2">
             <Database className="h-4 w-4" />
@@ -43,6 +48,10 @@ export const ControlesVerificationsManager = () => {
 
         <TabsContent value="coverage" className="space-y-6">
           <ExamenCoverageVerification />
+        </TabsContent>
+
+        <TabsContent value="creneaux" className="space-y-6">
+          <CreneauxSurveillanceManager />
         </TabsContent>
 
         <TabsContent value="data-integrity" className="space-y-6">

@@ -311,6 +311,62 @@ export type Database = {
           },
         ]
       }
+      creneaux_surveillance_config: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          heure_debut: string
+          heure_fin: string
+          id: string
+          is_active: boolean
+          is_validated: boolean
+          nom_creneau: string | null
+          session_id: string
+          updated_at: string
+          validated_at: string | null
+          validated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          is_active?: boolean
+          is_validated?: boolean
+          nom_creneau?: string | null
+          session_id: string
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          is_active?: boolean
+          is_validated?: boolean
+          nom_creneau?: string | null
+          session_id?: string
+          updated_at?: string
+          validated_at?: string | null
+          validated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creneaux_surveillance_config_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demandes_modification_disponibilites: {
         Row: {
           commentaire_admin: string | null

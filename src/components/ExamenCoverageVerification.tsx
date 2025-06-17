@@ -58,18 +58,31 @@ export const ExamenCoverageVerification = () => {
     enabled: !!activeSession?.id
   });
 
-  // Définir les créneaux de surveillance fixes (ajout du créneau 12:15-16:00)
-  const creneauxSurveillance: CreneauSurveillance[] = [
-    { debut: '08:00', fin: '10:30' }, // Nouveau créneau pour WFARM1237=E
-    { debut: '08:15', fin: '11:00' },
-    { debut: '08:15', fin: '12:00' },
-    { debut: '08:30', fin: '11:30' }, // Nouveau créneau pour WFARM1324 TPs + WFARM1325 TPs=E
-    { debut: '12:15', fin: '15:00' },
-    { debut: '12:15', fin: '16:00' }, // Nouveau créneau ajouté
-    { debut: '13:30', fin: '15:30' }, // Nouveau créneau pour WFARM1324=E
-    { debut: '15:15', fin: '18:00' },
-    { debut: '15:45', fin: '18:30' }
-  ];
+  // Récupérer les créneaux de surveillance configurés et validés pour la session active
+  const { data: creneauxConfig = [] } = useQuery({
+    queryKey: ['creneaux-surveillance-config-valides', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession?.id) return [];
+
+      const { data, error } = await supabase
+        .from('creneaux_surveillance_config')
+        .select('heure_debut, heure_fin')
+        .eq('session_id', activeSession.id)
+        .eq('is_active', true)
+        .eq('is_validated', true)
+        .order('heure_debut');
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!activeSession?.id
+  });
+
+  // Convertir les créneaux configurés au format attendu
+  const creneauxSurveillance: CreneauSurveillance[] = creneauxConfig.map(c => ({
+    debut: c.heure_debut,
+    fin: c.heure_fin
+  }));
 
   // Fonction pour vérifier si un examen est couvert par un créneau
   const verifierCouverture = (examen: ExamenDetail, creneau: CreneauSurveillance): boolean => {
@@ -159,6 +172,7 @@ export const ExamenCoverageVerification = () => {
             <Button 
               onClick={lancerVerification}
               className="flex items-center space-x-2"
+              disabled={creneauxSurveillance.length === 0}
             >
               <Search className="h-4 w-4" />
               <span>Lancer la vérification</span>
@@ -166,19 +180,28 @@ export const ExamenCoverageVerification = () => {
           </div>
 
           {/* Affichage des créneaux disponibles */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-            <div className="flex items-center space-x-2 text-blue-800 mb-2">
-              <Clock className="h-5 w-5" />
-              <span className="font-medium">Créneaux de surveillance configurés</span>
+          {creneauxSurveillance.length > 0 ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center space-x-2 text-blue-800 mb-2">
+                <Clock className="h-5 w-5" />
+                <span className="font-medium">Créneaux de surveillance validés ({creneauxSurveillance.length})</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {creneauxSurveillance.map((creneau, index) => (
+                  <Badge key={index} variant="outline" className="text-blue-700">
+                    {formatTimeRange(creneau.debut, creneau.fin)}
+                  </Badge>
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              {creneauxSurveillance.map((creneau, index) => (
-                <Badge key={index} variant="outline" className="text-blue-700">
-                  {formatTimeRange(creneau.debut, creneau.fin)}
-                </Badge>
-              ))}
-            </div>
-          </div>
+          ) : (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Aucun créneau de surveillance validé n'a été trouvé. Configurez et validez des créneaux dans la gestion des créneaux.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {verificationActive && (
             <div className="space-y-4">
