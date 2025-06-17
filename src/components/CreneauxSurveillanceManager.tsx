@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,11 +12,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Clock, Plus, Edit, Trash2, Check, X, CheckCircle, AlertTriangle, Calendar, Settings } from "lucide-react";
+import { Clock, Plus, Edit, Trash2, Check, X, CheckCircle, Calendar, Settings } from "lucide-react";
 import { useActiveSession } from "@/hooks/useSessions";
 import { formatTimeRange } from "@/lib/dateUtils";
 import { toast } from "@/hooks/use-toast";
-import { CreneauxVueParJour } from "./CreneauxVueParJour";
+import { CreneauxVueSemaines } from "./CreneauxVueSemaines";
 
 interface CreneauSurveillanceConfig {
   id: string;
@@ -255,17 +256,21 @@ export const CreneauxSurveillanceManager = () => {
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="gestion" className="w-full">
+      <Tabs defaultValue="vue-semaines" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="vue-semaines" className="flex items-center space-x-2">
+            <Calendar className="h-4 w-4" />
+            <span>Vue par semaines</span>
+          </TabsTrigger>
           <TabsTrigger value="gestion" className="flex items-center space-x-2">
             <Settings className="h-4 w-4" />
-            <span>Gestion des créneaux</span>
-          </TabsTrigger>
-          <TabsTrigger value="vue-par-jour" className="flex items-center space-x-2">
-            <Calendar className="h-4 w-4" />
-            <span>Vue par jour</span>
+            <span>Configuration</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="vue-semaines" className="space-y-6">
+          <CreneauxVueSemaines />
+        </TabsContent>
 
         <TabsContent value="gestion" className="space-y-6">
           <Card>
