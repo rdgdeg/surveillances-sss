@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,7 +57,12 @@ export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, 
         .order('heure_debut');
 
       if (error) throw error;
-      return data || [];
+      
+      // Transformer les données pour s'assurer que type_choix a le bon type
+      return (data || []).map(item => ({
+        ...item,
+        type_choix: item.type_choix as 'souhaitee' | 'obligatoire'
+      }));
     }
   });
 
