@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -316,11 +315,11 @@ export const SimpleSurveillantAvailabilityForm = () => {
                 <div className="space-y-2 text-sm text-blue-700">
                   <div className="flex items-start space-x-2">
                     <CheckCircle className="h-4 w-4 mt-0.5 text-blue-600" />
-                    <span><strong>Optimisation :</strong> Plus vous indiquez de créneaux, mieux nous pouvons répartir les surveillances</span>
+                    <span><strong>Surveillance obligatoire :</strong> Vous devez déclarer vos disponibilités pour les surveillances d'examens</span>
                   </div>
                   <div className="flex items-start space-x-2">
                     <Users className="h-4 w-4 mt-0.5 text-blue-600" />
-                    <span><strong>Équité :</strong> Nous tenons compte de vos préférences et contraintes</span>
+                    <span><strong>Organisation :</strong> Vos disponibilités nous aident à organiser les surveillances efficacement</span>
                   </div>
                 </div>
               </div>

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,10 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Users, Search, Calendar, Clock, AlertCircle, CheckCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Download, Users, Search, Calendar, Clock, AlertCircle, CheckCircle, UserCog } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
+import { SurveillantDisponibilitesEditor } from "./SurveillantDisponibilitesEditor";
 import * as XLSX from 'xlsx';
 
 interface DisponibiliteDetail {
@@ -153,182 +154,201 @@ export const DisponibilitesAdminView = () => {
 
   return (
     <div className="space-y-6">
-      {/* Statistiques */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-              <div className="text-sm text-gray-600">Total disponibilités</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{stats.obligatoires}</div>
-              <div className="text-sm text-gray-600">Obligatoires</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{stats.souhaitees}</div>
-              <div className="text-sm text-gray-600">Souhaitées</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{stats.surveillantsUniques}</div>
-              <div className="text-sm text-gray-600">Surveillants</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Users className="h-5 w-5" />
-              <span>Disponibilités reçues</span>
-            </div>
-            <Button onClick={exportToExcel} className="flex items-center space-x-2">
-              <Download className="h-4 w-4" />
-              <span>Exporter Excel</span>
-            </Button>
-          </CardTitle>
-          <CardDescription>
-            Session {activeSession.name} - Vue détaillée des disponibilités
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Filtres */}
-          <div className="flex space-x-4 mb-6">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Rechercher par nom, email ou code examen..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-            </div>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Type surveillant" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les types</SelectItem>
-                <SelectItem value="Assistant">Assistant</SelectItem>
-                <SelectItem value="Jobiste">Jobiste</SelectItem>
-                <SelectItem value="PAT">PAT</SelectItem>
-                <SelectItem value="FASB">FASB</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={choixFilter} onValueChange={setChoixFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Type choix" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les choix</SelectItem>
-                <SelectItem value="obligatoire">Obligatoires</SelectItem>
-                <SelectItem value="souhaitee">Souhaitées</SelectItem>
-              </SelectContent>
-            </Select>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="overview" className="flex items-center space-x-2">
+            <Users className="h-4 w-4" />
+            <span>Vue d'ensemble</span>
+          </TabsTrigger>
+          <TabsTrigger value="edit" className="flex items-center space-x-2">
+            <UserCog className="h-4 w-4" />
+            <span>Gestion par surveillant</span>
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="overview" className="space-y-6">
+          {/* Statistiques */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+                  <div className="text-sm text-gray-600">Total disponibilités</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">{stats.obligatoires}</div>
+                  <div className="text-sm text-gray-600">Obligatoires</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{stats.souhaitees}</div>
+                  <div className="text-sm text-gray-600">Souhaitées</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">{stats.surveillantsUniques}</div>
+                  <div className="text-sm text-gray-600">Surveillants</div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Tableau des disponibilités */}
-          {isLoading ? (
-            <p>Chargement...</p>
-          ) : filteredDisponibilites.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Surveillant</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>ETP</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Horaire</TableHead>
-                    <TableHead>Choix</TableHead>
-                    <TableHead>Code Examen</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredDisponibilites.map((dispo) => (
-                    <TableRow key={dispo.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">
-                            {dispo.surveillant_prenom} {dispo.surveillant_nom}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {dispo.surveillant_email}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{dispo.surveillant_type}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {dispo.surveillant_eft ? (
-                          <Badge variant="secondary">{dispo.surveillant_eft}</Badge>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-3 w-3 text-gray-400" />
-                          <span className="text-sm">{formatDateBelgian(dispo.date_examen)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <Clock className="h-3 w-3 text-gray-400" />
-                          <span className="text-sm">{formatTimeRange(dispo.heure_debut, dispo.heure_fin)}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {dispo.type_choix === 'obligatoire' ? (
-                          <Badge variant="destructive" className="flex items-center space-x-1">
-                            <AlertCircle className="h-3 w-3" />
-                            <span>Obligatoire</span>
-                          </Badge>
-                        ) : (
-                          <Badge variant="default" className="flex items-center space-x-1">
-                            <CheckCircle className="h-3 w-3" />
-                            <span>Souhaitée</span>
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {dispo.nom_examen_obligatoire ? (
-                          <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                            {dispo.nom_examen_obligatoire}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <p className="text-center text-gray-500">
-              Aucune disponibilité trouvée pour les critères sélectionnés.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-5 w-5" />
+                  <span>Disponibilités reçues</span>
+                </div>
+                <Button onClick={exportToExcel} className="flex items-center space-x-2">
+                  <Download className="h-4 w-4" />
+                  <span>Exporter Excel</span>
+                </Button>
+              </CardTitle>
+              <CardDescription>
+                Session {activeSession.name} - Vue détaillée des disponibilités
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Filtres */}
+              <div className="flex space-x-4 mb-6">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Rechercher par nom, email ou code examen..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Type surveillant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les types</SelectItem>
+                    <SelectItem value="Assistant">Assistant</SelectItem>
+                    <SelectItem value="Jobiste">Jobiste</SelectItem>
+                    <SelectItem value="PAT">PAT</SelectItem>
+                    <SelectItem value="FASB">FASB</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={choixFilter} onValueChange={setChoixFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Type choix" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les choix</SelectItem>
+                    <SelectItem value="obligatoire">Obligatoires</SelectItem>
+                    <SelectItem value="souhaitee">Souhaitées</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Tableau des disponibilités */}
+              {isLoading ? (
+                <p>Chargement...</p>
+              ) : filteredDisponibilites.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Surveillant</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>ETP</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Horaire</TableHead>
+                        <TableHead>Choix</TableHead>
+                        <TableHead>Code Examen</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredDisponibilites.map((dispo) => (
+                        <TableRow key={dispo.id}>
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">
+                                {dispo.surveillant_prenom} {dispo.surveillant_nom}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {dispo.surveillant_email}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{dispo.surveillant_type}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {dispo.surveillant_eft ? (
+                              <Badge variant="secondary">{dispo.surveillant_eft}</Badge>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-1">
+                              <Calendar className="h-3 w-3 text-gray-400" />
+                              <span className="text-sm">{formatDateBelgian(dispo.date_examen)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-1">
+                              <Clock className="h-3 w-3 text-gray-400" />
+                              <span className="text-sm">{formatTimeRange(dispo.heure_debut, dispo.heure_fin)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {dispo.type_choix === 'obligatoire' ? (
+                              <Badge variant="destructive" className="flex items-center space-x-1">
+                                <AlertCircle className="h-3 w-3" />
+                                <span>Obligatoire</span>
+                              </Badge>
+                            ) : (
+                              <Badge variant="default" className="flex items-center space-x-1">
+                                <CheckCircle className="h-3 w-3" />
+                                <span>Souhaitée</span>
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {dispo.nom_examen_obligatoire ? (
+                              <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
+                                {dispo.nom_examen_obligatoire}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-center text-gray-500">
+                  Aucune disponibilité trouvée pour les critères sélectionnés.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="edit">
+          <SurveillantDisponibilitesEditor />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

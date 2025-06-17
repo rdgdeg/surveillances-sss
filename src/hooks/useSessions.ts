@@ -50,8 +50,13 @@ export const useCreateSession = () => {
   
   return useMutation({
     mutationFn: async ({ year, period }: { year: number; period: number }) => {
-      const periodNames = { 1: '01', 6: '06', 9: '09' };
-      const name = `${year}_${periodNames[period as keyof typeof periodNames]}`;
+      // Nouveau format pour les noms de sessions
+      const periodNames = { 
+        1: 'Janvier', 
+        6: 'Juin', 
+        9: 'Septembre' 
+      };
+      const name = `${periodNames[period as keyof typeof periodNames]} ${year}`;
       
       const { data, error } = await supabase
         .from('sessions')
