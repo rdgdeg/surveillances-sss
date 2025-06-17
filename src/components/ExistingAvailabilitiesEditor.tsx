@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,8 @@ import { Trash2, Plus, Save, AlertCircle, CheckCircle, Calendar, Clock, Edit3 } 
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
+import { format, startOfWeek, endOfWeek } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface ExistingAvailabilitiesEditorProps {
   surveillantId: string;
@@ -188,6 +191,57 @@ export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, 
 
   const availableSlots = mergeTimeSlots(examSlots);
 
+  // Organiser par semaine
+  const organizeByWeek = (slots: TimeSlot[]) => {
+    const weeks: Record<string, TimeSlot[]> = {};
+
+    slots.forEach(slot => {
+      const date = new Date(slot.date_examen);
+      const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
+      const weekKey = `${format(weekStart, 'dd/MM', { locale: fr })} - ${format(weekEnd, 'dd/MM/yyyy', { locale: fr })}`;
+
+      if (!weeks[weekKey]) {
+        weeks[weekKey] = [];
+      }
+      weeks[weekKey].push(slot);
+    });
+
+    return weeks;
+  };
+
+  const weeklySlots = organizeByWeek(availableSlots);
+
+  // Organiser les disponibilités existantes par semaine aussi
+  const organizeExistingByWeek = (dispos: Record<string, Disponibilite>) => {
+    const weeks: Record<string, Array<{ key: string; dispo: Disponibilite }>> = {};
+
+    Object.entries(dispos).forEach(([key, dispo]) => {
+      const date = new Date(dispo.date_examen);
+      const weekStart = startOfWeek(date, { weekStartsOn: 1 });
+      const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
+      const weekKey = `${format(weekStart, 'dd/MM', { locale: fr })} - ${format(weekEnd, 'dd/MM/yyyy', { locale: fr })}`;
+
+      if (!weeks[weekKey]) {
+        weeks[weekKey] = [];
+      }
+      weeks[weekKey].push({ key, dispo });
+    });
+
+    // Trier par date et heure
+    Object.keys(weeks).forEach(weekKey => {
+      weeks[weekKey].sort((a, b) => {
+        const dateCompare = a.dispo.date_examen.localeCompare(b.dispo.date_examen);
+        if (dateCompare !== 0) return dateCompare;
+        return a.dispo.heure_debut.localeCompare(b.dispo.heure_debut);
+      });
+    });
+
+    return weeks;
+  };
+
+  const existingWeeklyDispos = organizeExistingByWeek(editingDispos);
+
   // Initialiser les disponibilités en édition
   useEffect(() => {
     const editing: Record<string, Disponibilite> = {};
@@ -326,176 +380,200 @@ export const ExistingAvailabilitiesEditor = ({ surveillantId, sessionId, email, 
         </CardHeader>
       </Card>
 
-      {/* Disponibilités existantes */}
-      {Object.keys(editingDispos).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Disponibilités actuelles</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {Object.entries(editingDispos).map(([key, dispo]) => (
-                <Card key={key} className="border-blue-200 bg-blue-50">
-                  <CardContent className="pt-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="h-4 w-4 text-gray-500" />
-                            <span className="font-medium">
-                              {formatDateBelgian(dispo.date_examen)}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="h-4 w-4 text-gray-500" />
-                            <span>{formatTimeRange(dispo.heure_debut, dispo.heure_fin)}</span>
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeleteExisting(key)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-
-                      <div className="space-y-3 p-3 bg-white rounded border">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={dispo.type_choix === 'obligatoire'}
-                            onCheckedChange={(checked) => 
-                              handleUpdateExisting(key, 'type_choix', checked ? 'obligatoire' : 'souhaitee')
-                            }
-                          />
-                          <Label className="text-sm font-medium">
-                            Surveillance obligatoire
-                          </Label>
-                        </div>
-
-                        {dispo.type_choix === 'obligatoire' && (
-                          <div className="bg-orange-50 border border-orange-200 rounded p-3">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <AlertCircle className="h-4 w-4 text-orange-600" />
-                              <span className="font-medium text-orange-800 text-sm">
-                                Code de l'examen obligatoire
-                              </span>
-                            </div>
-                            <Input
-                              value={dispo.nom_examen_obligatoire || ''}
-                              onChange={(e) => handleUpdateExisting(key, 'nom_examen_obligatoire', e.target.value)}
-                              placeholder="Ex: LECON2100"
-                              className="text-sm"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Créneaux disponibles pour ajout */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Ajouter de nouvelles disponibilités</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {availableSlots.map((slot, index) => {
-              const key = `${slot.date_examen}|${slot.heure_debut}|${slot.heure_fin}`;
-              const isSelected = isSlotAlreadySelected(slot);
-              const isNewlyAdded = key in newDispos;
-
-              return (
-                <Card key={index} className={`border transition-colors ${
-                  isNewlyAdded ? 'border-green-300 bg-green-50' : 
-                  isSelected ? 'border-gray-300 bg-gray-100' : 'border-gray-200 hover:border-gray-300'
-                }`}>
-                  <CardContent className="pt-4">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="flex items-center space-x-2">
-                            <Calendar className="h-4 w-4 text-gray-500" />
-                            <span className="font-medium">
-                              {formatDateBelgian(slot.date_examen)}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Clock className="h-4 w-4 text-gray-500" />
-                            <span>{formatTimeRange(slot.heure_debut, slot.heure_fin)}</span>
-                          </div>
-                        </div>
-                        
-                        {!isSelected ? (
-                          <Button
-                            onClick={() => handleAddNew(slot)}
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Ajouter
-                          </Button>
-                        ) : isNewlyAdded ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleRemoveNew(key)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        ) : (
-                          <Badge variant="secondary">Déjà sélectionné</Badge>
-                        )}
-                      </div>
-
-                      {isNewlyAdded && (
-                        <div className="space-y-3 p-3 bg-white rounded border">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox
-                              checked={newDispos[key]?.type_choix === 'obligatoire'}
-                              onCheckedChange={(checked) => 
-                                handleUpdateNew(key, 'type_choix', checked ? 'obligatoire' : 'souhaitee')
-                              }
-                            />
-                            <Label className="text-sm font-medium">
-                              Surveillance obligatoire
-                            </Label>
-                          </div>
-
-                          {newDispos[key]?.type_choix === 'obligatoire' && (
-                            <div className="bg-orange-50 border border-orange-200 rounded p-3">
-                              <div className="flex items-center space-x-2 mb-2">
-                                <AlertCircle className="h-4 w-4 text-orange-600" />
-                                <span className="font-medium text-orange-800 text-sm">
-                                  Code de l'examen obligatoire
+      {/* Disponibilités existantes organisées par semaine */}
+      {Object.keys(existingWeeklyDispos).length > 0 && (
+        <div className="space-y-6">
+          <h2 className="text-xl font-bold">Mes disponibilités actuelles</h2>
+          {Object.entries(existingWeeklyDispos).map(([weekLabel, weekDispos]) => (
+            <Card key={weekLabel} className="border-blue-200">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg text-blue-700">
+                  Semaine du {weekLabel}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {weekDispos.map(({ key, dispo }) => (
+                    <Card key={key} className="border-blue-200 bg-blue-50">
+                      <CardContent className="pt-4">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2">
+                                <Calendar className="h-4 w-4 text-gray-500" />
+                                <span className="font-medium">
+                                  {formatDateBelgian(dispo.date_examen)}
                                 </span>
                               </div>
-                              <Input
-                                value={newDispos[key]?.nom_examen_obligatoire || ''}
-                                onChange={(e) => handleUpdateNew(key, 'nom_examen_obligatoire', e.target.value)}
-                                placeholder="Ex: LECON2100"
-                                className="text-sm"
-                              />
+                              <div className="flex items-center space-x-2">
+                                <Clock className="h-4 w-4 text-gray-500" />
+                                <span>{formatTimeRange(dispo.heure_debut, dispo.heure_fin)}</span>
+                              </div>
                             </div>
-                          )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteExisting(key)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+
+                          <div className="space-y-3 p-3 bg-white rounded border">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                checked={dispo.type_choix === 'obligatoire'}
+                                onCheckedChange={(checked) => 
+                                  handleUpdateExisting(key, 'type_choix', checked ? 'obligatoire' : 'souhaitee')
+                                }
+                              />
+                              <Label className="text-sm font-medium">
+                                Surveillance obligatoire
+                              </Label>
+                            </div>
+
+                            {dispo.type_choix === 'obligatoire' && (
+                              <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <AlertCircle className="h-4 w-4 text-orange-600" />
+                                  <span className="font-medium text-orange-800 text-sm">
+                                    Code de l'examen obligatoire
+                                  </span>
+                                </div>
+                                <Input
+                                  value={dispo.nom_examen_obligatoire || ''}
+                                  onChange={(e) => handleUpdateExisting(key, 'nom_examen_obligatoire', e.target.value)}
+                                  placeholder="Ex: LECON2100"
+                                  className="text-sm"
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Créneaux disponibles pour ajout organisés par semaine */}
+      <div className="space-y-6">
+        <h2 className="text-xl font-bold">Ajouter de nouvelles disponibilités</h2>
+        {Object.keys(weeklySlots).length === 0 ? (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-center text-gray-500">
+                Aucun créneau disponible pour cette session.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          Object.entries(weeklySlots).map(([weekLabel, slots]) => (
+            <Card key={weekLabel} className="border-gray-200">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-lg text-gray-700">
+                  Semaine du {weekLabel}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {slots.map((slot, index) => {
+                    const key = `${slot.date_examen}|${slot.heure_debut}|${slot.heure_fin}`;
+                    const isSelected = isSlotAlreadySelected(slot);
+                    const isNewlyAdded = key in newDispos;
+
+                    return (
+                      <Card key={index} className={`border transition-colors ${
+                        isNewlyAdded ? 'border-green-300 bg-green-50' : 
+                        isSelected ? 'border-gray-300 bg-gray-100' : 'border-gray-200 hover:border-gray-300'
+                      }`}>
+                        <CardContent className="pt-4">
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-4">
+                                <div className="flex items-center space-x-2">
+                                  <Calendar className="h-4 w-4 text-gray-500" />
+                                  <span className="font-medium">
+                                    {formatDateBelgian(slot.date_examen)}
+                                  </span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Clock className="h-4 w-4 text-gray-500" />
+                                  <span>{formatTimeRange(slot.heure_debut, slot.heure_fin)}</span>
+                                </div>
+                              </div>
+                              
+                              {!isSelected ? (
+                                <Button
+                                  onClick={() => handleAddNew(slot)}
+                                  size="sm"
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  Ajouter
+                                </Button>
+                              ) : isNewlyAdded ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleRemoveNew(key)}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              ) : (
+                                <Badge variant="secondary">Déjà sélectionné</Badge>
+                              )}
+                            </div>
+
+                            {isNewlyAdded && (
+                              <div className="space-y-3 p-3 bg-white rounded border">
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox
+                                    checked={newDispos[key]?.type_choix === 'obligatoire'}
+                                    onCheckedChange={(checked) => 
+                                      handleUpdateNew(key, 'type_choix', checked ? 'obligatoire' : 'souhaitee')
+                                    }
+                                  />
+                                  <Label className="text-sm font-medium">
+                                    Surveillance obligatoire
+                                  </Label>
+                                </div>
+
+                                {newDispos[key]?.type_choix === 'obligatoire' && (
+                                  <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                                    <div className="flex items-center space-x-2 mb-2">
+                                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                                      <span className="font-medium text-orange-800 text-sm">
+                                        Code de l'examen obligatoire
+                                      </span>
+                                    </div>
+                                    <Input
+                                      value={newDispos[key]?.nom_examen_obligatoire || ''}
+                                      onChange={(e) => handleUpdateNew(key, 'nom_examen_obligatoire', e.target.value)}
+                                      placeholder="Ex: LECON2100"
+                                      className="text-sm"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
 
       {/* Boutons d'action */}
       <div className="flex justify-center space-x-4">
