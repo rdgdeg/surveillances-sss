@@ -58,11 +58,15 @@ export const ExamenCoverageVerification = () => {
     enabled: !!activeSession?.id
   });
 
-  // Définir les créneaux de surveillance fixes
+  // Définir les créneaux de surveillance fixes (ajout du créneau 12:15-16:00)
   const creneauxSurveillance: CreneauSurveillance[] = [
+    { debut: '08:00', fin: '10:30' }, // Nouveau créneau pour WFARM1237=E
     { debut: '08:15', fin: '11:00' },
     { debut: '08:15', fin: '12:00' },
+    { debut: '08:30', fin: '11:30' }, // Nouveau créneau pour WFARM1324 TPs + WFARM1325 TPs=E
     { debut: '12:15', fin: '15:00' },
+    { debut: '12:15', fin: '16:00' }, // Nouveau créneau ajouté
+    { debut: '13:30', fin: '15:30' }, // Nouveau créneau pour WFARM1324=E
     { debut: '15:15', fin: '18:00' },
     { debut: '15:45', fin: '18:30' }
   ];
@@ -159,6 +163,21 @@ export const ExamenCoverageVerification = () => {
               <Search className="h-4 w-4" />
               <span>Lancer la vérification</span>
             </Button>
+          </div>
+
+          {/* Affichage des créneaux disponibles */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center space-x-2 text-blue-800 mb-2">
+              <Clock className="h-5 w-5" />
+              <span className="font-medium">Créneaux de surveillance configurés</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              {creneauxSurveillance.map((creneau, index) => (
+                <Badge key={index} variant="outline" className="text-blue-700">
+                  {formatTimeRange(creneau.debut, creneau.fin)}
+                </Badge>
+              ))}
+            </div>
           </div>
 
           {verificationActive && (

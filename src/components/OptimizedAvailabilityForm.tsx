@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,11 +60,15 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
     enabled: !!sessionId
   });
 
-  // Définir les créneaux de surveillance fixes
+  // Définir les créneaux de surveillance fixes (mis à jour avec les nouveaux créneaux)
   const creneauxSurveillance = [
+    { debut: '08:00', fin: '10:30' }, // Nouveau créneau pour WFARM1237=E
     { debut: '08:15', fin: '11:00' },
     { debut: '08:15', fin: '12:00' },
+    { debut: '08:30', fin: '11:30' }, // Nouveau créneau pour WFARM1324 TPs + WFARM1325 TPs=E
     { debut: '12:15', fin: '15:00' },
+    { debut: '12:15', fin: '16:00' }, // Nouveau créneau ajouté
+    { debut: '13:30', fin: '15:30' }, // Nouveau créneau pour WFARM1324=E
     { debut: '15:15', fin: '18:00' },
     { debut: '15:45', fin: '18:30' }
   ];
@@ -93,6 +96,8 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
         const examFin = exam.heure_fin;
         
         // Déterminer quel(s) créneau(x) de surveillance couvre(nt) cet examen
+        // L'examen doit commencer au plus tôt 45 minutes après le début du créneau
+        // et finir au plus tard à la fin du créneau
         creneauxSurveillance.forEach(creneau => {
           // Convertir en minutes pour faciliter la comparaison
           const toMinutes = (time: string) => {
@@ -291,7 +296,7 @@ export const OptimizedAvailabilityForm = ({ surveillantId, sessionId, email, onS
           <span className="font-medium">Créneaux de surveillance disponibles</span>
         </div>
         <p className="text-sm text-blue-700 mt-1">
-          Les créneaux proposés correspondent aux plages de surveillance : 8h15-11h00, 8h15-12h00, 12h15-15h00, 15h15-18h00, 15h45-18h30
+          Les créneaux proposés correspondent aux plages de surveillance : 8h00-10h30, 8h15-11h00, 8h15-12h00, 8h30-11h30, 12h15-15h00, 12h15-16h00, 13h30-15h30, 15h15-18h00, 15h45-18h30
         </p>
         <p className="text-xs text-gray-600 mt-2">
           <strong>Temps de préparation :</strong> Maximum 45 minutes mais dépend du secrétariat (peut être inférieur).
