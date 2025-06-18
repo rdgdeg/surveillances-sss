@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,13 +31,14 @@ interface ExamenCreneau {
 
 interface DisponibiliteExistante {
   id: string;
-  examen_id: string;
   date_examen: string;
   heure_debut: string;
   heure_fin: string;
   est_disponible: boolean;
   type_choix: string;
   nom_examen_selectionne?: string;
+  nom_examen_obligatoire?: string;
+  commentaire_surveillance_obligatoire?: string;
 }
 
 interface EditDisponibilitesModalProps {
