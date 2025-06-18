@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Users, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
+import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
 import { toast } from "@/hooks/use-toast";
 import { formatDateBelgian } from "@/lib/dateUtils";
 import * as XLSX from 'xlsx';
@@ -35,11 +36,15 @@ interface TimeSlot {
   heure_debut: string;
   heure_fin: string;
   label: string;
+  heure_debut_surveillance?: string; // Heure incluant la préparation
 }
 
 export const AvailabilityMatrix = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
+
+  // Utiliser les créneaux optimisés comme base pour la matrice
+  const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(activeSession?.id || null);
 
   // Récupérer les surveillants actifs triés par nom de famille
   const { data: surveillants = [] } = useQuery({
@@ -92,32 +97,59 @@ export const AvailabilityMatrix = () => {
     enabled: !!activeSession
   });
 
-  // Créer les créneaux uniques à partir des disponibilités soumises
-  const timeSlots: TimeSlot[] = Array.from(
-    new Set(
-      disponibilites.map(d => `${d.date_examen}-${d.heure_debut}-${d.heure_fin}`)
-    )
-  )
-  .map(key => {
-    const [date, heure_debut, heure_fin] = key.split('-');
-    return {
-      date,
-      heure_debut,
-      heure_fin,
-      label: `${formatDateBelgian(date)} ${heure_debut}-${heure_fin}`
-    };
-  })
-  .sort((a, b) => {
-    const dateCompare = a.date.localeCompare(b.date);
-    if (dateCompare !== 0) return dateCompare;
-    return a.heure_debut.localeCompare(b.heure_debut);
-  });
+  // Créer les créneaux de surveillance optimisés pour la matrice
+  const timeSlots: TimeSlot[] = optimizedCreneaux
+    .filter(slot => slot.type === 'surveillance')
+    .map(slot => ({
+      date: slot.date_examen,
+      heure_debut: slot.heure_debut,
+      heure_fin: slot.heure_fin,
+      heure_debut_surveillance: slot.heure_debut_surveillance,
+      label: `${formatDateBelgian(slot.date_examen)} ${slot.heure_debut}-${slot.heure_fin}`
+    }))
+    .sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date);
+      if (dateCompare !== 0) return dateCompare;
+      return a.heure_debut.localeCompare(b.heure_debut);
+    });
 
-  // Créer une map des disponibilités pour un accès rapide
+  // Fonction pour mapper les disponibilités aux créneaux optimisés
+  const mapDisponibiliteToOptimizedSlot = (disponibilite: Disponibilite, slots: TimeSlot[]) => {
+    // Chercher le créneau optimisé qui correspond à cette disponibilité
+    return slots.find(slot => {
+      // Même date
+      if (slot.date !== disponibilite.date_examen) return false;
+      
+      // Vérifier si la disponibilité correspond à ce créneau de surveillance
+      // La disponibilité peut être soumise pour les heures d'examen (ex: 09:00-11:00)
+      // mais doit être mappée au créneau de surveillance (ex: 08:15-11:00)
+      
+      // Récupérer les examens de ce créneau optimisé
+      const creneauOptimise = optimizedCreneaux.find(c => 
+        c.type === 'surveillance' && 
+        c.date_examen === slot.date &&
+        c.heure_debut === slot.heure_debut &&
+        c.heure_fin === slot.heure_fin
+      );
+      
+      if (!creneauOptimise) return false;
+      
+      // Vérifier si la disponibilité correspond à un des examens de ce créneau
+      return creneauOptimise.examens.some(examen => {
+        return examen.heure_debut === disponibilite.heure_debut &&
+               examen.heure_fin === disponibilite.heure_fin;
+      });
+    });
+  };
+
+  // Créer une map des disponibilités mappées aux créneaux optimisés
   const disponibiliteMap = new Map<string, Disponibilite>();
   disponibilites.forEach(disp => {
-    const key = `${disp.surveillant_id}-${disp.date_examen}-${disp.heure_debut}-${disp.heure_fin}`;
-    disponibiliteMap.set(key, disp);
+    const mappedSlot = mapDisponibiliteToOptimizedSlot(disp, timeSlots);
+    if (mappedSlot) {
+      const key = `${disp.surveillant_id}-${mappedSlot.date}-${mappedSlot.heure_debut}-${mappedSlot.heure_fin}`;
+      disponibiliteMap.set(key, disp);
+    }
   });
 
   const getAvailabilityInfo = (surveillantId: string, slot: TimeSlot) => {
@@ -190,7 +222,7 @@ export const AvailabilityMatrix = () => {
             <span>Matrice des Disponibilités - {activeSession.name}</span>
           </CardTitle>
           <CardDescription className="text-blue-100">
-            Vue des disponibilités soumises par les surveillants. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
+            Vue des disponibilités soumises par les surveillants pour les créneaux de surveillance optimisés. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
           </CardDescription>
           <div className="flex space-x-2">
             <Button onClick={generateCallyTemplate} variant="outline" size="sm" className="bg-white text-uclouvain-blue border-white hover:bg-blue-50">
@@ -203,7 +235,7 @@ export const AvailabilityMatrix = () => {
           {timeSlots.length === 0 ? (
             <div className="text-center py-8">
               <Clock className="h-12 w-12 text-uclouvain-blue-grey mx-auto mb-4" />
-              <p className="text-uclouvain-blue">Aucune disponibilité trouvée. Les surveillants n'ont pas encore soumis leurs disponibilités.</p>
+              <p className="text-uclouvain-blue">Aucun créneau de surveillance optimisé trouvé. Veuillez d'abord valider les examens.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -217,6 +249,9 @@ export const AvailabilityMatrix = () => {
                         <div className="text-xs">
                           <div>{formatDateBelgian(slot.date)}</div>
                           <div>{slot.heure_debut}-{slot.heure_fin}</div>
+                          {slot.heure_debut_surveillance && (
+                            <div className="text-gray-500">(Début surveillance: {slot.heure_debut_surveillance})</div>
+                          )}
                         </div>
                       </th>
                     ))}
