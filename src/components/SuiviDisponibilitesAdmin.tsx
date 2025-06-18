@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Users, Search, Download, Star, CheckCircle, Eye, AlertCircle, UserX } from "lucide-react";
+import { Users, Search, Download, Star, CheckCircle, Eye, AlertCircle, UserX, Edit } from "lucide-react";
 import { useActiveSession } from "@/hooks/useSessions";
 import { toast } from "@/hooks/use-toast";
 import { DisponibiliteDetailModal } from "./DisponibiliteDetailModal";
+import { EditDisponibilitesModal } from "./EditDisponibilitesModal";
 import * as XLSX from 'xlsx';
 
 interface SurveillantStats {
@@ -43,6 +44,7 @@ export const SuiviDisponibilitesAdmin = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSurveillant, setSelectedSurveillant] = useState<SurveillantStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   // Récupérer toutes les données des surveillants avec leurs disponibilités
   const { data: surveillantsStats = [], isLoading } = useQuery({
@@ -142,6 +144,11 @@ export const SuiviDisponibilitesAdmin = () => {
   const handleShowDetails = (surveillant: SurveillantStats) => {
     setSelectedSurveillant(surveillant);
     setModalOpen(true);
+  };
+
+  const handleEditDisponibilites = (surveillant: SurveillantStats) => {
+    setSelectedSurveillant(surveillant);
+    setEditModalOpen(true);
   };
 
   const exportToExcel = () => {
@@ -430,15 +437,26 @@ export const SuiviDisponibilitesAdmin = () => {
                           </div>
                         </td>
                         <td className="border border-gray-300 p-3 text-center">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleShowDetails(surveillant)}
-                            className="flex items-center space-x-1"
-                          >
-                            <Eye className="h-3 w-3" />
-                            <span>Détails</span>
-                          </Button>
+                          <div className="flex items-center justify-center space-x-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleShowDetails(surveillant)}
+                              className="flex items-center space-x-1"
+                            >
+                              <Eye className="h-3 w-3" />
+                              <span>Voir</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditDisponibilites(surveillant)}
+                              className="flex items-center space-x-1 text-blue-600 hover:text-blue-800"
+                            >
+                              <Edit className="h-3 w-3" />
+                              <span>Modifier</span>
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -460,6 +478,12 @@ export const SuiviDisponibilitesAdmin = () => {
         onClose={() => setModalOpen(false)}
         surveillant={selectedSurveillant}
         disponibilites={disponibilitesDetail}
+      />
+
+      <EditDisponibilitesModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        surveillant={selectedSurveillant}
       />
     </>
   );
