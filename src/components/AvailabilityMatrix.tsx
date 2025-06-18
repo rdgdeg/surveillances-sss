@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -113,16 +112,12 @@ export const AvailabilityMatrix = () => {
       return a.heure_debut.localeCompare(b.heure_debut);
     });
 
-  // Fonction pour mapper les disponibilités aux créneaux optimisés
+  // Fonction améliorée pour mapper les disponibilités aux créneaux optimisés
   const mapDisponibiliteToOptimizedSlot = (disponibilite: Disponibilite, slots: TimeSlot[]) => {
     // Chercher le créneau optimisé qui correspond à cette disponibilité
     return slots.find(slot => {
       // Même date
       if (slot.date !== disponibilite.date_examen) return false;
-      
-      // Vérifier si la disponibilité correspond à ce créneau de surveillance
-      // La disponibilité peut être soumise pour les heures d'examen (ex: 09:00-11:00)
-      // mais doit être mappée au créneau de surveillance (ex: 08:15-11:00)
       
       // Récupérer les examens de ce créneau optimisé
       const creneauOptimise = optimizedCreneaux.find(c => 
@@ -134,11 +129,28 @@ export const AvailabilityMatrix = () => {
       
       if (!creneauOptimise) return false;
       
-      // Vérifier si la disponibilité correspond à un des examens de ce créneau
-      return creneauOptimise.examens.some(examen => {
+      // CAS 1: Vérifier si la disponibilité correspond à un des examens de ce créneau (heures d'examen)
+      const correspondExamen = creneauOptimise.examens.some(examen => {
         return examen.heure_debut === disponibilite.heure_debut &&
                examen.heure_fin === disponibilite.heure_fin;
       });
+      
+      if (correspondExamen) return true;
+      
+      // CAS 2: Vérifier si la disponibilité correspond au créneau de surveillance complet
+      const correspondSurveillance = 
+        disponibilite.heure_debut === slot.heure_debut &&
+        disponibilite.heure_fin === slot.heure_fin;
+      
+      if (correspondSurveillance) return true;
+      
+      // CAS 3: Vérifier si la disponibilité correspond aux heures de surveillance avec préparation
+      const correspondSurveillanceAvecPrep = 
+        slot.heure_debut_surveillance &&
+        disponibilite.heure_debut === slot.heure_debut_surveillance &&
+        disponibilite.heure_fin === slot.heure_fin;
+      
+      return correspondSurveillanceAvecPrep;
     });
   };
 
