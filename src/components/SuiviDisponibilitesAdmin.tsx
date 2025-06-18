@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +39,7 @@ interface Disponibilite {
 export const SuiviDisponibilitesAdmin = () => {
   const { data: activeSession } = useActiveSession();
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all"); // Changed default to "all"
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSurveillant, setSelectedSurveillant] = useState<SurveillantStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -98,11 +97,8 @@ export const SuiviDisponibilitesAdmin = () => {
         });
       }
 
+      // Trier par nom et prénom alphabétiquement
       return stats.sort((a, b) => {
-        // Trier par statut de soumission (non-répondants d'abord), puis par nom
-        if (a.a_soumis !== b.a_soumis) {
-          return a.a_soumis ? 1 : -1;
-        }
         return `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`);
       });
     },
