@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Users, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
+import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
 import { toast } from "@/hooks/use-toast";
 import { formatDateBelgian } from "@/lib/dateUtils";
 import * as XLSX from 'xlsx';
@@ -19,7 +20,7 @@ interface Disponibilite {
   heure_fin: string;
   est_disponible: boolean;
   type_choix: string;
-  nom_examen_selectionne: string;
+  nom_examen_obligatoire: string;
 }
 
 interface Surveillant {
@@ -40,6 +41,9 @@ interface TimeSlot {
 export const AvailabilityMatrix = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
+
+  // Utiliser les créneaux optimisés au lieu des créneaux d'examens bruts
+  const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(activeSession?.id || null);
 
   // Récupérer les surveillants actifs triés par nom de famille
   const { data: surveillants = [] } = useQuery({
@@ -74,41 +78,15 @@ export const AvailabilityMatrix = () => {
     enabled: !!activeSession
   });
 
-  // Récupérer les créneaux d'examens uniques triés par date et heure
-  const { data: timeSlots = [] } = useQuery({
-    queryKey: ['time-slots', activeSession?.id],
-    queryFn: async () => {
-      if (!activeSession) return [];
-      
-      const { data, error } = await supabase
-        .from('examens')
-        .select('date_examen, heure_debut, heure_fin')
-        .eq('session_id', activeSession.id)
-        .eq('is_active', true)
-        .order('date_examen')
-        .order('heure_debut');
-      
-      if (error) throw error;
-      
-      // Créer des créneaux uniques
-      const uniqueSlots = new Map<string, TimeSlot>();
-      
-      data.forEach(exam => {
-        const key = `${exam.date_examen}-${exam.heure_debut}-${exam.heure_fin}`;
-        if (!uniqueSlots.has(key)) {
-          uniqueSlots.set(key, {
-            date: exam.date_examen,
-            heure_debut: exam.heure_debut,
-            heure_fin: exam.heure_fin,
-            label: `${formatDateBelgian(exam.date_examen)} ${exam.heure_debut}-${exam.heure_fin}`
-          });
-        }
-      });
-      
-      return Array.from(uniqueSlots.values());
-    },
-    enabled: !!activeSession
-  });
+  // Convertir les créneaux de surveillance optimisés en format TimeSlot
+  const timeSlots: TimeSlot[] = optimizedCreneaux
+    .filter(slot => slot.type === 'surveillance')
+    .map(slot => ({
+      date: slot.date_examen,
+      heure_debut: slot.heure_debut,
+      heure_fin: slot.heure_fin,
+      label: `${formatDateBelgian(slot.date_examen)} ${slot.heure_debut}-${slot.heure_fin}`
+    }));
 
   // Récupérer les disponibilités existantes
   const { data: disponibilites = [] } = useQuery({
@@ -161,8 +139,8 @@ export const AvailabilityMatrix = () => {
             cellValue = '✓'; // Check pour souhaité
           }
           
-          if (availability.nom_examen_selectionne) {
-            cellValue += ` (${availability.nom_examen_selectionne})`;
+          if (availability.nom_examen_obligatoire) {
+            cellValue += ` (${availability.nom_examen_obligatoire})`;
           }
         }
         
@@ -205,7 +183,7 @@ export const AvailabilityMatrix = () => {
             <span>Matrice des Disponibilités - {activeSession.name}</span>
           </CardTitle>
           <CardDescription className="text-blue-100">
-            Vue des disponibilités soumises par les surveillants. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
+            Vue des disponibilités soumises par les surveillants pour les créneaux de surveillance optimisés. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
           </CardDescription>
           <div className="flex space-x-2">
             <Button onClick={generateCallyTemplate} variant="outline" size="sm" className="bg-white text-uclouvain-blue border-white hover:bg-blue-50">
@@ -218,7 +196,7 @@ export const AvailabilityMatrix = () => {
           {timeSlots.length === 0 ? (
             <div className="text-center py-8">
               <Clock className="h-12 w-12 text-uclouvain-blue-grey mx-auto mb-4" />
-              <p className="text-uclouvain-blue">Aucun examen trouvé. Veuillez d'abord importer les examens.</p>
+              <p className="text-uclouvain-blue">Aucun créneau de surveillance optimisé trouvé. Veuillez d'abord valider les examens.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -270,8 +248,8 @@ export const AvailabilityMatrix = () => {
                             title = 'Disponible (souhaité)';
                           }
                           
-                          if (availability.nom_examen_selectionne) {
-                            title += ` - Examen: ${availability.nom_examen_selectionne}`;
+                          if (availability.nom_examen_obligatoire) {
+                            title += ` - Examen: ${availability.nom_examen_obligatoire}`;
                           }
                         }
                         
