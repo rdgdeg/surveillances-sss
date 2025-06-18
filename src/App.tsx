@@ -9,6 +9,9 @@ import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import AdminDisponibilites from "./pages/AdminDisponibilites";
 import AdminDemandesSpecifiques from "./pages/AdminDemandesSpecifiques";
+import AdminDisponibilitesParJour from "./pages/AdminDisponibilitesParJour";
+import AdminDisponibilitesMatrice from "./pages/AdminDisponibilitesMatrice";
+import AdminDisponibilitesParPersonne from "./pages/AdminDisponibilitesParPersonne";
 import Surveillant from "./pages/Surveillant";
 import EnseignantConfirmation from "./pages/EnseignantConfirmation";
 import EnseignantToken from "./pages/EnseignantToken";
@@ -38,6 +41,30 @@ function App() {
               element={
                 <AdminProtection>
                   <AdminDisponibilites />
+                </AdminProtection>
+              } 
+            />
+            <Route 
+              path="/admin/disponibilites/par-jour" 
+              element={
+                <AdminProtection>
+                  <AdminDisponibilitesParJour />
+                </AdminProtection>
+              } 
+            />
+            <Route 
+              path="/admin/disponibilites/matrice" 
+              element={
+                <AdminProtection>
+                  <AdminDisponibilitesMatrice />
+                </AdminProtection>
+              } 
+            />
+            <Route 
+              path="/admin/disponibilites/par-personne" 
+              element={
+                <AdminProtection>
+                  <AdminDisponibilitesParPersonne />
                 </AdminProtection>
               } 
             />

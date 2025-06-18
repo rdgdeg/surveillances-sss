@@ -1,173 +1,67 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Users, Search, Calendar, Clock, AlertCircle, CheckCircle, UserCog, Shield, AlertTriangle } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
-import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
-import { SurveillantDisponibilitesEditor } from "./SurveillantDisponibilitesEditor";
-import { ExamenCoverageVerification } from "./ExamenCoverageVerification";
-import * as XLSX from 'xlsx';
-
-interface DisponibiliteDetail {
-  id: string;
-  surveillant_id: string;
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-  type_choix: string;
-  nom_examen_obligatoire: string;
-  surveillant_nom: string;
-  surveillant_prenom: string;
-  surveillant_email: string;
-  surveillant_type: string;
-  surveillant_eft: number;
-  created_at: string;
-}
+import { Link } from "react-router-dom";
+import { 
+  Calendar, 
+  Grid3X3, 
+  UserCheck, 
+  Users, 
+  CheckCircle, 
+  AlertTriangle,
+  ArrowRight,
+  Eye
+} from "lucide-react";
 
 export const DisponibilitesAdminView = () => {
   const { data: activeSession } = useActiveSession();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [choixFilter, setChoixFilter] = useState<string>("all");
 
-  // Récupérer toutes les disponibilités avec les infos surveillants
-  const { data: disponibilites = [], isLoading } = useQuery({
-    queryKey: ['disponibilites-admin-view', activeSession?.id],
-    queryFn: async (): Promise<DisponibiliteDetail[]> => {
-      if (!activeSession?.id) return [];
-
-      const { data, error } = await supabase
-        .from('disponibilites')
-        .select(`
-          *,
-          surveillants!inner (
-            nom,
-            prenom,
-            email,
-            type,
-            eft
-          )
-        `)
-        .eq('session_id', activeSession.id)
-        .eq('est_disponible', true)
-        .order('date_examen')
-        .order('heure_debut');
-
-      if (error) throw error;
-
-      return (data || []).map(item => ({
-        id: item.id,
-        surveillant_id: item.surveillant_id,
-        date_examen: item.date_examen,
-        heure_debut: item.heure_debut,
-        heure_fin: item.heure_fin,
-        type_choix: item.type_choix || 'souhaitee',
-        nom_examen_obligatoire: item.nom_examen_obligatoire || '',
-        surveillant_nom: item.surveillants.nom,
-        surveillant_prenom: item.surveillants.prenom,
-        surveillant_email: item.surveillants.email,
-        surveillant_type: item.surveillants.type,
-        surveillant_eft: item.surveillants.eft || 0,
-        created_at: item.created_at
-      }));
-    },
-    enabled: !!activeSession?.id
-  });
-
-  // Nouvelle query pour les demandes spécifiques
-  const { data: demandesSpecifiques = [] } = useQuery({
-    queryKey: ['demandes-specifiques-overview', activeSession?.id],
+  // Récupérer les statistiques générales
+  const { data: stats } = useQuery({
+    queryKey: ['disponibilites-stats', activeSession?.id],
     queryFn: async () => {
-      if (!activeSession?.id) return [];
+      if (!activeSession?.id) return null;
 
-      const { data, error } = await supabase
+      // Statistiques des disponibilités
+      const { data: disponibilites } = await supabase
         .from('disponibilites')
-        .select(`
-          *,
-          surveillants!inner (
-            nom,
-            prenom,
-            email,
-            type
-          )
-        `)
+        .select('*, surveillants!inner(type)')
         .eq('session_id', activeSession.id)
-        .eq('est_disponible', true)
-        .eq('type_choix', 'obligatoire')
-        .order('created_at', { ascending: false });
+        .eq('est_disponible', true);
 
-      if (error) throw error;
-      return data || [];
+      // Statistiques des surveillants actifs
+      const { data: surveillantsActifs } = await supabase
+        .from('surveillant_sessions')
+        .select('*, surveillants!inner(type)')
+        .eq('session_id', activeSession.id)
+        .eq('is_active', true);
+
+      const totalDisponibilites = disponibilites?.length || 0;
+      const obligatoires = disponibilites?.filter(d => d.type_choix === 'obligatoire').length || 0;
+      const souhaites = disponibilites?.filter(d => d.type_choix === 'souhaitee').length || 0;
+      const surveillantsAvecDispo = new Set(disponibilites?.map(d => d.surveillant_id) || []).size;
+      const totalSurveillants = surveillantsActifs?.length || 0;
+      const tauxReponse = totalSurveillants > 0 ? Math.round((surveillantsAvecDispo / totalSurveillants) * 100) : 0;
+
+      // Jours avec examens
+      const joursExamens = new Set(disponibilites?.map(d => d.date_examen) || []).size;
+
+      return {
+        totalDisponibilites,
+        obligatoires,
+        souhaites,
+        surveillantsAvecDispo,
+        totalSurveillants,
+        tauxReponse,
+        joursExamens
+      };
     },
     enabled: !!activeSession?.id
   });
-
-  // Filtrer les disponibilités
-  const filteredDisponibilites = disponibilites.filter(dispo => {
-    const matchSearch = searchTerm === "" || 
-      dispo.surveillant_nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dispo.surveillant_prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dispo.surveillant_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dispo.nom_examen_obligatoire.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchType = typeFilter === "all" || dispo.surveillant_type === typeFilter;
-    const matchChoix = choixFilter === "all" || dispo.type_choix === choixFilter;
-    
-    return matchSearch && matchType && matchChoix;
-  });
-
-  // Statistiques
-  const stats = {
-    total: disponibilites.length,
-    obligatoires: disponibilites.filter(d => d.type_choix === 'obligatoire').length,
-    souhaitees: disponibilites.filter(d => d.type_choix === 'souhaitee').length,
-    surveillantsUniques: new Set(disponibilites.map(d => d.surveillant_id)).size
-  };
-
-  // Exporter vers Excel
-  const exportToExcel = () => {
-    if (disponibilites.length === 0) {
-      toast({
-        title: "Aucune donnée",
-        description: "Aucune disponibilité à exporter.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const exportData = disponibilites.map(dispo => ({
-      'Nom': dispo.surveillant_nom,
-      'Prénom': dispo.surveillant_prenom,
-      'Email': dispo.surveillant_email,
-      'Type': dispo.surveillant_type,
-      'ETP': dispo.surveillant_eft || '-',
-      'Date': formatDateBelgian(dispo.date_examen),
-      'Horaire': formatTimeRange(dispo.heure_debut, dispo.heure_fin),
-      'Type Choix': dispo.type_choix === 'obligatoire' ? 'Obligatoire' : 'Souhaitée',
-      'Code Examen': dispo.nom_examen_obligatoire || '-',
-      'Date Envoi': new Date(dispo.created_at).toLocaleDateString('fr-FR')
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Disponibilités");
-
-    const fileName = `disponibilites_${activeSession?.name || 'session'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-
-    toast({
-      title: "Export réussi",
-      description: `${disponibilites.length} disponibilités exportées vers ${fileName}`,
-    });
-  };
 
   if (!activeSession) {
     return (
@@ -181,316 +75,152 @@ export const DisponibilitesAdminView = () => {
     );
   }
 
+  const navigationCards = [
+    {
+      title: "Vue par jour",
+      description: "Consultez les disponibilités organisées par jour d'examen",
+      icon: Calendar,
+      link: "/admin/disponibilites/par-jour",
+      color: "blue",
+      stats: stats ? `${stats.joursExamens} jours avec examens` : "Chargement..."
+    },
+    {
+      title: "Matrice créneaux",
+      description: "Visualisez la matrice des disponibilités par surveillant et créneau",
+      icon: Grid3X3,
+      link: "/admin/disponibilites/matrice",
+      color: "green",
+      stats: stats ? `${stats.totalDisponibilites} disponibilités` : "Chargement..."
+    },
+    {
+      title: "Vue par personne",
+      description: "Suivi détaillé des disponibilités par surveillant",
+      icon: UserCheck,
+      link: "/admin/disponibilites/par-personne",
+      color: "purple",
+      stats: stats ? `${stats.surveillantsAvecDispo}/${stats.totalSurveillants} ont répondu` : "Chargement..."
+    }
+  ];
+
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview" className="flex items-center space-x-2">
-            <Users className="h-4 w-4" />
-            <span>Vue d'ensemble</span>
-          </TabsTrigger>
-          <TabsTrigger value="demandes-specifiques" className="flex items-center space-x-2">
-            <AlertTriangle className="h-4 w-4" />
-            <span>Demandes spécifiques</span>
-          </TabsTrigger>
-          <TabsTrigger value="edit" className="flex items-center space-x-2">
-            <UserCog className="h-4 w-4" />
-            <span>Gestion par surveillant</span>
-          </TabsTrigger>
-          <TabsTrigger value="verification" className="flex items-center space-x-2">
-            <Shield className="h-4 w-4" />
-            <span>Vérification couverture</span>
-          </TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="overview" className="space-y-6">
-          {/* Statistiques */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Eye className="h-5 w-5" />
+            <span>Vue d'ensemble des disponibilités</span>
+          </CardTitle>
+          <CardDescription>
+            Session {activeSession.name} - Tableau de bord et navigation
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Statistiques principales */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <Card className="border-blue-200 bg-blue-50">
               <CardContent className="pt-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-                  <div className="text-sm text-gray-600">Total disponibilités</div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {stats?.totalDisponibilites || 0}
+                  </div>
+                  <div className="text-sm text-blue-700">Total disponibilités</div>
                 </div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-green-200 bg-green-50">
               <CardContent className="pt-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-orange-600">{stats.obligatoires}</div>
-                  <div className="text-sm text-gray-600">Obligatoires</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    {stats?.souhaites || 0}
+                  </div>
+                  <div className="text-sm text-green-700">Disponibilités souhaitées</div>
                 </div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-orange-200 bg-orange-50">
               <CardContent className="pt-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{stats.souhaitees}</div>
-                  <div className="text-sm text-gray-600">Souhaitées</div>
+                  <div className="text-2xl font-bold text-orange-600">
+                    {stats?.obligatoires || 0}
+                  </div>
+                  <div className="text-sm text-orange-700">Surveillances obligatoires</div>
                 </div>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-purple-200 bg-purple-50">
               <CardContent className="pt-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">{stats.surveillantsUniques}</div>
-                  <div className="text-sm text-gray-600">Surveillants</div>
+                  <div className="text-2xl font-bold text-purple-600">
+                    {stats?.tauxReponse || 0}%
+                  </div>
+                  <div className="text-sm text-purple-700">Taux de réponse</div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Users className="h-5 w-5" />
-                  <span>Disponibilités reçues</span>
-                </div>
-                <Button onClick={exportToExcel} className="flex items-center space-x-2">
-                  <Download className="h-4 w-4" />
-                  <span>Exporter Excel</span>
-                </Button>
-              </CardTitle>
-              <CardDescription>
-                Session {activeSession.name} - Vue détaillée des disponibilités
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {/* Filtres */}
-              <div className="flex space-x-4 mb-6">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Rechercher par nom, email ou code examen..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-8"
-                    />
-                  </div>
-                </div>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Type surveillant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les types</SelectItem>
-                    <SelectItem value="Assistant">Assistant</SelectItem>
-                    <SelectItem value="Jobiste">Jobiste</SelectItem>
-                    <SelectItem value="PAT">PAT</SelectItem>
-                    <SelectItem value="FASB">FASB</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={choixFilter} onValueChange={setChoixFilter}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Type choix" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les choix</SelectItem>
-                    <SelectItem value="obligatoire">Obligatoires</SelectItem>
-                    <SelectItem value="souhaitee">Souhaitées</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          {/* Navigation vers les différentes vues */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold mb-4">Accès aux vues détaillées</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {navigationCards.map((card) => {
+                const Icon = card.icon;
+                const colorClasses = {
+                  blue: "border-blue-200 hover:border-blue-300 hover:bg-blue-50",
+                  green: "border-green-200 hover:border-green-300 hover:bg-green-50",
+                  purple: "border-purple-200 hover:border-purple-300 hover:bg-purple-50"
+                };
+                
+                return (
+                  <Link key={card.title} to={card.link}>
+                    <Card className={`transition-all cursor-pointer ${colorClasses[card.color as keyof typeof colorClasses]}`}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <Icon className={`h-8 w-8 text-${card.color}-600`} />
+                          <ArrowRight className="h-4 w-4 text-gray-400" />
+                        </div>
+                        <h4 className="font-semibold mb-2">{card.title}</h4>
+                        <p className="text-sm text-gray-600 mb-3">{card.description}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {card.stats}
+                        </Badge>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
 
-              {/* Tableau des disponibilités */}
-              {isLoading ? (
-                <p>Chargement...</p>
-              ) : filteredDisponibilites.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Surveillant</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>ETP</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Horaire</TableHead>
-                        <TableHead>Choix</TableHead>
-                        <TableHead>Code Examen</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredDisponibilites.map((dispo) => (
-                        <TableRow key={dispo.id}>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">
-                                {dispo.surveillant_prenom} {dispo.surveillant_nom}
-                              </div>
-                              <div className="text-sm text-muted-foreground">
-                                {dispo.surveillant_email}
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{dispo.surveillant_type}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {dispo.surveillant_eft ? (
-                              <Badge variant="secondary">{dispo.surveillant_eft}</Badge>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-1">
-                              <Calendar className="h-3 w-3 text-gray-400" />
-                              <span className="text-sm">{formatDateBelgian(dispo.date_examen)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-1">
-                              <Clock className="h-3 w-3 text-gray-400" />
-                              <span className="text-sm">{formatTimeRange(dispo.heure_debut, dispo.heure_fin)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {dispo.type_choix === 'obligatoire' ? (
-                              <Badge variant="destructive" className="flex items-center space-x-1">
-                                <AlertCircle className="h-3 w-3" />
-                                <span>Obligatoire</span>
-                              </Badge>
-                            ) : (
-                              <Badge variant="default" className="flex items-center space-x-1">
-                                <CheckCircle className="h-3 w-3" />
-                                <span>Souhaitée</span>
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {dispo.nom_examen_obligatoire ? (
-                              <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">
-                                {dispo.nom_examen_obligatoire}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <p className="text-center text-gray-500">
-                  Aucune disponibilité trouvée pour les critères sélectionnés.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="demandes-specifiques" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <AlertTriangle className="h-5 w-5 text-orange-600" />
-                <span>Demandes de surveillance obligatoire</span>
-              </CardTitle>
-              <CardDescription>
-                Vue rapide des surveillances obligatoires demandées par les surveillants
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {demandesSpecifiques.length > 0 ? (
-                <div className="space-y-4">
+          {/* Accès rapide aux demandes spécifiques */}
+          <div className="mt-8 pt-6 border-t">
+            <h3 className="text-lg font-semibold mb-4">Demandes spécifiques</h3>
+            <Link to="/admin/demandes-specifiques">
+              <Card className="border-orange-200 hover:border-orange-300 hover:bg-orange-50 transition-all cursor-pointer">
+                <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="text-orange-700 bg-orange-100">
-                      {demandesSpecifiques.length} demande{demandesSpecifiques.length > 1 ? 's' : ''} obligatoire{demandesSpecifiques.length > 1 ? 's' : ''}
-                    </Badge>
-                    <Button variant="outline" size="sm" onClick={() => window.location.href = '/admin/demandes-specifiques'}>
-                      Voir le détail complet
-                    </Button>
-                  </div>
-                  
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Surveillant</TableHead>
-                          <TableHead>Date/Horaire</TableHead>
-                          <TableHead>Code Examen</TableHead>
-                          <TableHead>Commentaire</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {demandesSpecifiques.slice(0, 10).map((demande: any) => (
-                          <TableRow key={demande.id}>
-                            <TableCell>
-                              <div>
-                                <div className="font-medium">
-                                  {demande.surveillants.prenom} {demande.surveillants.nom}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {demande.surveillants.email}
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="space-y-1">
-                                <div className="flex items-center space-x-1">
-                                  <Calendar className="h-3 w-3 text-gray-400" />
-                                  <span className="text-sm">{formatDateBelgian(demande.date_examen)}</span>
-                                </div>
-                                <div className="flex items-center space-x-1">
-                                  <Clock className="h-3 w-3 text-gray-400" />
-                                  <span className="text-sm">{formatTimeRange(demande.heure_debut, demande.heure_fin)}</span>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {demande.nom_examen_obligatoire ? (
-                                <span className="font-mono text-sm bg-blue-100 px-2 py-1 rounded">
-                                  {demande.nom_examen_obligatoire}
-                                </span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="max-w-xs">
-                              {demande.commentaire_surveillance_obligatoire ? (
-                                <div className="text-sm bg-gray-50 p-2 rounded border truncate">
-                                  {demande.commentaire_surveillance_obligatoire.substring(0, 100)}
-                                  {demande.commentaire_surveillance_obligatoire.length > 100 && '...'}
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  
-                  {demandesSpecifiques.length > 10 && (
-                    <div className="text-center">
-                      <Button variant="outline" onClick={() => window.location.href = '/admin/demandes-specifiques'}>
-                        Voir toutes les {demandesSpecifiques.length} demandes
-                      </Button>
+                    <div className="flex items-center space-x-3">
+                      <AlertTriangle className="h-6 w-6 text-orange-600" />
+                      <div>
+                        <h4 className="font-semibold">Surveillances obligatoires</h4>
+                        <p className="text-sm text-gray-600">
+                          Gérez les demandes de surveillances obligatoires et leurs détails
+                        </p>
+                      </div>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">Aucune demande de surveillance obligatoire pour le moment.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="edit">
-          <SurveillantDisponibilitesEditor />
-        </TabsContent>
-
-        <TabsContent value="verification">
-          <ExamenCoverageVerification />
-        </TabsContent>
-      </Tabs>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline" className="bg-orange-100 text-orange-700">
+                        {stats?.obligatoires || 0} demandes
+                      </Badge>
+                      <ArrowRight className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
