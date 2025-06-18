@@ -13,6 +13,9 @@ import AdminDisponibilitesParPersonnePage from "./pages/AdminDisponibilitesParPe
 import AdminDemandesSpecifiquesPage from "./pages/AdminDemandesSpecifiques";
 import AdminCandidaturesPage from "./pages/AdminCandidatures";
 import AdminTemplatesPage from "./pages/AdminTemplates";
+import PlanningGeneral from "./pages/PlanningGeneral";
+import Surveillant from "./pages/Surveillant";
+import EnseignantToken from "./pages/EnseignantToken";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +35,9 @@ const App = () => (
           <Route path="/admin/disponibilites/par-personne" element={<AdminDisponibilitesParPersonnePage />} />
           <Route path="/admin/demandes-specifiques" element={<AdminDemandesSpecifiquesPage />} />
           <Route path="/admin/candidatures" element={<AdminCandidaturesPage />} />
+          <Route path="/planning-general" element={<PlanningGeneral />} />
+          <Route path="/surveillant" element={<Surveillant />} />
+          <Route path="/enseignant" element={<EnseignantToken />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
