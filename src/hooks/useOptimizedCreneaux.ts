@@ -16,6 +16,8 @@ interface TimeSlot {
   heure_debut: string;
   heure_fin: string;
   examens: ExamenSlot[];
+  type: 'surveillance' | 'examen';
+  heure_debut_surveillance?: string; // Heure de début de surveillance (45 min avant)
 }
 
 export const useOptimizedCreneaux = (sessionId: string | null) => {
@@ -50,6 +52,13 @@ export const useOptimizedCreneaux = (sessionId: string | null) => {
         return h * 60 + m;
       };
 
+      // Fonction pour convertir minutes en time
+      const toTimeString = (minutes: number) => {
+        const h = Math.floor(minutes / 60);
+        const m = minutes % 60;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      };
+
       // Fonction pour vérifier si un examen est couvert par un créneau
       const verifierCouverture = (examen: any, creneau: any): boolean => {
         const creneauDebutMin = toMinutes(creneau.debut);
@@ -74,11 +83,10 @@ export const useOptimizedCreneaux = (sessionId: string | null) => {
       const timeSlots: TimeSlot[] = [];
 
       Object.entries(examensParDate).forEach(([date, examensJour]) => {
-        // Grouper les examens par plage horaire similaire
+        // 1. Créer les créneaux d'examens réels (nouveauté)
         const groupesExamens = new Map<string, any[]>();
         
         examensJour.forEach(examen => {
-          // Créer une clé basée sur l'heure de début et fin (regrouper les examens simultanés)
           const cleGroupe = `${examen.heure_debut}-${examen.heure_fin}`;
           if (!groupesExamens.has(cleGroupe)) {
             groupesExamens.set(cleGroupe, []);
@@ -86,7 +94,19 @@ export const useOptimizedCreneaux = (sessionId: string | null) => {
           groupesExamens.get(cleGroupe)!.push(examen);
         });
 
-        // Pour chaque groupe d'examens simultanés, trouver le créneau optimal
+        // Ajouter les créneaux d'examens réels
+        Array.from(groupesExamens.entries()).forEach(([cleGroupe, examensGroupe]) => {
+          const [heure_debut, heure_fin] = cleGroupe.split('-');
+          timeSlots.push({
+            date_examen: date,
+            heure_debut,
+            heure_fin,
+            examens: examensGroupe,
+            type: 'examen'
+          });
+        });
+
+        // 2. Créer les créneaux de surveillance optimisés (existant)
         const creneauxUtilises = new Map<string, TimeSlot>();
         
         Array.from(groupesExamens.values()).forEach(groupeExamens => {
@@ -106,11 +126,17 @@ export const useOptimizedCreneaux = (sessionId: string | null) => {
             const creneauKey = `${date}-${creneauOptimal.debut}-${creneauOptimal.fin}`;
             
             if (!creneauxUtilises.has(creneauKey)) {
+              // Calculer l'heure de début de surveillance (45 min avant le premier examen)
+              const premierExamenDebut = Math.min(...groupeExamens.map(e => toMinutes(e.heure_debut)));
+              const debutSurveillance = toTimeString(premierExamenDebut - 45);
+              
               creneauxUtilises.set(creneauKey, {
                 date_examen: date,
                 heure_debut: creneauOptimal.debut,
                 heure_fin: creneauOptimal.fin,
-                examens: []
+                heure_debut_surveillance: debutSurveillance,
+                examens: [],
+                type: 'surveillance'
               });
             }
             
@@ -119,13 +145,17 @@ export const useOptimizedCreneaux = (sessionId: string | null) => {
           }
         });
 
-        // Ajouter les créneaux de cette date au résultat final
+        // Ajouter les créneaux de surveillance de cette date au résultat final
         timeSlots.push(...Array.from(creneauxUtilises.values()));
       });
 
       return timeSlots.sort((a, b) => {
         const dateCompare = a.date_examen.localeCompare(b.date_examen);
         if (dateCompare !== 0) return dateCompare;
+        // Trier par type (examens avant surveillance) puis par heure
+        if (a.type !== b.type) {
+          return a.type === 'examen' ? -1 : 1;
+        }
         return a.heure_debut.localeCompare(b.heure_debut);
       });
     },

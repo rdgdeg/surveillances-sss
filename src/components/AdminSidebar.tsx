@@ -13,6 +13,16 @@ import {
   Grid3X3,
   UserCheck,
   Eye,
+  BookOpen,
+  Upload,
+  CalendarDays,
+  UserCog,
+  Shield,
+  Lock,
+  History,
+  Database,
+  UserPlus,
+  FileCheck
 } from "lucide-react";
 
 const menuItems = [
@@ -30,8 +40,20 @@ const menuItems = [
   },
   { name: "Demandes Spécifiques", href: "/admin/demandes-specifiques", icon: AlertTriangle },
   { name: "Suivi Candidatures", href: "/admin/candidatures", icon: ClipboardList },
-  { name: "Surveillants", href: "/admin/surveillants", icon: Users },
-  { name: "Sessions", href: "/admin/sessions", icon: FileText },
+  { name: "Examens", href: "/admin?tab=examens", icon: BookOpen },
+  { name: "Import Codes", href: "/admin?tab=import-codes", icon: Upload },
+  { name: "Planning", href: "/admin?tab=planning", icon: CalendarDays },
+  { name: "Vue Enseignant", href: "/admin?tab=enseignant-view", icon: UserCog },
+  { name: "Tokens Enseignants", href: "/admin?tab=tokens-enseignants", icon: Shield },
+  { name: "Validations", href: "/admin?tab=validations", icon: FileCheck },
+  { name: "Surveillants", href: "/admin?tab=surveillants", icon: Users },
+  { name: "Pré-assignations", href: "/admin?tab=pre-assignations", icon: UserPlus },
+  { name: "Contraintes", href: "/admin?tab=contraintes", icon: AlertTriangle },
+  { name: "Verrouillages", href: "/admin?tab=feature-locks", icon: Lock },
+  { name: "Historique", href: "/admin?tab=historique", icon: History },
+  { name: "Données Sensibles", href: "/admin?tab=donnees-sensibles", icon: Database },
+  { name: "Suivi Confirmations", href: "/admin?tab=suivi-confirm-enseignants", icon: FileText },
+  { name: "Contrôles & Vérifications", href: "/admin?tab=controles-verifications", icon: FileCheck }
 ];
 
 export const AdminSidebar = () => {
@@ -45,7 +67,8 @@ export const AdminSidebar = () => {
       <nav className="flex-1 p-4 space-y-1">
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.href;
+          const isActive = location.pathname === item.href || 
+                          (item.href.includes('?tab=') && location.search.includes(item.href.split('?tab=')[1]));
           
           if ('submenu' in item) {
             const isSubmenuActive = item.submenu?.some(sub => location.pathname === sub.href);
