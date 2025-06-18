@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -369,8 +370,8 @@ export const AvailabilityMatrix = () => {
                           
                           if (availability) {
                             if (availability.type_choix === 'obligatoire') {
-                              bgColor = 'bg-orange-100';
-                              textColor = 'text-orange-800';
+                              bgColor = 'bg-green-100';
+                              textColor = 'text-green-800';
                               symbol = '★';
                               title = 'Surveillance obligatoire';
                             } else {
@@ -411,7 +412,7 @@ export const AvailabilityMatrix = () => {
                 <span>Disponible (souhaité)</span>
               </div>
               <div className="flex items-center space-x-1">
-                <span className="w-4 h-4 bg-orange-100 text-orange-800 flex items-center justify-center text-xs rounded">★</span>
+                <span className="w-4 h-4 bg-green-100 text-green-800 flex items-center justify-center text-xs rounded">★</span>
                 <span>Surveillance obligatoire</span>
               </div>
               <div className="flex items-center space-x-1">
