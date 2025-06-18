@@ -2,106 +2,102 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Calendar, Clock } from "lucide-react";
+import { formatDateBelgian } from "@/lib/dateUtils";
 
-// Formate la date
-function formatExamSlotForDisplay(date_examen: string, heure_debut: string, heure_fin: string) {
-  const date = new Date(`${date_examen}T${heure_debut}`);
-  const jour = String(date.getDate()).padStart(2, "0");
-  const mois = String(date.getMonth() + 1).padStart(2, "0");
-  const annee = date.getFullYear();
-  const formattedDate = `${jour}-${mois}-${annee}`;
-  const [hdHour, hdMin] = heure_debut.split(":").map(Number);
-  const debutSurv = new Date(date);
-  debutSurv.setHours(hdHour);
-  debutSurv.setMinutes(hdMin - 45);
-  if (debutSurv.getMinutes() < 0) {
-    debutSurv.setHours(debutSurv.getHours() - 1);
-    debutSurv.setMinutes(debutSurv.getMinutes() + 60);
-  }
-  const dh = String(debutSurv.getHours()).padStart(2, "0");
-  const dm = String(debutSurv.getMinutes()).padStart(2, "0");
-  const startSurv = `${dh}:${dm}`;
-  return {
-    formattedDate,
-    debutSurv: startSurv,
-    heure_fin
+interface CreneauRowProps {
+  creneauKey: string;
+  creneau: {
+    date_examen: string;
+    heure_debut: string;
+    heure_fin: string;
+    examenIds: string[];
   };
+  value: {
+    dispo: boolean;
+    type_choix: string;
+    nom_examen_selectionne: string;
+  };
+  onDisponibleChange: (key: string, checked: boolean) => void;
+  onTypeChange: (key: string, type: string) => void;
+  onNomExamenChange: (key: string, value: string) => void;
 }
 
-export function CreneauRow({
+export const CreneauRow = ({
   creneauKey,
   creneau,
   value,
   onDisponibleChange,
   onTypeChange,
   onNomExamenChange
-}) {
-  const { formattedDate, debutSurv, heure_fin } = formatExamSlotForDisplay(
-    creneau.date_examen, 
-    creneau.heure_debut, 
-    creneau.heure_fin
-  );
-
+}: CreneauRowProps) => {
   return (
-    <div className="border p-4 rounded-lg hover:bg-gray-50 transition-colors">
-      <div className="flex items-start space-x-3">
+    <div className="border rounded-lg p-4 space-y-3">
+      <div className="flex items-center space-x-4">
         <Checkbox
-          checked={!!value.dispo}
-          onCheckedChange={val => onDisponibleChange(creneauKey, !!val)}
-          className="mt-1"
+          checked={value.dispo}
+          onCheckedChange={(checked) => onDisponibleChange(creneauKey, !!checked)}
         />
-
-        <div className="flex-1 space-y-2">
-          <div className="flex items-center space-x-2 flex-wrap">
-            <Badge variant="outline">{formattedDate}</Badge>
-            <Badge variant="outline">
-              Surveillance: {debutSurv} - {heure_fin}
-            </Badge>
-            <span className="text-xs text-gray-500">
-              (Examen: {creneau.heure_debut} - {creneau.heure_fin})
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <Calendar className="h-4 w-4 text-gray-500" />
+            <span className="font-medium">
+              {formatDateBelgian(creneau.date_examen)}
             </span>
           </div>
-          {/* NE PAS afficher le code examen! */}
-          
-          {value.dispo && (
-            <div className="bg-blue-50 p-3 rounded-md space-y-3">
-              <div className="flex items-center space-x-3">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    name={`type_${creneauKey}`}
-                    checked={value.type_choix === "obligatoire"}
-                    onChange={() => onTypeChange(creneauKey, "obligatoire")}
-                    className="accent-blue-500"
-                  />
-                  <span>Obligatoire</span>
-                </label>
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    name={`type_${creneauKey}`}
-                    checked={value.type_choix !== "obligatoire"}
-                    onChange={() => onTypeChange(creneauKey, "souhaitee")}
-                    className="accent-green-500"
-                  />
-                  <span>Souhaité</span>
-                </label>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Nom de l'examen (optionnel)
-                </label>
-                <Input
-                  placeholder="Ex: Math Analyse"
-                  value={value.nom_examen_selectionne || ""}
-                  onChange={e => onNomExamenChange(creneauKey, e.target.value)}
-                  className="text-sm"
-                />
-              </div>
+          <div className="flex items-center space-x-2">
+            <Clock className="h-4 w-4 text-gray-500" />
+            <span>{creneau.heure_debut} - {creneau.heure_fin}</span>
+          </div>
+          <Badge variant="outline">
+            {creneau.examenIds.length} examen{creneau.examenIds.length !== 1 ? 's' : ''}
+          </Badge>
+        </div>
+      </div>
+
+      {value.dispo && (
+        <div className="ml-6 space-y-3 p-3 bg-gray-50 rounded">
+          <div className="flex items-center space-x-4">
+            <label className="flex items-center space-x-2">
+              <input
+                type="radio"
+                name={`type_${creneauKey}`}
+                checked={value.type_choix === 'souhaitee'}
+                onChange={() => onTypeChange(creneauKey, 'souhaitee')}
+                className="text-blue-600"
+              />
+              <span className="text-sm">Surveillance souhaitée</span>
+            </label>
+            <label className="flex items-center space-x-2">
+              <input
+                type="radio"
+                name={`type_${creneauKey}`}
+                checked={value.type_choix === 'obligatoire'}
+                onChange={() => onTypeChange(creneauKey, 'obligatoire')}
+                className="text-orange-600"
+              />
+              <span className="text-sm">Surveillance obligatoire</span>
+            </label>
+          </div>
+
+          {value.type_choix === 'obligatoire' && (
+            <div className="bg-orange-50 border border-orange-200 rounded p-3">
+              <label className="block text-sm font-medium text-orange-800 mb-2">
+                Code ou nom de l'examen obligatoire :
+              </label>
+              <Input
+                value={value.nom_examen_selectionne}
+                onChange={(e) => onNomExamenChange(creneauKey, e.target.value)}
+                placeholder="Ex: LECON2100 ou Mathématiques"
+                className="text-sm"
+              />
+              <p className="text-xs text-orange-600 mt-1">
+                Précisez le code ou le nom de l'examen pour lequel vous devez obligatoirement surveiller.
+              </p>
             </div>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
-}
+};

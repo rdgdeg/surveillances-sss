@@ -104,15 +104,15 @@ export const CollecteSurveillants = () => {
     return () => { isCancelled = true; };
   }, [email, activeSession]);
 
-  // Récupérer les examens pour créer les créneaux
+  // Récupérer les examens pour créer les créneaux - sans détails des examens
   const { data: examens } = useQuery({
-    queryKey: ['examens-public', activeSession?.id],
+    queryKey: ['examens-creneaux-only', activeSession?.id],
     queryFn: async (): Promise<ExamenSlot[]> => {
       if (!activeSession?.id) return [];
 
       const { data, error } = await supabase
         .from('examens')
-        .select('id, date_examen, heure_debut, heure_fin, matiere, salle')
+        .select('id, date_examen, heure_debut, heure_fin')
         .eq('session_id', activeSession.id)
         .eq('statut_validation', 'VALIDE')
         .order('date_examen')
@@ -426,7 +426,8 @@ export const CollecteSurveillants = () => {
               <span>Créneaux de surveillance disponibles</span>
             </CardTitle>
             <CardDescription>
-              Sélectionnez les créneaux où vous êtes disponible. Vous pouvez préciser si c'est une surveillance obligatoire ou souhaitée.
+              Sélectionnez les créneaux où vous êtes disponible pour la surveillance d'examens. 
+              Les détails des examens ne sont pas affichés pour garantir une attribution équitable.
             </CardDescription>
           </CardHeader>
           <CardContent>
