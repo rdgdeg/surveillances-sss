@@ -40,7 +40,7 @@ interface Disponibilite {
 export const SuiviDisponibilitesAdmin = () => {
   const { data: activeSession } = useActiveSession();
   const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all"); // Changed default to "all"
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSurveillant, setSelectedSurveillant] = useState<SurveillantStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
