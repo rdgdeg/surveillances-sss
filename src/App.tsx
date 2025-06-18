@@ -37,7 +37,7 @@ const App = () => (
           <Route path="/admin/candidatures" element={<AdminCandidaturesPage />} />
           <Route path="/planning-general" element={<PlanningGeneral />} />
           <Route path="/surveillant" element={<Surveillant />} />
-          <Route path="/enseignant" element={<EnseignantToken />} />
+          <Route path="/enseignant/:token" element={<EnseignantToken />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
