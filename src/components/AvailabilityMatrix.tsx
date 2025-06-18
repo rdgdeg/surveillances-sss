@@ -241,7 +241,7 @@ export const AvailabilityMatrix = () => {
   // Fonction pour calculer les statistiques de disponibilité pour un surveillant
   const getAvailabilityStats = (surveillantId: string) => {
     let totalAvailable = 0;
-    let totalSlots = timeSlots.length;
+    const totalSlots = timeSlots.length;
     
     timeSlots.forEach(slot => {
       const availability = getAvailabilityInfo(surveillantId, slot);
