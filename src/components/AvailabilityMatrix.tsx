@@ -152,7 +152,9 @@ export const AvailabilityMatrix = () => {
           heure_debut: slot.heure_debut,
           heure_fin: slot.heure_fin,
           heure_debut_surveillance: slot.heure_debut_surveillance,
-          label: ''
+          label: '',
+          surveillants_necessaires: 0,
+          surveillants_disponibles: 0
         }]);
         return !!mappedSlot;
       }).length;
@@ -239,7 +241,7 @@ export const AvailabilityMatrix = () => {
   // Fonction pour calculer les statistiques de disponibilité pour un surveillant
   const getAvailabilityStats = (surveillantId: string) => {
     let totalAvailable = 0;
-    let totalSlots = timeSlots.length;
+    const totalSlots = timeSlots.length;
     
     timeSlots.forEach(slot => {
       const availability = getAvailabilityInfo(surveillantId, slot);
