@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Users, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
-import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
 import { toast } from "@/hooks/use-toast";
 import { formatDateBelgian } from "@/lib/dateUtils";
 import * as XLSX from 'xlsx';
@@ -42,9 +41,6 @@ export const AvailabilityMatrix = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
 
-  // Utiliser les créneaux optimisés au lieu des créneaux d'examens bruts
-  const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(activeSession?.id || null);
-
   // Récupérer les surveillants actifs triés par nom de famille
   const { data: surveillants = [] } = useQuery({
     queryKey: ['surveillants', activeSession?.id],
@@ -78,16 +74,6 @@ export const AvailabilityMatrix = () => {
     enabled: !!activeSession
   });
 
-  // Convertir les créneaux de surveillance optimisés en format TimeSlot
-  const timeSlots: TimeSlot[] = optimizedCreneaux
-    .filter(slot => slot.type === 'surveillance')
-    .map(slot => ({
-      date: slot.date_examen,
-      heure_debut: slot.heure_debut,
-      heure_fin: slot.heure_fin,
-      label: `${formatDateBelgian(slot.date_examen)} ${slot.heure_debut}-${slot.heure_fin}`
-    }));
-
   // Récupérer les disponibilités existantes
   const { data: disponibilites = [] } = useQuery({
     queryKey: ['disponibilites', activeSession?.id],
@@ -104,6 +90,27 @@ export const AvailabilityMatrix = () => {
       return data as Disponibilite[];
     },
     enabled: !!activeSession
+  });
+
+  // Créer les créneaux uniques à partir des disponibilités soumises
+  const timeSlots: TimeSlot[] = Array.from(
+    new Set(
+      disponibilites.map(d => `${d.date_examen}-${d.heure_debut}-${d.heure_fin}`)
+    )
+  )
+  .map(key => {
+    const [date, heure_debut, heure_fin] = key.split('-');
+    return {
+      date,
+      heure_debut,
+      heure_fin,
+      label: `${formatDateBelgian(date)} ${heure_debut}-${heure_fin}`
+    };
+  })
+  .sort((a, b) => {
+    const dateCompare = a.date.localeCompare(b.date);
+    if (dateCompare !== 0) return dateCompare;
+    return a.heure_debut.localeCompare(b.heure_debut);
   });
 
   // Créer une map des disponibilités pour un accès rapide
@@ -183,7 +190,7 @@ export const AvailabilityMatrix = () => {
             <span>Matrice des Disponibilités - {activeSession.name}</span>
           </CardTitle>
           <CardDescription className="text-blue-100">
-            Vue des disponibilités soumises par les surveillants pour les créneaux de surveillance optimisés. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
+            Vue des disponibilités soumises par les surveillants. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
           </CardDescription>
           <div className="flex space-x-2">
             <Button onClick={generateCallyTemplate} variant="outline" size="sm" className="bg-white text-uclouvain-blue border-white hover:bg-blue-50">
@@ -196,7 +203,7 @@ export const AvailabilityMatrix = () => {
           {timeSlots.length === 0 ? (
             <div className="text-center py-8">
               <Clock className="h-12 w-12 text-uclouvain-blue-grey mx-auto mb-4" />
-              <p className="text-uclouvain-blue">Aucun créneau de surveillance optimisé trouvé. Veuillez d'abord valider les examens.</p>
+              <p className="text-uclouvain-blue">Aucune disponibilité trouvée. Les surveillants n'ont pas encore soumis leurs disponibilités.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
