@@ -48,7 +48,12 @@ export const CommentairesDisponibilitesManager = () => {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      
+      // Type assertion pour s'assurer que le statut est du bon type
+      return (data || []).map(item => ({
+        ...item,
+        statut: item.statut as 'NON_LU' | 'LU'
+      }));
     },
     enabled: !!activeSession?.id
   });
