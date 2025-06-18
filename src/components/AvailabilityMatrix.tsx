@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Users, Download } from "lucide-react";
+import { Calendar, Clock, Users, Download, AlertTriangle, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
@@ -29,6 +29,7 @@ interface Surveillant {
   prenom: string;
   email: string;
   type: string;
+  faculte: string;
 }
 
 interface TimeSlot {
@@ -36,7 +37,9 @@ interface TimeSlot {
   heure_debut: string;
   heure_fin: string;
   label: string;
-  heure_debut_surveillance?: string; // Heure incluant la préparation
+  heure_debut_surveillance?: string;
+  surveillants_necessaires: number;
+  surveillants_disponibles: number;
 }
 
 export const AvailabilityMatrix = () => {
@@ -56,7 +59,7 @@ export const AvailabilityMatrix = () => {
         .from('surveillant_sessions')
         .select(`
           surveillants (
-            id, nom, prenom, email, type
+            id, nom, prenom, email, type, affectation_fac
           )
         `)
         .eq('session_id', activeSession.id)
@@ -64,7 +67,13 @@ export const AvailabilityMatrix = () => {
       
       if (error) throw error;
       
-      const surveillantsList = data.map(item => item.surveillants).filter(Boolean) as Surveillant[];
+      const surveillantsList = data.map(item => {
+        const surveillant = item.surveillants;
+        return {
+          ...surveillant,
+          faculte: surveillant?.affectation_fac || 'Non spécifiée'
+        } as Surveillant;
+      }).filter(Boolean);
       
       // Trier par nom de famille puis prénom
       return surveillantsList.sort((a, b) => {
@@ -97,16 +106,67 @@ export const AvailabilityMatrix = () => {
     enabled: !!activeSession
   });
 
+  // Récupérer les examens pour calculer le nombre de surveillants nécessaires
+  const { data: examens = [] } = useQuery({
+    queryKey: ['examens-matrix', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession) return [];
+      
+      const { data, error } = await supabase
+        .from('examens')
+        .select('id, date_examen, heure_debut, heure_fin, surveillants_a_attribuer')
+        .eq('session_id', activeSession.id)
+        .eq('is_active', true)
+        .eq('statut_validation', 'VALIDE');
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!activeSession
+  });
+
   // Créer les créneaux de surveillance optimisés pour la matrice
   const timeSlots: TimeSlot[] = optimizedCreneaux
     .filter(slot => slot.type === 'surveillance')
-    .map(slot => ({
-      date: slot.date_examen, // Corriger : utiliser 'date' au lieu de 'date_examen'
-      heure_debut: slot.heure_debut,
-      heure_fin: slot.heure_fin,
-      heure_debut_surveillance: slot.heure_debut_surveillance,
-      label: `${formatDateBelgian(slot.date_examen)} ${slot.heure_debut}-${slot.heure_fin}`
-    }))
+    .map(slot => {
+      // Calculer le nombre de surveillants nécessaires pour ce créneau
+      const examensInSlot = examens.filter(examen => {
+        const creneauOptimise = optimizedCreneaux.find(c => 
+          c.type === 'surveillance' && 
+          c.date_examen === slot.date_examen &&
+          c.heure_debut === slot.heure_debut &&
+          c.heure_fin === slot.heure_fin
+        );
+        
+        if (!creneauOptimise) return false;
+        
+        return creneauOptimise.examens.some(examSlot => examSlot.id === examen.id);
+      });
+      
+      const surveillantsNecessaires = examensInSlot.reduce((sum, examen) => sum + (examen.surveillants_a_attribuer || 0), 0);
+      
+      // Calculer le nombre de surveillants disponibles pour ce créneau
+      const surveillantsDisponibles = disponibilites.filter(disp => {
+        const mappedSlot = mapDisponibiliteToOptimizedSlot(disp, [{
+          date: slot.date_examen,
+          heure_debut: slot.heure_debut,
+          heure_fin: slot.heure_fin,
+          heure_debut_surveillance: slot.heure_debut_surveillance,
+          label: ''
+        }]);
+        return !!mappedSlot;
+      }).length;
+
+      return {
+        date: slot.date_examen,
+        heure_debut: slot.heure_debut,
+        heure_fin: slot.heure_fin,
+        heure_debut_surveillance: slot.heure_debut_surveillance,
+        label: `${formatDateBelgian(slot.date_examen)} ${slot.heure_debut}-${slot.heure_fin}`,
+        surveillants_necessaires: surveillantsNecessaires,
+        surveillants_disponibles: surveillantsDisponibles
+      };
+    })
     .sort((a, b) => {
       const dateCompare = a.date.localeCompare(b.date);
       if (dateCompare !== 0) return dateCompare;
@@ -115,7 +175,6 @@ export const AvailabilityMatrix = () => {
 
   // Fonction de normalisation des heures
   const normalizeTime = (time: string) => {
-    // Convertir "08:15:00" en "08:15" et vice versa
     return time.includes(':') ? time.substring(0, 5) : time;
   };
 
@@ -130,17 +189,8 @@ export const AvailabilityMatrix = () => {
 
     // Chercher le créneau optimisé qui correspond à cette disponibilité
     const matchedSlot = slots.find(slot => {
-      // Même date
       if (slot.date !== disponibilite.date_examen) return false;
       
-      console.log(`[DEBUG] Checking slot:`, {
-        date: slot.date,
-        debut: slot.heure_debut,
-        fin: slot.heure_fin,
-        debut_surveillance: slot.heure_debut_surveillance
-      });
-      
-      // Récupérer les examens de ce créneau optimisé
       const creneauOptimise = optimizedCreneaux.find(c => 
         c.type === 'surveillance' && 
         c.date_examen === slot.date &&
@@ -148,52 +198,25 @@ export const AvailabilityMatrix = () => {
         c.heure_fin === slot.heure_fin
       );
       
-      if (!creneauOptimise) {
-        console.log(`[DEBUG] No optimized slot found for ${slot.date} ${slot.heure_debut}-${slot.heure_fin}`);
-        return false;
-      }
+      if (!creneauOptimise) return false;
 
-      // Normaliser les heures pour comparaison
       const dispoDebut = normalizeTime(disponibilite.heure_debut);
       const dispoFin = normalizeTime(disponibilite.heure_fin);
       const slotDebut = normalizeTime(slot.heure_debut);
       const slotFin = normalizeTime(slot.heure_fin);
       const slotDebutSurveillance = slot.heure_debut_surveillance ? normalizeTime(slot.heure_debut_surveillance) : null;
       
-      // CAS 1: Correspondance exacte avec le créneau de surveillance complet (priorité)
-      if (dispoDebut === slotDebut && dispoFin === slotFin) {
-        console.log(`[DEBUG] CAS 1 - Match surveillance complet: ${dispoDebut}-${dispoFin} === ${slotDebut}-${slotFin}`);
-        return true;
-      }
+      if (dispoDebut === slotDebut && dispoFin === slotFin) return true;
+      if (slotDebutSurveillance && dispoDebut === slotDebutSurveillance && dispoFin === slotFin) return true;
       
-      // CAS 2: Correspondance avec heure de surveillance incluant préparation
-      if (slotDebutSurveillance && dispoDebut === slotDebutSurveillance && dispoFin === slotFin) {
-        console.log(`[DEBUG] CAS 2 - Match surveillance avec prep: ${dispoDebut}-${dispoFin} === ${slotDebutSurveillance}-${slotFin}`);
-        return true;
-      }
-      
-      // CAS 3: Correspondance avec un des examens du créneau (heures d'examen)
       const correspondExamen = creneauOptimise.examens.some(examen => {
         const examDebut = normalizeTime(examen.heure_debut);
         const examFin = normalizeTime(examen.heure_fin);
-        const match = examDebut === dispoDebut && examFin === dispoFin;
-        if (match) {
-          console.log(`[DEBUG] CAS 3 - Match examen: ${dispoDebut}-${dispoFin} === ${examDebut}-${examFin}`);
-        }
-        return match;
+        return examDebut === dispoDebut && examFin === dispoFin;
       });
       
-      if (correspondExamen) return true;
-      
-      console.log(`[DEBUG] No match found for disponibilité ${dispoDebut}-${dispoFin} with slot ${slotDebut}-${slotFin}`);
-      return false;
+      return correspondExamen;
     });
-
-    if (matchedSlot) {
-      console.log(`[DEBUG] Successfully mapped to slot:`, matchedSlot);
-    } else {
-      console.log(`[DEBUG] No mapping found for disponibilité`);
-    }
 
     return matchedSlot;
   };
@@ -205,14 +228,8 @@ export const AvailabilityMatrix = () => {
     if (mappedSlot) {
       const key = `${disp.surveillant_id}-${mappedSlot.date}-${mappedSlot.heure_debut}-${mappedSlot.heure_fin}`;
       disponibiliteMap.set(key, disp);
-      console.log(`[DEBUG] Added to map with key: ${key}`);
-    } else {
-      console.log(`[DEBUG] Failed to map disponibilité for surveillant ${disp.surveillant_id}`);
     }
   });
-
-  console.log(`[DEBUG] Final disponibiliteMap size: ${disponibiliteMap.size}`);
-  console.log(`[DEBUG] Map keys:`, Array.from(disponibiliteMap.keys()));
 
   const getAvailabilityInfo = (surveillantId: string, slot: TimeSlot) => {
     const key = `${surveillantId}-${slot.date}-${slot.heure_debut}-${slot.heure_fin}`;
@@ -236,24 +253,23 @@ export const AvailabilityMatrix = () => {
   };
 
   const generateCallyTemplate = () => {
-    // Créer un template Excel-like pour Cally
-    let csvContent = "Surveillant,Email,Type";
+    let csvContent = "Surveillant,Email,Type,Faculté";
     timeSlots.forEach(slot => {
       csvContent += `,${slot.label}`;
     });
     csvContent += "\n";
 
     surveillants.forEach(surveillant => {
-      csvContent += `${surveillant.prenom} ${surveillant.nom},${surveillant.email},${surveillant.type}`;
+      csvContent += `${surveillant.prenom} ${surveillant.nom},${surveillant.email},${surveillant.type},${surveillant.faculte}`;
       timeSlots.forEach(slot => {
         const availability = getAvailabilityInfo(surveillant.id, slot);
         let cellValue = '✗';
         
         if (availability) {
           if (availability.type_choix === 'obligatoire') {
-            cellValue = '★'; // Étoile pour obligatoire
+            cellValue = '★';
           } else {
-            cellValue = '✓'; // Check pour souhaité
+            cellValue = '✓';
           }
           
           if (availability.nom_examen_obligatoire) {
@@ -322,18 +338,38 @@ export const AvailabilityMatrix = () => {
                   <tr className="bg-uclouvain-blue-grey">
                     <th className="border border-uclouvain-blue-grey p-2 text-left font-medium text-uclouvain-blue">Surveillant</th>
                     <th className="border border-uclouvain-blue-grey p-2 text-left font-medium text-uclouvain-blue">Type</th>
+                    <th className="border border-uclouvain-blue-grey p-2 text-left font-medium text-uclouvain-blue">Faculté</th>
                     <th className="border border-uclouvain-blue-grey p-2 text-center font-medium text-uclouvain-blue">Disponibilités</th>
-                    {timeSlots.map((slot, index) => (
-                      <th key={index} className="border border-uclouvain-blue-grey p-2 text-center font-medium min-w-24 text-uclouvain-blue">
-                        <div className="text-xs">
-                          <div>{formatDateBelgian(slot.date)}</div>
-                          <div>{slot.heure_debut}-{slot.heure_fin}</div>
-                          {slot.heure_debut_surveillance && (
-                            <div className="text-gray-500">(Début surveillance: {slot.heure_debut_surveillance})</div>
-                          )}
-                        </div>
-                      </th>
-                    ))}
+                    {timeSlots.map((slot, index) => {
+                      const isProblematic = slot.surveillants_disponibles < slot.surveillants_necessaires;
+                      return (
+                        <th key={index} className="border border-uclouvain-blue-grey p-2 text-center font-medium min-w-32 text-uclouvain-blue">
+                          <div className="text-xs space-y-1">
+                            <div>{formatDateBelgian(slot.date)}</div>
+                            <div>{slot.heure_debut}-{slot.heure_fin}</div>
+                            {slot.heure_debut_surveillance && (
+                              <div className="text-gray-500">(Début: {slot.heure_debut_surveillance})</div>
+                            )}
+                            <div className={`flex items-center justify-center space-x-1 ${isProblematic ? 'text-red-600' : 'text-green-600'}`}>
+                              {isProblematic ? (
+                                <AlertTriangle className="h-3 w-3" />
+                              ) : (
+                                <CheckCircle className="h-3 w-3" />
+                              )}
+                              <span className="font-medium">
+                                {slot.surveillants_disponibles}/{slot.surveillants_necessaires}
+                              </span>
+                            </div>
+                            <div className="text-gray-500">
+                              {slot.surveillants_necessaires > 0 ? 
+                                `${Math.round((slot.surveillants_disponibles / slot.surveillants_necessaires) * 100)}%` 
+                                : 'N/A'
+                              }
+                            </div>
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -349,6 +385,9 @@ export const AvailabilityMatrix = () => {
                         </td>
                         <td className="border border-uclouvain-blue-grey p-2">
                           <Badge variant="outline" className="border-uclouvain-cyan text-uclouvain-blue">{surveillant.type}</Badge>
+                        </td>
+                        <td className="border border-uclouvain-blue-grey p-2">
+                          <div className="text-sm text-uclouvain-blue">{surveillant.faculte}</div>
                         </td>
                         <td className="border border-uclouvain-blue-grey p-2 text-center">
                           <div className="text-sm">
@@ -406,18 +445,30 @@ export const AvailabilityMatrix = () => {
           )}
           
           {surveillants.length > 0 && timeSlots.length > 0 && (
-            <div className="mt-4 text-sm text-gray-600 flex items-center space-x-4">
-              <div className="flex items-center space-x-1">
-                <span className="w-4 h-4 bg-green-100 text-green-800 flex items-center justify-center text-xs rounded">✓</span>
-                <span>Disponible (souhaité)</span>
+            <div className="mt-4 space-y-2">
+              <div className="text-sm text-gray-600 flex items-center space-x-4">
+                <div className="flex items-center space-x-1">
+                  <span className="w-4 h-4 bg-green-100 text-green-800 flex items-center justify-center text-xs rounded">✓</span>
+                  <span>Disponible (souhaité)</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span className="w-4 h-4 bg-green-100 text-green-800 flex items-center justify-center text-xs rounded">★</span>
+                  <span>Surveillance obligatoire</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span className="w-4 h-4 bg-red-100 text-red-800 flex items-center justify-center text-xs rounded">✗</span>
+                  <span>Non disponible</span>
+                </div>
               </div>
-              <div className="flex items-center space-x-1">
-                <span className="w-4 h-4 bg-green-100 text-green-800 flex items-center justify-center text-xs rounded">★</span>
-                <span>Surveillance obligatoire</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <span className="w-4 h-4 bg-red-100 text-red-800 flex items-center justify-center text-xs rounded">✗</span>
-                <span>Non disponible</span>
+              <div className="text-sm text-gray-600 flex items-center space-x-4">
+                <div className="flex items-center space-x-1">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <span>Créneau avec suffisamment de surveillants</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <span>Créneau en déficit de surveillants</span>
+                </div>
               </div>
             </div>
           )}
