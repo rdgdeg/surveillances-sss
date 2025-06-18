@@ -3,97 +3,43 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AdminProtection } from "@/components/AdminProtection";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
-import Admin from "./pages/Admin";
-import AdminDisponibilites from "./pages/AdminDisponibilites";
-import AdminDemandesSpecifiques from "./pages/AdminDemandesSpecifiques";
-import AdminDisponibilitesParJour from "./pages/AdminDisponibilitesParJour";
-import AdminDisponibilitesMatrice from "./pages/AdminDisponibilitesMatrice";
-import AdminDisponibilitesParPersonne from "./pages/AdminDisponibilitesParPersonne";
-import AdminCandidatures from "./pages/AdminCandidatures";
-import Surveillant from "./pages/Surveillant";
-import EnseignantConfirmation from "./pages/EnseignantConfirmation";
-import EnseignantToken from "./pages/EnseignantToken";
-import PlanningGeneral from "./pages/PlanningGeneral";
+import AdminPage from "./pages/Admin";
+import AdminDisponibilitesPage from "./pages/AdminDisponibilites";
+import AdminDisponibilitesParJourPage from "./pages/AdminDisponibilitesParJour";
+import AdminDisponibilitesMatricePage from "./pages/AdminDisponibilitesMatrice";
+import AdminDisponibilitesParPersonnePage from "./pages/AdminDisponibilitesParPersonne";
+import AdminDemandesSpecifiquesPage from "./pages/AdminDemandesSpecifiques";
+import AdminCandidaturesPage from "./pages/AdminCandidatures";
+import AdminTemplatesPage from "./pages/AdminTemplates";
+import SurveillantAvailabilityPage from "./pages/SurveillantAvailability";
+import TeacherConfirmationPage from "./pages/TeacherConfirmation";
 
 const queryClient = new QueryClient();
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route 
-              path="/admin" 
-              element={
-                <AdminProtection>
-                  <Admin />
-                </AdminProtection>
-              } 
-            />
-            <Route 
-              path="/admin/disponibilites" 
-              element={
-                <AdminProtection>
-                  <AdminDisponibilites />
-                </AdminProtection>
-              } 
-            />
-            <Route 
-              path="/admin/disponibilites/par-jour" 
-              element={
-                <AdminProtection>
-                  <AdminDisponibilitesParJour />
-                </AdminProtection>
-              } 
-            />
-            <Route 
-              path="/admin/disponibilites/matrice" 
-              element={
-                <AdminProtection>
-                  <AdminDisponibilitesMatrice />
-                </AdminProtection>
-              } 
-            />
-            <Route 
-              path="/admin/disponibilites/par-personne" 
-              element={
-                <AdminProtection>
-                  <AdminDisponibilitesParPersonne />
-                </AdminProtection>
-              } 
-            />
-            <Route 
-              path="/admin/candidatures" 
-              element={
-                <AdminProtection>
-                  <AdminCandidatures />
-                </AdminProtection>
-              } 
-            />
-            <Route 
-              path="/admin/demandes-specifiques" 
-              element={
-                <AdminProtection>
-                  <AdminDemandesSpecifiques />
-                </AdminProtection>
-              } 
-            />
-            <Route path="/planning-general" element={<PlanningGeneral />} />
-            <Route path="/surveillant" element={<Surveillant />} />
-            <Route path="/enseignant" element={<EnseignantConfirmation />} />
-            <Route path="/enseignant/token/:token" element={<EnseignantToken />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  );
-}
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin/templates" element={<AdminTemplatesPage />} />
+          <Route path="/admin/disponibilites" element={<AdminDisponibilitesPage />} />
+          <Route path="/admin/disponibilites/par-jour" element={<AdminDisponibilitesParJourPage />} />
+          <Route path="/admin/disponibilites/matrice" element={<AdminDisponibilitesMatricePage />} />
+          <Route path="/admin/disponibilites/par-personne" element={<AdminDisponibilitesParPersonnePage />} />
+          <Route path="/admin/demandes-specifiques" element={<AdminDemandesSpecifiquesPage />} />
+          <Route path="/admin/candidatures" element={<AdminCandidaturesPage />} />
+          <Route path="/surveillant/:token" element={<SurveillantAvailabilityPage />} />
+          <Route path="/teacher/:token" element={<TeacherConfirmationPage />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;
