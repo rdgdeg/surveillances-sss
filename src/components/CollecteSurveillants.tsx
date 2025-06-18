@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,8 +30,6 @@ interface ExamenSlot {
   date_examen: string;
   heure_debut: string;
   heure_fin: string;
-  matiere: string;
-  salle: string;
 }
 
 interface PersonneAmenee {
