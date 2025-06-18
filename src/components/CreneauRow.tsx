@@ -2,7 +2,7 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock } from "lucide-react";
+import { Calendar, Clock, AlertTriangle } from "lucide-react";
 import { formatDateBelgian } from "@/lib/dateUtils";
 
 interface CreneauRowProps {
@@ -31,8 +31,10 @@ export const CreneauRow = ({
   onTypeChange,
   onNomExamenChange
 }: CreneauRowProps) => {
+  const isObligatoire = value.dispo && value.type_choix === 'obligatoire';
+  
   return (
-    <div className="border rounded-lg p-4 space-y-3">
+    <div className={`border rounded-lg p-4 space-y-3 ${isObligatoire ? 'bg-green-50 border-green-300' : ''}`}>
       <div className="flex items-center space-x-4">
         <Checkbox
           checked={value.dispo}
@@ -52,6 +54,12 @@ export const CreneauRow = ({
           <Badge variant="outline">
             {creneau.examenIds.length} examen{creneau.examenIds.length !== 1 ? 's' : ''}
           </Badge>
+          {isObligatoire && (
+            <div className="flex items-center space-x-1 bg-green-100 px-2 py-1 rounded">
+              <AlertTriangle className="h-4 w-4 text-green-700" />
+              <span className="text-sm font-medium text-green-700">Obligatoire</span>
+            </div>
+          )}
         </div>
       </div>
 
