@@ -18,6 +18,7 @@ interface DisponibiliteJour {
   creneaux: Array<{
     heure_debut: string;
     heure_fin: string;
+    heure_debut_surveillance?: string;
     surveillants: Array<{
       id: string;
       nom: string;
@@ -37,12 +38,12 @@ export const DisponibilitesParJour = () => {
   const [selectedDate, setSelectedDate] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  // Récupérer les créneaux optimisés
-  const { data: timeSlots = [] } = useOptimizedCreneaux(activeSession?.id || null);
+  // Récupérer les créneaux optimisés de surveillance
+  const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(activeSession?.id || null);
 
   // Récupérer toutes les disponibilités avec infos surveillants
   const { data: disponibilitesParJour = [], isLoading } = useQuery({
-    queryKey: ['disponibilites-par-jour', activeSession?.id, selectedDate],
+    queryKey: ['disponibilites-par-jour-optimized', activeSession?.id, selectedDate],
     queryFn: async (): Promise<DisponibiliteJour[]> => {
       if (!activeSession?.id) return [];
 
@@ -64,13 +65,34 @@ export const DisponibilitesParJour = () => {
 
       if (error) throw error;
 
-      // Organiser par jour et créneau
+      // Récupérer uniquement les créneaux de surveillance optimisés
+      const creneauxSurveillance = optimizedCreneaux.filter(slot => slot.type === 'surveillance');
+
+      // Fonction pour vérifier si une disponibilité correspond à un créneau de surveillance
+      const verifierCorrespondance = (dispo: any, creneau: any): boolean => {
+        if (dispo.date_examen !== creneau.date_examen) return false;
+        
+        const toMinutes = (time: string) => {
+          const [h, m] = time.split(':').map(Number);
+          return h * 60 + m;
+        };
+
+        const creneauDebutMin = toMinutes(creneau.heure_debut);
+        const creneauFinMin = toMinutes(creneau.heure_fin);
+        const dispoDebutMin = toMinutes(dispo.heure_debut);
+        const dispoFinMin = toMinutes(dispo.heure_fin);
+
+        // La disponibilité correspond si elle est dans la plage du créneau de surveillance
+        return dispoDebutMin >= creneauDebutMin && dispoFinMin <= creneauFinMin;
+      };
+
+      // Organiser par jour en utilisant les créneaux optimisés
       const joursMap = new Map<string, DisponibiliteJour>();
 
-      disponibilites?.forEach(dispo => {
-        const date = dispo.date_examen;
-        const creneauKey = `${dispo.heure_debut}-${dispo.heure_fin}`;
-
+      // Pour chaque créneau de surveillance optimisé
+      creneauxSurveillance.forEach(creneau => {
+        const date = creneau.date_examen;
+        
         if (!joursMap.has(date)) {
           joursMap.set(date, {
             date,
@@ -79,29 +101,44 @@ export const DisponibilitesParJour = () => {
         }
 
         const jour = joursMap.get(date)!;
-        let creneau = jour.creneaux.find(c => 
-          c.heure_debut === dispo.heure_debut && c.heure_fin === dispo.heure_fin
+        
+        // Chercher un créneau existant avec les mêmes heures
+        let creneauExistant = jour.creneaux.find(c => 
+          c.heure_debut === creneau.heure_debut && c.heure_fin === creneau.heure_fin
         );
 
-        if (!creneau) {
-          creneau = {
-            heure_debut: dispo.heure_debut,
-            heure_fin: dispo.heure_fin,
+        if (!creneauExistant) {
+          creneauExistant = {
+            heure_debut: creneau.heure_debut,
+            heure_fin: creneau.heure_fin,
+            heure_debut_surveillance: creneau.heure_debut_surveillance,
             surveillants: []
           };
-          jour.creneaux.push(creneau);
+          jour.creneaux.push(creneauExistant);
         }
 
-        creneau.surveillants.push({
-          id: dispo.surveillant_id,
-          nom: dispo.surveillants.nom,
-          prenom: dispo.surveillants.prenom,
-          email: dispo.surveillants.email,
-          type: dispo.surveillants.type,
-          type_choix: dispo.type_choix || 'souhaitee',
-          nom_examen_selectionne: dispo.nom_examen_selectionne,
-          nom_examen_obligatoire: dispo.nom_examen_obligatoire,
-          commentaire: dispo.commentaire_surveillance_obligatoire
+        // Trouver toutes les disponibilités qui correspondent à ce créneau
+        const disponibilitesCorrespondantes = disponibilites?.filter(dispo => 
+          verifierCorrespondance(dispo, creneau)
+        ) || [];
+
+        // Ajouter les surveillants en évitant les doublons
+        disponibilitesCorrespondantes.forEach(dispo => {
+          const surveillantExistant = creneauExistant!.surveillants.find(s => s.id === dispo.surveillant_id);
+          
+          if (!surveillantExistant) {
+            creneauExistant!.surveillants.push({
+              id: dispo.surveillant_id,
+              nom: dispo.surveillants.nom,
+              prenom: dispo.surveillants.prenom,
+              email: dispo.surveillants.email,
+              type: dispo.surveillants.type,
+              type_choix: dispo.type_choix || 'souhaitee',
+              nom_examen_selectionne: dispo.nom_examen_selectionne,
+              nom_examen_obligatoire: dispo.nom_examen_obligatoire,
+              commentaire: dispo.commentaire_surveillance_obligatoire
+            });
+          }
         });
       });
 
@@ -125,9 +162,11 @@ export const DisponibilitesParJour = () => {
     enabled: !!activeSession?.id
   });
 
-  // Obtenir la liste des dates disponibles
+  // Obtenir la liste des dates disponibles depuis les créneaux optimisés
   const datesDisponibles = Array.from(new Set(
-    timeSlots.map(slot => slot.date_examen)
+    optimizedCreneaux
+      .filter(slot => slot.type === 'surveillance')
+      .map(slot => slot.date_examen)
   )).sort();
 
   // Exporter vers Excel
@@ -215,7 +254,7 @@ export const DisponibilitesParJour = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Calendar className="h-5 w-5" />
-              <span>Disponibilités par jour</span>
+              <span>Disponibilités par jour (créneaux optimisés)</span>
             </div>
             <Button onClick={exportToExcel} className="flex items-center space-x-2">
               <Download className="h-4 w-4" />
@@ -223,7 +262,7 @@ export const DisponibilitesParJour = () => {
             </Button>
           </CardTitle>
           <CardDescription>
-            Session {activeSession.name} - Vue organisée par jour d'examen
+            Session {activeSession.name} - Vue organisée par créneaux de surveillance optimisés
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -309,6 +348,11 @@ export const DisponibilitesParJour = () => {
                             <span className="font-medium">
                               {formatTimeRange(creneau.heure_debut, creneau.heure_fin)}
                             </span>
+                            {creneau.heure_debut_surveillance && (
+                              <Badge variant="secondary" className="text-xs">
+                                Surveillance dès {creneau.heure_debut_surveillance}
+                              </Badge>
+                            )}
                             <Badge variant="secondary">
                               {creneau.surveillants.length} surveillant{creneau.surveillants.length > 1 ? 's' : ''}
                             </Badge>
