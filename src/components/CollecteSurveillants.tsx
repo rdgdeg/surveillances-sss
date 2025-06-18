@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
-import { BookOpen, ExternalLink, HelpCircle, Users, Building2, Home, AlertTriangle, TrendingUp } from "lucide-react";
+import { BookOpen, ExternalLink, HelpCircle, Users, Building2, Home, AlertTriangle, TrendingUp, MessageSquare } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 import { format, parseISO, startOfWeek, endOfWeek, isSameWeek } from "date-fns";
@@ -24,6 +23,7 @@ import { UnknownSurveillantForm } from "./UnknownSurveillantForm";
 import { CreneauRow } from "./CreneauRow";
 import { Input } from "@/components/ui/input";
 import { AmenesSurveillantsFields } from "./AmenesSurveillantsFields";
+import { CommentaireDisponibiliteModal } from "./CommentaireDisponibiliteModal";
 
 interface ExamenSlot {
   id: string;
@@ -54,6 +54,9 @@ export const CollecteSurveillants = () => {
 
   // Disponibilités avec nouveau système
   const [newDispos, setNewDispos] = useState<Record<string, { dispo: boolean, type_choix: string, nom_examen_selectionne: string }>>({});
+
+  // État pour le modal de commentaire
+  const [isCommentaireModalOpen, setIsCommentaireModalOpen] = useState(false);
 
   // Récupérer la session active
   const { data: activeSession } = useQuery({
@@ -347,7 +350,7 @@ export const CollecteSurveillants = () => {
             <CardDescription>
               Merci pour votre candidature. Vos disponibilités ont été transmises au service des surveillances.
             </CardDescription>
-            <div className="mt-4 flex justify-center">
+            <div className="mt-4 flex justify-center space-x-4">
               <Button
                 variant="outline"
                 className="border-blue-600 text-blue-600"
@@ -355,9 +358,27 @@ export const CollecteSurveillants = () => {
               >
                 Modifier mes disponibilités
               </Button>
+              <Button
+                variant="outline"
+                className="border-green-600 text-green-600"
+                onClick={() => setIsCommentaireModalOpen(true)}
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Laisser un commentaire
+              </Button>
             </div>
           </CardHeader>
         </Card>
+        
+        <CommentaireDisponibiliteModal
+          isOpen={isCommentaireModalOpen}
+          onClose={() => setIsCommentaireModalOpen(false)}
+          sessionId={activeSession?.id || ''}
+          surveillantId={surveillantId}
+          email={email}
+          nom={nom}
+          prenom={prenom}
+        />
       </div>
     );
   }
@@ -503,12 +524,32 @@ export const CollecteSurveillants = () => {
           </CardContent>
         </Card>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center space-x-4">
           <Button type="submit" size="lg" className="px-8">
             Enregistrer mes disponibilités
           </Button>
+          <Button 
+            type="button" 
+            variant="outline" 
+            size="lg" 
+            className="px-8"
+            onClick={() => setIsCommentaireModalOpen(true)}
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Laisser un commentaire
+          </Button>
         </div>
       </form>
+      
+      <CommentaireDisponibiliteModal
+        isOpen={isCommentaireModalOpen}
+        onClose={() => setIsCommentaireModalOpen(false)}
+        sessionId={activeSession?.id || ''}
+        surveillantId={surveillantId}
+        email={email}
+        nom={nom}
+        prenom={prenom}
+      />
     </div>
   );
 };

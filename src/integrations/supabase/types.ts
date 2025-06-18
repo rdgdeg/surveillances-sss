@@ -198,6 +198,51 @@ export type Database = {
           },
         ]
       }
+      commentaires_disponibilites: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          lu_le: string | null
+          lu_par: string | null
+          message: string
+          nom: string
+          prenom: string
+          session_id: string
+          statut: string
+          surveillant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          lu_le?: string | null
+          lu_par?: string | null
+          message: string
+          nom: string
+          prenom: string
+          session_id: string
+          statut?: string
+          surveillant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          lu_le?: string | null
+          lu_par?: string | null
+          message?: string
+          nom?: string
+          prenom?: string
+          session_id?: string
+          statut?: string
+          surveillant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contraintes_auditoires: {
         Row: {
           adresse: string | null
