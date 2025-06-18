@@ -12,6 +12,7 @@ import AdminDemandesSpecifiques from "./pages/AdminDemandesSpecifiques";
 import AdminDisponibilitesParJour from "./pages/AdminDisponibilitesParJour";
 import AdminDisponibilitesMatrice from "./pages/AdminDisponibilitesMatrice";
 import AdminDisponibilitesParPersonne from "./pages/AdminDisponibilitesParPersonne";
+import AdminCandidatures from "./pages/AdminCandidatures";
 import Surveillant from "./pages/Surveillant";
 import EnseignantConfirmation from "./pages/EnseignantConfirmation";
 import EnseignantToken from "./pages/EnseignantToken";
@@ -65,6 +66,14 @@ function App() {
               element={
                 <AdminProtection>
                   <AdminDisponibilitesParPersonne />
+                </AdminProtection>
+              } 
+            />
+            <Route 
+              path="/admin/candidatures" 
+              element={
+                <AdminProtection>
+                  <AdminCandidatures />
                 </AdminProtection>
               } 
             />

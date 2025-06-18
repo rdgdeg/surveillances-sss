@@ -1,23 +1,16 @@
-import { useMemo } from "react";
-import { useLocation } from "react-router-dom";
-import { AppSidebar } from "@/components/AppSidebar";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { SuiviDisponibilitesAdmin } from "@/components/SuiviDisponibilitesAdmin";
-import { UCLouvainHeader } from "@/components/UCLouvainHeader";
-import { Footer } from "@/components/Footer";
-import { PreAssignmentManager } from "@/components/PreAssignmentManager";
-import { SuiviConfirmationEnseignants } from "@/components/SuiviConfirmationEnseignants";
-import { DashboardOverview } from "@/components/DashboardOverview";
-import { DisponibilitesManager } from "@/components/DisponibilitesManager";
-import { AvailabilityMatrix } from "@/components/AvailabilityMatrix";
-import { FeatureLockManager } from "@/components/FeatureLockManager";
-import { ControlesVerificationsManager } from "@/components/ControlesVerificationsManager";
 
-// Import des principaux modules admin
+import { useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { AdminLayout } from "@/components/AdminLayout";
+import { DashboardOverview } from "@/components/DashboardOverview";
 import { ExamenReviewManager } from "@/components/ExamenReviewManager";
 import { ExamenAdvancedManager } from "@/components/ExamenAdvancedManager";
 import { SurveillantUnifiedManager } from "@/components/SurveillantUnifiedManager";
 import { ContraintesAuditoires } from "@/components/ContraintesAuditoires";
+import { PreAssignmentManager } from "@/components/PreAssignmentManager";
+import { FeatureLockManager } from "@/components/FeatureLockManager";
+import { SuiviConfirmationEnseignants } from "@/components/SuiviConfirmationEnseignants";
+import { ControlesVerificationsManager } from "@/components/ControlesVerificationsManager";
 
 // Dashboard d'accueil avec les statistiques principales
 function DashboardAdmin() {
@@ -29,7 +22,7 @@ function DashboardAdmin() {
   );
 }
 
-// Permet de faire le mapping "tab" → Vue correspondante
+// Permet de faire le mapping "tab" → Vue correspondante pour les onglets qui n'ont pas encore de pages dédiées
 function getAdminContent(tab: string | null) {
   switch (tab) {
     case "examens":
@@ -44,14 +37,6 @@ function getAdminContent(tab: string | null) {
       return <SurveillantUnifiedManager />;
     case "pre-assignations":
       return <PreAssignmentManager />;
-    case "candidatures":
-      return <SuiviDisponibilitesAdmin />;
-    case "disponibilites":
-      return <DisponibilitesManager />;
-    case "matrice-disponibilites":
-      return <AvailabilityMatrix />;
-    case "suivi-disponibilites":
-      return <SuiviDisponibilitesAdmin />;
     case "contraintes":
       return <ContraintesAuditoires />;
     case "feature-locks":
@@ -71,29 +56,49 @@ function getAdminContent(tab: string | null) {
 
 export default function AdminPage() {
   const location = useLocation();
-  // Parse l'URL pour extraire "tab=xxx"
-  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const navigate = useNavigate();
+  const params = new URLSearchParams(location.search);
   const currentTab = params.get("tab");
 
+  // Redirections automatiques des anciennes routes vers les nouvelles
+  useEffect(() => {
+    if (currentTab) {
+      switch (currentTab) {
+        case "disponibilites":
+          navigate("/admin/disponibilites", { replace: true });
+          return;
+        case "candidatures":
+        case "suivi-disponibilites":
+          navigate("/admin/disponibilites/par-personne", { replace: true });
+          return;
+        case "matrice-disponibilites":
+          navigate("/admin/disponibilites/matrice", { replace: true });
+          return;
+        case "demandes-specifiques":
+          navigate("/admin/demandes-specifiques", { replace: true });
+          return;
+      }
+    }
+  }, [currentTab, navigate]);
+
+  // Si nous avons une redirection en cours, ne rien afficher
+  if (currentTab && ["disponibilites", "candidatures", "suivi-disponibilites", "matrice-disponibilites", "demandes-specifiques"].includes(currentTab)) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen w-full">
-      <UCLouvainHeader />
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full">
-          <AppSidebar />
-          <main className="flex-1 bg-gray-50 flex flex-col min-h-screen w-full max-w-none">
-            <div className="flex-1 w-full max-w-none p-6">
-              <div className="w-full max-w-none">
-                <h1 className="text-2xl font-bold mb-6 text-gray-900">Administration</h1>
-                <div className="w-full max-w-none">
-                  {getAdminContent(currentTab)}
-                </div>
-              </div>
-            </div>
-            <Footer />
-          </main>
+    <AdminLayout>
+      <div className="w-full max-w-none space-y-6">
+        <div className="w-full">
+          <h1 className="text-3xl font-bold text-gray-900">Administration</h1>
+          <p className="text-gray-600 mt-2">
+            Tableau de bord principal de l'administration.
+          </p>
         </div>
-      </SidebarProvider>
-    </div>
+        <div className="w-full">
+          {getAdminContent(currentTab)}
+        </div>
+      </div>
+    </AdminLayout>
   );
 }
