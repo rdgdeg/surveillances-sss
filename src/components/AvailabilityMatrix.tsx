@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -219,6 +218,22 @@ export const AvailabilityMatrix = () => {
     return disponibiliteMap.get(key);
   };
 
+  // Fonction pour calculer les statistiques de disponibilité pour un surveillant
+  const getAvailabilityStats = (surveillantId: string) => {
+    let totalAvailable = 0;
+    let totalSlots = timeSlots.length;
+    
+    timeSlots.forEach(slot => {
+      const availability = getAvailabilityInfo(surveillantId, slot);
+      if (availability) {
+        totalAvailable++;
+      }
+    });
+    
+    const percentage = totalSlots > 0 ? Math.round((totalAvailable / totalSlots) * 100) : 0;
+    return { totalAvailable, totalSlots, percentage };
+  };
+
   const generateCallyTemplate = () => {
     // Créer un template Excel-like pour Cally
     let csvContent = "Surveillant,Email,Type";
@@ -306,6 +321,7 @@ export const AvailabilityMatrix = () => {
                   <tr className="bg-uclouvain-blue-grey">
                     <th className="border border-uclouvain-blue-grey p-2 text-left font-medium text-uclouvain-blue">Surveillant</th>
                     <th className="border border-uclouvain-blue-grey p-2 text-left font-medium text-uclouvain-blue">Type</th>
+                    <th className="border border-uclouvain-blue-grey p-2 text-center font-medium text-uclouvain-blue">Disponibilités</th>
                     {timeSlots.map((slot, index) => (
                       <th key={index} className="border border-uclouvain-blue-grey p-2 text-center font-medium min-w-24 text-uclouvain-blue">
                         <div className="text-xs">
@@ -320,56 +336,69 @@ export const AvailabilityMatrix = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {surveillants.map((surveillant) => (
-                    <tr key={surveillant.id} className="hover:bg-blue-50">
-                      <td className="border border-uclouvain-blue-grey p-2">
-                        <div>
-                          <div className="font-medium text-uclouvain-blue">{surveillant.nom} {surveillant.prenom}</div>
-                          <div className="text-sm text-uclouvain-blue-grey">{surveillant.email}</div>
-                        </div>
-                      </td>
-                      <td className="border border-uclouvain-blue-grey p-2">
-                        <Badge variant="outline" className="border-uclouvain-cyan text-uclouvain-blue">{surveillant.type}</Badge>
-                      </td>
-                      {timeSlots.map((slot, slotIndex) => {
-                        const availability = getAvailabilityInfo(surveillant.id, slot);
-                        
-                        let bgColor = 'bg-red-100';
-                        let textColor = 'text-red-800';
-                        let symbol = '✗';
-                        let title = 'Non disponible';
-                        
-                        if (availability) {
-                          if (availability.type_choix === 'obligatoire') {
-                            bgColor = 'bg-orange-100';
-                            textColor = 'text-orange-800';
-                            symbol = '★';
-                            title = 'Surveillance obligatoire';
-                          } else {
-                            bgColor = 'bg-green-100';
-                            textColor = 'text-green-800';
-                            symbol = '✓';
-                            title = 'Disponible (souhaité)';
+                  {surveillants.map((surveillant) => {
+                    const stats = getAvailabilityStats(surveillant.id);
+                    return (
+                      <tr key={surveillant.id} className="hover:bg-blue-50">
+                        <td className="border border-uclouvain-blue-grey p-2">
+                          <div>
+                            <div className="font-medium text-uclouvain-blue">{surveillant.nom} {surveillant.prenom}</div>
+                            <div className="text-sm text-uclouvain-blue-grey">{surveillant.email}</div>
+                          </div>
+                        </td>
+                        <td className="border border-uclouvain-blue-grey p-2">
+                          <Badge variant="outline" className="border-uclouvain-cyan text-uclouvain-blue">{surveillant.type}</Badge>
+                        </td>
+                        <td className="border border-uclouvain-blue-grey p-2 text-center">
+                          <div className="text-sm">
+                            <div className="font-medium text-uclouvain-blue">
+                              {stats.totalAvailable}/{stats.totalSlots}
+                            </div>
+                            <div className="text-xs text-uclouvain-blue-grey">
+                              ({stats.percentage}%)
+                            </div>
+                          </div>
+                        </td>
+                        {timeSlots.map((slot, slotIndex) => {
+                          const availability = getAvailabilityInfo(surveillant.id, slot);
+                          
+                          let bgColor = 'bg-red-100';
+                          let textColor = 'text-red-800';
+                          let symbol = '✗';
+                          let title = 'Non disponible';
+                          
+                          if (availability) {
+                            if (availability.type_choix === 'obligatoire') {
+                              bgColor = 'bg-orange-100';
+                              textColor = 'text-orange-800';
+                              symbol = '★';
+                              title = 'Surveillance obligatoire';
+                            } else {
+                              bgColor = 'bg-green-100';
+                              textColor = 'text-green-800';
+                              symbol = '✓';
+                              title = 'Disponible (souhaité)';
+                            }
+                            
+                            if (availability.nom_examen_obligatoire) {
+                              title += ` - Examen: ${availability.nom_examen_obligatoire}`;
+                            }
                           }
                           
-                          if (availability.nom_examen_obligatoire) {
-                            title += ` - Examen: ${availability.nom_examen_obligatoire}`;
-                          }
-                        }
-                        
-                        return (
-                          <td key={slotIndex} className="border border-uclouvain-blue-grey p-1 text-center">
-                            <div 
-                              className={`w-8 h-8 flex items-center justify-center text-sm font-medium rounded ${bgColor} ${textColor}`}
-                              title={title}
-                            >
-                              {symbol}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                          return (
+                            <td key={slotIndex} className="border border-uclouvain-blue-grey p-1 text-center">
+                              <div 
+                                className={`w-8 h-8 flex items-center justify-center text-sm font-medium rounded ${bgColor} ${textColor}`}
+                                title={title}
+                              >
+                                {symbol}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
