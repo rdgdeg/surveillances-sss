@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Users, Search, Download, Star, CheckCircle, Eye } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Users, Search, Download, Star, CheckCircle, Eye, AlertCircle, UserX } from "lucide-react";
 import { useActiveSession } from "@/hooks/useSessions";
 import { toast } from "@/hooks/use-toast";
 import { DisponibiliteDetailModal } from "./DisponibiliteDetailModal";
@@ -38,13 +40,14 @@ interface Disponibilite {
 export const SuiviDisponibilitesAdmin = () => {
   const { data: activeSession } = useActiveSession();
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSurveillant, setSelectedSurveillant] = useState<SurveillantStats | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
   // Récupérer toutes les données des surveillants avec leurs disponibilités
   const { data: surveillantsStats = [], isLoading } = useQuery({
-    queryKey: ['surveillants-stats', activeSession?.id, typeFilter, searchTerm],
+    queryKey: ['surveillants-stats', activeSession?.id],
     queryFn: async (): Promise<SurveillantStats[]> => {
       if (!activeSession?.id) return [];
 
@@ -82,10 +85,6 @@ export const SuiviDisponibilitesAdmin = () => {
         const obligatoires = surveillantDispos.filter(d => d.type_choix === 'obligatoire');
         const souhaitees = surveillantDispos.filter(d => d.type_choix !== 'obligatoire');
         
-        // Appliquer les filtres
-        if (typeFilter !== "all" && surveillant.type !== typeFilter) continue;
-        if (searchTerm && !`${surveillant.nom} ${surveillant.prenom} ${surveillant.email}`.toLowerCase().includes(searchTerm.toLowerCase())) continue;
-        
         stats.push({
           id: surveillant.id,
           nom: surveillant.nom,
@@ -99,9 +98,30 @@ export const SuiviDisponibilitesAdmin = () => {
         });
       }
 
-      return stats.sort((a, b) => `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`));
+      return stats.sort((a, b) => {
+        // Trier par statut de soumission (non-répondants d'abord), puis par nom
+        if (a.a_soumis !== b.a_soumis) {
+          return a.a_soumis ? 1 : -1;
+        }
+        return `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`);
+      });
     },
     enabled: !!activeSession?.id
+  });
+
+  // Appliquer les filtres
+  const filteredSurveillants = surveillantsStats.filter(surveillant => {
+    // Filtre par type
+    if (typeFilter !== "all" && surveillant.type !== typeFilter) return false;
+    
+    // Filtre par statut de soumission
+    if (statusFilter === "responded" && !surveillant.a_soumis) return false;
+    if (statusFilter === "not_responded" && surveillant.a_soumis) return false;
+    
+    // Filtre par recherche
+    if (searchTerm && !`${surveillant.nom} ${surveillant.prenom} ${surveillant.email}`.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    
+    return true;
   });
 
   // Récupérer les disponibilités détaillées pour un surveillant spécifique
@@ -129,7 +149,7 @@ export const SuiviDisponibilitesAdmin = () => {
   };
 
   const exportToExcel = () => {
-    if (surveillantsStats.length === 0) {
+    if (filteredSurveillants.length === 0) {
       toast({
         title: "Aucune donnée",
         description: "Aucun surveillant à exporter.",
@@ -138,7 +158,7 @@ export const SuiviDisponibilitesAdmin = () => {
       return;
     }
 
-    const exportData = surveillantsStats.map(s => ({
+    const exportData = filteredSurveillants.map(s => ({
       'Nom': s.nom,
       'Prénom': s.prenom,
       'Email': s.email,
@@ -162,6 +182,37 @@ export const SuiviDisponibilitesAdmin = () => {
     });
   };
 
+  const exportNonRespondents = () => {
+    const nonRespondents = surveillantsStats.filter(s => !s.a_soumis);
+    
+    if (nonRespondents.length === 0) {
+      toast({
+        title: "Aucun non-répondant",
+        description: "Tous les surveillants ont déjà soumis leurs disponibilités.",
+      });
+      return;
+    }
+
+    const exportData = nonRespondents.map(s => ({
+      'Nom': s.nom,
+      'Prénom': s.prenom,
+      'Email': s.email,
+      'Type': s.type
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Non Répondants");
+
+    const fileName = `non_repondants_${activeSession?.name || 'session'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    toast({
+      title: "Export réussi",
+      description: `${nonRespondents.length} non-répondants exportés vers ${fileName}`,
+    });
+  };
+
   if (!activeSession) {
     return (
       <Card>
@@ -176,6 +227,8 @@ export const SuiviDisponibilitesAdmin = () => {
 
   const totalSurveillants = surveillantsStats.length;
   const ayantSoumis = surveillantsStats.filter(s => s.a_soumis).length;
+  const nonRepondants = totalSurveillants - ayantSoumis;
+  const tauxReponse = totalSurveillants > 0 ? Math.round((ayantSoumis / totalSurveillants) * 100) : 0;
   const totalDisponibilites = surveillantsStats.reduce((sum, s) => sum + s.total_disponibilites, 0);
   const totalObligatoires = surveillantsStats.reduce((sum, s) => sum + s.obligatoires, 0);
 
@@ -189,10 +242,16 @@ export const SuiviDisponibilitesAdmin = () => {
                 <Users className="h-5 w-5" />
                 <span>Suivi des disponibilités par surveillant</span>
               </div>
-              <Button onClick={exportToExcel} className="flex items-center space-x-2">
-                <Download className="h-4 w-4" />
-                <span>Exporter Excel</span>
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button onClick={exportNonRespondents} variant="outline" className="flex items-center space-x-2">
+                  <UserX className="h-4 w-4" />
+                  <span>Exporter non-répondants</span>
+                </Button>
+                <Button onClick={exportToExcel} className="flex items-center space-x-2">
+                  <Download className="h-4 w-4" />
+                  <span>Exporter Excel</span>
+                </Button>
+              </div>
             </CardTitle>
             <CardDescription>
               Session {activeSession.name} - Vue détaillée par surveillant
@@ -213,6 +272,18 @@ export const SuiviDisponibilitesAdmin = () => {
                   <SelectItem value="FASB">FASB</SelectItem>
                 </SelectContent>
               </Select>
+              
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filtrer par statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="responded">Ont répondu</SelectItem>
+                  <SelectItem value="not_responded">N'ont pas encore répondu</SelectItem>
+                </SelectContent>
+              </Select>
+              
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
                 <Input
@@ -224,8 +295,8 @@ export const SuiviDisponibilitesAdmin = () => {
               </div>
             </div>
 
-            {/* Statistiques globales */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            {/* Statistiques globales avec pourcentage d'accomplissement */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
               <Card className="border-blue-200 bg-blue-50">
                 <CardContent className="pt-4">
                   <div className="text-center">
@@ -234,14 +305,33 @@ export const SuiviDisponibilitesAdmin = () => {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="border-green-200 bg-green-50">
+              
+              <Card className={`border-2 ${tauxReponse >= 80 ? 'border-green-200 bg-green-50' : tauxReponse >= 50 ? 'border-orange-200 bg-orange-50' : 'border-red-200 bg-red-50'}`}>
                 <CardContent className="pt-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{ayantSoumis}</div>
-                    <div className="text-sm text-green-700">Ont soumis leurs dispos</div>
+                    <div className={`text-2xl font-bold ${tauxReponse >= 80 ? 'text-green-600' : tauxReponse >= 50 ? 'text-orange-600' : 'text-red-600'}`}>
+                      {ayantSoumis}/{totalSurveillants}
+                    </div>
+                    <div className={`text-sm ${tauxReponse >= 80 ? 'text-green-700' : tauxReponse >= 50 ? 'text-orange-700' : 'text-red-700'}`}>
+                      Ont répondu ({tauxReponse}%)
+                    </div>
+                    <Progress 
+                      value={tauxReponse} 
+                      className={`mt-2 ${tauxReponse >= 80 ? '[&>div]:bg-green-500' : tauxReponse >= 50 ? '[&>div]:bg-orange-500' : '[&>div]:bg-red-500'}`}
+                    />
                   </div>
                 </CardContent>
               </Card>
+              
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="pt-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-red-600">{nonRepondants}</div>
+                    <div className="text-sm text-red-700">À relancer</div>
+                  </div>
+                </CardContent>
+              </Card>
+              
               <Card className="border-purple-200 bg-purple-50">
                 <CardContent className="pt-4">
                   <div className="text-center">
@@ -250,6 +340,7 @@ export const SuiviDisponibilitesAdmin = () => {
                   </div>
                 </CardContent>
               </Card>
+              
               <Card className="border-orange-200 bg-orange-50">
                 <CardContent className="pt-4">
                   <div className="text-center">
@@ -260,10 +351,21 @@ export const SuiviDisponibilitesAdmin = () => {
               </Card>
             </div>
 
+            {/* Affichage du nombre de résultats filtrés */}
+            {(typeFilter !== "all" || statusFilter !== "all" || searchTerm) && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  {filteredSurveillants.length} surveillant{filteredSurveillants.length > 1 ? 's' : ''} 
+                  {filteredSurveillants.length !== totalSurveillants && ` sur ${totalSurveillants}`} 
+                  affiché{filteredSurveillants.length > 1 ? 's' : ''} selon les filtres appliqués
+                </p>
+              </div>
+            )}
+
             {/* Tableau des surveillants */}
             {isLoading ? (
               <p>Chargement...</p>
-            ) : surveillantsStats.length > 0 ? (
+            ) : filteredSurveillants.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse border border-gray-300">
                   <thead>
@@ -278,8 +380,8 @@ export const SuiviDisponibilitesAdmin = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {surveillantsStats.map((surveillant) => (
-                      <tr key={surveillant.id} className="hover:bg-gray-50">
+                    {filteredSurveillants.map((surveillant) => (
+                      <tr key={surveillant.id} className={`hover:bg-gray-50 ${!surveillant.a_soumis ? 'bg-red-50' : ''}`}>
                         <td className="border border-gray-300 p-3">
                           <div>
                             <div className="font-medium">{surveillant.nom} {surveillant.prenom}</div>
@@ -325,9 +427,9 @@ export const SuiviDisponibilitesAdmin = () => {
                         <td className="border border-gray-300 p-3 text-center">
                           <div className="flex items-center justify-center">
                             {surveillant.a_soumis ? (
-                              <CheckCircle className="h-4 w-4 text-green-500" />
+                              <CheckCircle className="h-5 w-5 text-green-500" />
                             ) : (
-                              <div className="h-4 w-4 rounded-full bg-gray-300"></div>
+                              <AlertCircle className="h-5 w-5 text-red-500" />
                             )}
                           </div>
                         </td>
