@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -100,7 +101,7 @@ export const AvailabilityMatrix = () => {
   const timeSlots: TimeSlot[] = optimizedCreneaux
     .filter(slot => slot.type === 'surveillance')
     .map(slot => ({
-      date_examen: slot.date_examen,
+      date: slot.date_examen, // Corriger : utiliser 'date' au lieu de 'date_examen'
       heure_debut: slot.heure_debut,
       heure_fin: slot.heure_fin,
       heure_debut_surveillance: slot.heure_debut_surveillance,
