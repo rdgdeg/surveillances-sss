@@ -8,6 +8,7 @@ import { AdminProtection } from "@/components/AdminProtection";
 import Index from "./pages/Index";
 import Admin from "./pages/Admin";
 import AdminDisponibilites from "./pages/AdminDisponibilites";
+import AdminDemandesSpecifiques from "./pages/AdminDemandesSpecifiques";
 import Surveillant from "./pages/Surveillant";
 import EnseignantConfirmation from "./pages/EnseignantConfirmation";
 import EnseignantToken from "./pages/EnseignantToken";
@@ -37,6 +38,14 @@ function App() {
               element={
                 <AdminProtection>
                   <AdminDisponibilites />
+                </AdminProtection>
+              } 
+            />
+            <Route 
+              path="/admin/demandes-specifiques" 
+              element={
+                <AdminProtection>
+                  <AdminDemandesSpecifiques />
                 </AdminProtection>
               } 
             />

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Users, Search, Calendar, Clock, AlertCircle, CheckCircle, UserCog, Shield } from "lucide-react";
+import { Download, Users, Search, Calendar, Clock, AlertCircle, CheckCircle, UserCog, Shield, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
@@ -79,6 +78,34 @@ export const DisponibilitesAdminView = () => {
         surveillant_eft: item.surveillants.eft || 0,
         created_at: item.created_at
       }));
+    },
+    enabled: !!activeSession?.id
+  });
+
+  // Nouvelle query pour les demandes spécifiques
+  const { data: demandesSpecifiques = [] } = useQuery({
+    queryKey: ['demandes-specifiques-overview', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession?.id) return [];
+
+      const { data, error } = await supabase
+        .from('disponibilites')
+        .select(`
+          *,
+          surveillants!inner (
+            nom,
+            prenom,
+            email,
+            type
+          )
+        `)
+        .eq('session_id', activeSession.id)
+        .eq('est_disponible', true)
+        .eq('type_choix', 'obligatoire')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
     },
     enabled: !!activeSession?.id
   });
@@ -157,10 +184,14 @@ export const DisponibilitesAdminView = () => {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <Users className="h-4 w-4" />
             <span>Vue d'ensemble</span>
+          </TabsTrigger>
+          <TabsTrigger value="demandes-specifiques" className="flex items-center space-x-2">
+            <AlertTriangle className="h-4 w-4" />
+            <span>Demandes spécifiques</span>
           </TabsTrigger>
           <TabsTrigger value="edit" className="flex items-center space-x-2">
             <UserCog className="h-4 w-4" />
@@ -346,6 +377,107 @@ export const DisponibilitesAdminView = () => {
                 <p className="text-center text-gray-500">
                   Aucune disponibilité trouvée pour les critères sélectionnés.
                 </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="demandes-specifiques" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <AlertTriangle className="h-5 w-5 text-orange-600" />
+                <span>Demandes de surveillance obligatoire</span>
+              </CardTitle>
+              <CardDescription>
+                Vue rapide des surveillances obligatoires demandées par les surveillants
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {demandesSpecifiques.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="secondary" className="text-orange-700 bg-orange-100">
+                      {demandesSpecifiques.length} demande{demandesSpecifiques.length > 1 ? 's' : ''} obligatoire{demandesSpecifiques.length > 1 ? 's' : ''}
+                    </Badge>
+                    <Button variant="outline" size="sm" onClick={() => window.location.href = '/admin/demandes-specifiques'}>
+                      Voir le détail complet
+                    </Button>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Surveillant</TableHead>
+                          <TableHead>Date/Horaire</TableHead>
+                          <TableHead>Code Examen</TableHead>
+                          <TableHead>Commentaire</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {demandesSpecifiques.slice(0, 10).map((demande: any) => (
+                          <TableRow key={demande.id}>
+                            <TableCell>
+                              <div>
+                                <div className="font-medium">
+                                  {demande.surveillants.prenom} {demande.surveillants.nom}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {demande.surveillants.email}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="flex items-center space-x-1">
+                                  <Calendar className="h-3 w-3 text-gray-400" />
+                                  <span className="text-sm">{formatDateBelgian(demande.date_examen)}</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <Clock className="h-3 w-3 text-gray-400" />
+                                  <span className="text-sm">{formatTimeRange(demande.heure_debut, demande.heure_fin)}</span>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {demande.nom_examen_obligatoire ? (
+                                <span className="font-mono text-sm bg-blue-100 px-2 py-1 rounded">
+                                  {demande.nom_examen_obligatoire}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="max-w-xs">
+                              {demande.commentaire_surveillance_obligatoire ? (
+                                <div className="text-sm bg-gray-50 p-2 rounded border truncate">
+                                  {demande.commentaire_surveillance_obligatoire.substring(0, 100)}
+                                  {demande.commentaire_surveillance_obligatoire.length > 100 && '...'}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  
+                  {demandesSpecifiques.length > 10 && (
+                    <div className="text-center">
+                      <Button variant="outline" onClick={() => window.location.href = '/admin/demandes-specifiques'}>
+                        Voir toutes les {demandesSpecifiques.length} demandes
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">Aucune demande de surveillance obligatoire pour le moment.</p>
+                </div>
               )}
             </CardContent>
           </Card>

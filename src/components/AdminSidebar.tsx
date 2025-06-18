@@ -8,11 +8,13 @@ import {
   Users,
   ClipboardList,
   FileText,
+  AlertTriangle,
 } from "lucide-react";
 
 const menuItems = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Disponibilités", href: "/admin/disponibilites", icon: CheckSquare },
+  { name: "Demandes Spécifiques", href: "/admin/demandes-specifiques", icon: AlertTriangle },
   { name: "Suivi Candidatures", href: "/admin/candidatures", icon: ClipboardList },
   { name: "Surveillants", href: "/admin/surveillants", icon: Users },
   { name: "Sessions", href: "/admin/sessions", icon: FileText },
