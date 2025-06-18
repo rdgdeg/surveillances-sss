@@ -152,7 +152,9 @@ export const AvailabilityMatrix = () => {
           heure_debut: slot.heure_debut,
           heure_fin: slot.heure_fin,
           heure_debut_surveillance: slot.heure_debut_surveillance,
-          label: ''
+          label: '',
+          surveillants_necessaires: 0,
+          surveillants_disponibles: 0
         }]);
         return !!mappedSlot;
       }).length;
