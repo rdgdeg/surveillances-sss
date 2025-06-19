@@ -4,6 +4,7 @@ import { useActiveSession } from "@/hooks/useSessions";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useExamenCalculations } from "./useExamenCalculations";
 
 export function useExamenManagement() {
   const { data: activeSession } = useActiveSession();
@@ -46,11 +47,30 @@ export function useExamenManagement() {
     });
   }, [examensValides, faculteFilter, dateFilter]);
 
+  // Calculs enrichis pour chaque examen
+  const examensAvecCalculs = useMemo(() => {
+    if (!filteredExamens) return [];
+    
+    return filteredExamens.map(examen => {
+      const calculations = useExamenCalculations(examen);
+      const surveillantsTheorique = calculations.getTheoreticalSurveillants();
+      const surveillantsPedagogiques = calculations.calculerSurveillantsPedagogiques();
+      const surveillantsNecessaires = calculations.calculerSurveillantsNecessaires();
+      
+      return {
+        ...examen,
+        surveillants_theorique: surveillantsTheorique,
+        surveillants_pedagogiques: surveillantsPedagogiques,
+        surveillants_necessaires: surveillantsNecessaires
+      };
+    });
+  }, [filteredExamens]);
+
   // Trouver un examen selon le code
   const examenTrouve = useMemo(() => (
-    examensValides?.find(e =>
+    examensAvecCalculs?.find(e =>
       e.code_examen?.toLowerCase().includes(searchCode.toLowerCase()))
-  ), [examensValides, searchCode]);
+  ), [examensAvecCalculs, searchCode]);
 
   // Sélection automatique
   useEffect(() => {
@@ -67,10 +87,9 @@ export function useExamenManagement() {
     setFaculteFilter,
     dateFilter,
     setDateFilter,
-    examensValides,
+    examensValides: examensAvecCalculs,
     faculteList,
-    filteredExamens,
+    filteredExamens: examensAvecCalculs,
     examenTrouve,
   };
 }
-

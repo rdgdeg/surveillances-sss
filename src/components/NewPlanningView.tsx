@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { DeleteAllExamensButton } from "@/components/DeleteAllExamensButton";
 import { formatDateWithDayBelgian } from "@/lib/dateUtils";
+import { useExamenCalculations } from "@/hooks/useExamenCalculations";
 
 export const NewPlanningView = () => {
   const [selectedDate, setSelectedDate] = useState("");
@@ -30,9 +31,12 @@ export const NewPlanningView = () => {
           attributions (
             id,
             surveillants (nom, prenom, type)
-          )
+          ),
+          personnes_aidantes (*)
         `)
         .eq('session_id', activeSession.id)
+        .eq('statut_validation', 'VALIDE')
+        .eq('is_active', true)
         .order('date_examen')
         .order('heure_debut');
       
@@ -40,6 +44,18 @@ export const NewPlanningView = () => {
       return data || [];
     },
     enabled: !!activeSession
+  });
+
+  // Enrichir les examens avec les calculs corrects
+  const examensEnrichis = examens.map(examen => {
+    const { getTheoreticalSurveillants, calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires } = useExamenCalculations(examen);
+    
+    return {
+      ...examen,
+      nombre_surveillants_calcule: getTheoreticalSurveillants(),
+      surveillants_pedagogiques: calculerSurveillantsPedagogiques(),
+      surveillants_necessaires: calculerSurveillantsNecessaires()
+    };
   });
 
   // Fonction pour trier les examens par date puis par heure
@@ -63,7 +79,7 @@ export const NewPlanningView = () => {
 
   const getStatutColor = (examen: any) => {
     const assignedCount = examen.attributions?.length || 0;
-    const requiredCount = examen.nombre_surveillants;
+    const requiredCount = examen.surveillants_necessaires; // Utiliser le calcul correct
     
     if (assignedCount === 0) return "bg-red-100 text-red-800";
     if (assignedCount < requiredCount) return "bg-orange-100 text-orange-800";
@@ -72,14 +88,14 @@ export const NewPlanningView = () => {
 
   const getStatutText = (examen: any) => {
     const assignedCount = examen.attributions?.length || 0;
-    const requiredCount = examen.nombre_surveillants;
+    const requiredCount = examen.surveillants_necessaires; // Utiliser le calcul correct
     
     if (assignedCount === 0) return "En attente";
     if (assignedCount < requiredCount) return "Partiel";
     return "Complet";
   };
 
-  const filteredExamens = examens.filter(examen => {
+  const filteredExamens = examensEnrichis.filter(examen => {
     const matchesSearch = examen.matiere.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          examen.salle.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || examen.type_requis === filterType;
@@ -93,12 +109,12 @@ export const NewPlanningView = () => {
 
   const stats = {
     total: examens.length,
-    complete: examens.filter(e => (e.attributions?.length || 0) === e.nombre_surveillants).length,
-    partial: examens.filter(e => {
+    complete: examensEnrichis.filter(e => (e.attributions?.length || 0) === e.surveillants_necessaires).length,
+    partial: examensEnrichis.filter(e => {
       const assigned = e.attributions?.length || 0;
-      return assigned > 0 && assigned < e.nombre_surveillants;
+      return assigned > 0 && assigned < e.surveillants_necessaires;
     }).length,
-    pending: examens.filter(e => (e.attributions?.length || 0) === 0).length
+    pending: examensEnrichis.filter(e => (e.attributions?.length || 0) === 0).length
   };
 
   if (!activeSession) {
@@ -237,7 +253,19 @@ export const NewPlanningView = () => {
                       <h3 className="font-medium text-gray-900 text-lg">{examen.matiere}</h3>
                       <p className="text-gray-600">Salle : {examen.salle}</p>
                       <p className="text-sm text-gray-500">
-                        Surveillants requis : {examen.nombre_surveillants} ({examen.type_requis} obligatoire)
+                        Surveillants calculés selon auditoires : {examen.nombre_surveillants_calcule}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Équipe pédagogique présente : {examen.surveillants_pedagogiques}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Enseignants supplémentaires : {examen.surveillants_enseignant || 0}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Surveillants amenés : {examen.surveillants_amenes || 0}
+                      </p>
+                      <p className="text-sm text-gray-500 font-medium">
+                        À attribuer : {examen.surveillants_necessaires} ({examen.type_requis} obligatoire)
                       </p>
                     </div>
 

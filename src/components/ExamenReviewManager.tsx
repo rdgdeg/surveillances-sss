@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ExamenEditModal } from "./ExamenEditModal";
+import { useExamenCalculations } from "@/hooks/useExamenCalculations";
 
 export function ExamenReviewManager() {
   const { data: activeSession } = useActiveSession();
@@ -315,12 +317,21 @@ export function ExamenReviewManager() {
   const examenGroupsArray = Object.entries(groupedExamens).map(([key, examens]) => {
     const first = examens[0];
     const totalStudents = examens.reduce((sum, examen) => sum + (examen.nombre_etudiants || 0), 0);
-    const totalSurveillants = examens.reduce((sum, examen) => sum + (examen.nombre_surveillants || 0), 0);
+    
+    // Utiliser les calculs basés sur les auditoires au lieu des valeurs stockées
+    const { getTheoreticalSurveillants, calculerSurveillantsPedagogiques } = useExamenCalculations(first);
+    const totalSurveillants = getTheoreticalSurveillants();
+    const totalPedagogiques = calculerSurveillantsPedagogiques();
+    
     const totalEnseignants = examens.reduce((sum, examen) => sum + (examen.surveillants_enseignant || 0), 0);
     const totalAmenes = examens.reduce((sum, examen) => sum + (examen.surveillants_amenes || 0), 0);
     const totalPreAssignes = examens.reduce((sum, examen) => sum + (examen.surveillants_pre_assignes || 0), 0);
 
-    // Champs nécessaires pour ExamenGroupe
+    // Calculer le nombre réel de surveillants à attribuer
+    const surveillantsAAttribuer = Math.max(0, 
+      totalSurveillants - totalEnseignants - totalAmenes - totalPreAssignes - totalPedagogiques
+    );
+
     return {
       id: key,
       code_examen: first.code_examen,
@@ -337,8 +348,8 @@ export function ExamenReviewManager() {
       surveillants_enseignant_total: totalEnseignants,
       surveillants_amenes_total: totalAmenes,
       surveillants_pre_assignes_total: totalPreAssignes,
-      surveillants_a_attribuer_total: 0, // Ajustez selon besoin si valeur calculée nécessaire
-      personnes_aidantes_total: 0, // Ajustez selon besoin
+      surveillants_a_attribuer_total: surveillantsAAttribuer,
+      personnes_aidantes_total: totalPedagogiques,
     } as ExamenGroupe;
   });
 
