@@ -16,6 +16,7 @@ import AdminTemplatesPage from "./pages/AdminTemplates";
 import PlanningGeneral from "./pages/PlanningGeneral";
 import Surveillant from "./pages/Surveillant";
 import EnseignantToken from "./pages/EnseignantToken";
+import EnseignantRedirect from "./pages/EnseignantRedirect";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/admin/candidatures" element={<AdminCandidaturesPage />} />
           <Route path="/planning-general" element={<PlanningGeneral />} />
           <Route path="/surveillant" element={<Surveillant />} />
+          <Route path="/enseignant" element={<EnseignantRedirect />} />
           <Route path="/enseignant/:token" element={<EnseignantToken />} />
         </Routes>
       </BrowserRouter>
