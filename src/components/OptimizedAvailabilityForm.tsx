@@ -7,13 +7,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Check, AlertCircle, Users, BookOpen } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar, Clock, Check, AlertCircle, Users, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
 import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface OptimizedAvailabilityFormProps {
   surveillantId: string;
@@ -36,9 +38,27 @@ export const OptimizedAvailabilityForm = ({
   const queryClient = useQueryClient();
   const { data: optimizedCreneaux = [], isLoading } = useOptimizedCreneaux(sessionId);
   const [selectedSlots, setSelectedSlots] = useState<Record<string, DisponibiliteData>>({});
+  const [remarques, setRemarques] = useState("");
+  const [surveillantType, setSurveillantType] = useState<string>("");
+
+  // Récupérer le type de surveillant
+  useEffect(() => {
+    const fetchSurveillantType = async () => {
+      const { data, error } = await supabase
+        .from('surveillants')
+        .select('type')
+        .eq('id', surveillantId)
+        .single();
+      
+      if (!error && data) {
+        setSurveillantType(data.type);
+      }
+    };
+    
+    fetchSurveillantType();
+  }, [surveillantId]);
 
   // Séparer les créneaux par type
-  const creneauxExamens = optimizedCreneaux.filter(slot => slot.type === 'examen');
   const creneauxSurveillance = optimizedCreneaux.filter(slot => slot.type === 'surveillance');
 
   // Organiser par semaine
@@ -71,9 +91,41 @@ export const OptimizedAvailabilityForm = ({
 
   const weeklySurveillanceSlots = organizeByWeek(creneauxSurveillance);
 
+  // Validation des disponibilités selon le type
+  const validateAvailabilities = () => {
+    const selectedCount = Object.keys(selectedSlots).length;
+    
+    if (surveillantType === 'Assistant' && selectedCount < 6) {
+      return {
+        isValid: false,
+        message: "N'hésitez pas à maximiser vos disponibilités pour permettre de réaliser le planning.",
+        type: 'warning' as const
+      };
+    }
+    
+    if (surveillantType === 'PAT FASB') {
+      const minRequired = Math.ceil(creneauxSurveillance.length * 0.30) + 12;
+      if (selectedCount < minRequired) {
+        return {
+          isValid: false,
+          message: "Merci d'indiquer plus de disponibilités pour permettre l'attribution des surveillances.",
+          type: 'error' as const
+        };
+      }
+    }
+    
+    return { isValid: true, message: "", type: 'success' as const };
+  };
+
   // Mutation pour sauvegarder les disponibilités
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const validation = validateAvailabilities();
+      
+      if (!validation.isValid && validation.type === 'error') {
+        throw new Error(validation.message);
+      }
+
       // Supprimer les anciennes disponibilités
       await supabase
         .from('disponibilites')
@@ -103,12 +155,45 @@ export const OptimizedAvailabilityForm = ({
         
         if (error) throw error;
       }
+
+      // Sauvegarder les remarques si présentes
+      if (remarques.trim()) {
+        const { data: surveillantData } = await supabase
+          .from('surveillants')
+          .select('nom, prenom')
+          .eq('id', surveillantId)
+          .single();
+
+        const { error: commentError } = await supabase
+          .from('commentaires_disponibilites')
+          .insert({
+            session_id: sessionId,
+            surveillant_id: surveillantId,
+            email: email,
+            nom: surveillantData?.nom || '',
+            prenom: surveillantData?.prenom || '',
+            message: remarques.trim()
+          });
+
+        if (commentError) throw commentError;
+      }
     },
     onSuccess: () => {
-      toast({
-        title: "Disponibilités enregistrées",
-        description: "Vos disponibilités ont été enregistrées avec succès.",
-      });
+      const validation = validateAvailabilities();
+      
+      if (!validation.isValid && validation.type === 'warning') {
+        toast({
+          title: "Disponibilités enregistrées avec avertissement",
+          description: validation.message,
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Disponibilités enregistrées",
+          description: "Vos disponibilités ont été enregistrées avec succès.",
+        });
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['existing-disponibilites'] });
       onSuccess();
     },
@@ -186,6 +271,9 @@ export const OptimizedAvailabilityForm = ({
     );
   }
 
+  const validation = validateAvailabilities();
+  const selectedCount = Object.keys(selectedSlots).length;
+
   return (
     <div className="space-y-6">
       <Card>
@@ -196,63 +284,37 @@ export const OptimizedAvailabilityForm = ({
           </CardTitle>
           <p className="text-sm text-gray-600">
             Sélectionnez les créneaux de surveillance où vous êtes disponible.
-            Les créneaux proposés sont optimisés selon les examens planifiés.
+            {surveillantType && (
+              <span className="block mt-1 font-medium text-blue-600">
+                Profil : {surveillantType}
+              </span>
+            )}
           </p>
         </CardHeader>
       </Card>
 
-      {/* Affichage des créneaux d'examens pour information */}
-      {creneauxExamens.length > 0 && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-blue-800">
-              <BookOpen className="h-5 w-5" />
-              <span>Créneaux d'examens planifiés</span>
-            </CardTitle>
-            <p className="text-sm text-blue-700">
-              Voici les créneaux d'examens réels. Les créneaux de surveillance ci-dessous incluent le temps de préparation (45 minutes avant).
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {creneauxExamens.slice(0, 6).map((slot, index) => (
-                <div key={index} className="bg-white rounded p-3 border border-blue-200">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-blue-800">
-                      {formatDateBelgian(slot.date_examen)}
-                    </span>
-                    <Badge variant="outline" className="text-xs bg-blue-100">
-                      {slot.examens.length} examen{slot.examens.length !== 1 ? 's' : ''}
-                    </Badge>
-                  </div>
-                  <div className="text-sm text-blue-700">
-                    {formatTimeRange(slot.heure_debut, slot.heure_fin)}
-                  </div>
-                  <div className="text-xs text-blue-600 mt-1">
-                    {slot.examens.map(e => e.matiere).join(', ')}
-                  </div>
-                </div>
-              ))}
-              {creneauxExamens.length > 6 && (
-                <div className="bg-white rounded p-3 border border-blue-200 flex items-center justify-center">
-                  <span className="text-sm text-blue-600">
-                    +{creneauxExamens.length - 6} autres créneaux
-                  </span>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Affichage des validations */}
+      {selectedCount > 0 && !validation.isValid && (
+        <Alert variant={validation.type === 'error' ? 'destructive' : 'default'}>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {validation.message}
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
         <div className="flex items-center space-x-2 text-green-800">
           <Users className="h-5 w-5" />
-          <span className="font-medium">Créneaux de surveillance optimisés</span>
+          <span className="font-medium">Créneaux de surveillance disponibles</span>
         </div>
         <p className="text-sm text-green-700 mt-1">
-          Ces créneaux correspondent aux besoins de surveillance (incluant 45 min de préparation).
-          Sélectionnez ceux où vous êtes disponible.
+          Sélectionnez les créneaux où vous êtes disponible (incluant 45 min de préparation).
+          {selectedCount > 0 && (
+            <span className="block mt-1 font-medium">
+              {selectedCount} créneau{selectedCount !== 1 ? 'x' : ''} sélectionné{selectedCount !== 1 ? 's' : ''}
+            </span>
+          )}
         </p>
       </div>
 
@@ -319,20 +381,6 @@ export const OptimizedAvailabilityForm = ({
                               </Badge>
                             </div>
 
-                            {/* Afficher les examens de ce créneau */}
-                            <div className="ml-6 space-y-2">
-                              <p className="text-sm font-medium text-gray-700">Examens dans ce créneau :</p>
-                              {slot.examens.map((examen: any) => (
-                                <div key={examen.id} className="text-sm text-gray-600 pl-4 border-l-2 border-gray-200">
-                                  <span className="font-medium">{examen.matiere}</span>
-                                  <span className="mx-2">•</span>
-                                  <span>{formatTimeRange(examen.heure_debut, examen.heure_fin)}</span>
-                                  <span className="mx-2">•</span>
-                                  <span>{examen.salle}</span>
-                                </div>
-                              ))}
-                            </div>
-
                             {isSelected && (
                               <div className="space-y-3 p-3 bg-white rounded border ml-6">
                                 <div className="flex items-center space-x-2">
@@ -375,6 +423,24 @@ export const OptimizedAvailabilityForm = ({
             </Card>
           ))
         )}
+
+        {/* Formulaire de remarques */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Remarques spécifiques</CardTitle>
+            <p className="text-sm text-gray-600">
+              Avez-vous des remarques particulières concernant vos disponibilités ?
+            </p>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              value={remarques}
+              onChange={(e) => setRemarques(e.target.value)}
+              placeholder="Indiquez ici toute remarque spécifique concernant vos disponibilités, contraintes particulières, etc."
+              className="min-h-[100px]"
+            />
+          </CardContent>
+        </Card>
 
         {Object.keys(weeklySurveillanceSlots).length > 0 && (
           <div className="flex justify-center space-x-4">
