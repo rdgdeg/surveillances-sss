@@ -1,6 +1,7 @@
 
 import { Footer } from "@/components/Footer";
 import { UCLouvainHeader } from "@/components/UCLouvainHeader";
+import { EnseignantTokenContent } from "@/components/EnseignantTokenContent";
 import { useParams } from "react-router-dom";
 
 const EnseignantToken = () => {
@@ -11,11 +12,7 @@ const EnseignantToken = () => {
       <UCLouvainHeader />
       <main className="flex-1 w-full px-4 py-8">
         <div className="max-w-7xl mx-auto">
-          {/* Place the main token form/content here */}
-          {/* <EnseignantTokenContent token={token} /> */}
-          <div className="text-center text-xl text-uclouvain-blue">
-            Page enseignant: token = <span className="font-mono">{token}</span>
-          </div>
+          <EnseignantTokenContent token={token} />
         </div>
       </main>
       <Footer />

@@ -297,6 +297,12 @@ export const AvailabilityMatrix = () => {
     });
   };
 
+  // Calculer les totaux globaux
+  const totalSurveillantsNecessaires = timeSlots.reduce((sum, slot) => sum + slot.surveillants_necessaires, 0);
+  const totalDisponibilitesRenseignees = timeSlots.reduce((sum, slot) => sum + slot.surveillants_disponibles, 0);
+  const tauxCouvertureGlobal = totalSurveillantsNecessaires > 0 ? 
+    Math.round((totalDisponibilitesRenseignees / totalSurveillantsNecessaires) * 100) : 0;
+
   if (!activeSession) {
     return (
       <Card>
@@ -327,6 +333,35 @@ export const AvailabilityMatrix = () => {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Résumé des totaux */}
+          {timeSlots.length > 0 && (
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border">
+              <h3 className="text-lg font-semibold text-uclouvain-blue mb-3">Résumé global des disponibilités</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-uclouvain-blue">{totalDisponibilitesRenseignees}</div>
+                  <div className="text-sm text-gray-600">Disponibilités renseignées</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">{totalSurveillantsNecessaires}</div>
+                  <div className="text-sm text-gray-600">Surveillances à assurer</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-2xl font-bold ${tauxCouvertureGlobal >= 100 ? 'text-green-600' : 'text-red-600'}`}>
+                    {tauxCouvertureGlobal}%
+                  </div>
+                  <div className="text-sm text-gray-600">Taux de couverture</div>
+                </div>
+                <div className="text-center">
+                  <div className={`text-lg font-bold ${totalDisponibilitesRenseignees >= totalSurveillantsNecessaires ? 'text-green-600' : 'text-red-600'}`}>
+                    {totalDisponibilitesRenseignees >= totalSurveillantsNecessaires ? '✓ Suffisant' : '⚠ Déficit'}
+                  </div>
+                  <div className="text-sm text-gray-600">Statut global</div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {timeSlots.length === 0 ? (
             <div className="text-center py-8">
               <Clock className="h-12 w-12 text-uclouvain-blue-grey mx-auto mb-4" />
