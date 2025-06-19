@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -125,6 +124,54 @@ export const AvailabilityMatrix = () => {
     enabled: !!activeSession
   });
 
+  // Fonction de normalisation des heures
+  const normalizeTime = (time: string) => {
+    return time.includes(':') ? time.substring(0, 5) : time;
+  };
+
+  // Fonction améliorée pour mapper les disponibilités aux créneaux optimisés
+  const mapDisponibiliteToOptimizedSlot = (disponibilite: Disponibilite, slots: TimeSlot[]) => {
+    console.log(`[DEBUG] Mapping disponibilité:`, {
+      surveillant_id: disponibilite.surveillant_id,
+      date: disponibilite.date_examen,
+      debut: disponibilite.heure_debut,
+      fin: disponibilite.heure_fin
+    });
+
+    // Chercher le créneau optimisé qui correspond à cette disponibilité
+    const matchedSlot = slots.find(slot => {
+      if (slot.date !== disponibilite.date_examen) return false;
+      
+      const creneauOptimise = optimizedCreneaux.find(c => 
+        c.type === 'surveillance' && 
+        c.date_examen === slot.date &&
+        c.heure_debut === slot.heure_debut &&
+        c.heure_fin === slot.heure_fin
+      );
+      
+      if (!creneauOptimise) return false;
+
+      const dispoDebut = normalizeTime(disponibilite.heure_debut);
+      const dispoFin = normalizeTime(disponibilite.heure_fin);
+      const slotDebut = normalizeTime(slot.heure_debut);
+      const slotFin = normalizeTime(slot.heure_fin);
+      const slotDebutSurveillance = slot.heure_debut_surveillance ? normalizeTime(slot.heure_debut_surveillance) : null;
+      
+      if (dispoDebut === slotDebut && dispoFin === slotFin) return true;
+      if (slotDebutSurveillance && dispoDebut === slotDebutSurveillance && dispoFin === slotFin) return true;
+      
+      const correspondExamen = creneauOptimise.examens.some(examen => {
+        const examDebut = normalizeTime(examen.heure_debut);
+        const examFin = normalizeTime(examen.heure_fin);
+        return examDebut === dispoDebut && examFin === dispoFin;
+      });
+      
+      return correspondExamen;
+    });
+
+    return matchedSlot;
+  };
+
   // Créer les créneaux de surveillance optimisés pour la matrice
   const timeSlots: TimeSlot[] = optimizedCreneaux
     .filter(slot => slot.type === 'surveillance')
@@ -174,54 +221,6 @@ export const AvailabilityMatrix = () => {
       if (dateCompare !== 0) return dateCompare;
       return a.heure_debut.localeCompare(b.heure_debut);
     });
-
-  // Fonction de normalisation des heures
-  const normalizeTime = (time: string) => {
-    return time.includes(':') ? time.substring(0, 5) : time;
-  };
-
-  // Fonction améliorée pour mapper les disponibilités aux créneaux optimisés
-  const mapDisponibiliteToOptimizedSlot = (disponibilite: Disponibilite, slots: TimeSlot[]) => {
-    console.log(`[DEBUG] Mapping disponibilité:`, {
-      surveillant_id: disponibilite.surveillant_id,
-      date: disponibilite.date_examen,
-      debut: disponibilite.heure_debut,
-      fin: disponibilite.heure_fin
-    });
-
-    // Chercher le créneau optimisé qui correspond à cette disponibilité
-    const matchedSlot = slots.find(slot => {
-      if (slot.date !== disponibilite.date_examen) return false;
-      
-      const creneauOptimise = optimizedCreneaux.find(c => 
-        c.type === 'surveillance' && 
-        c.date_examen === slot.date &&
-        c.heure_debut === slot.heure_debut &&
-        c.heure_fin === slot.heure_fin
-      );
-      
-      if (!creneauOptimise) return false;
-
-      const dispoDebut = normalizeTime(disponibilite.heure_debut);
-      const dispoFin = normalizeTime(disponibilite.heure_fin);
-      const slotDebut = normalizeTime(slot.heure_debut);
-      const slotFin = normalizeTime(slot.heure_fin);
-      const slotDebutSurveillance = slot.heure_debut_surveillance ? normalizeTime(slot.heure_debut_surveillance) : null;
-      
-      if (dispoDebut === slotDebut && dispoFin === slotFin) return true;
-      if (slotDebutSurveillance && dispoDebut === slotDebutSurveillance && dispoFin === slotFin) return true;
-      
-      const correspondExamen = creneauOptimise.examens.some(examen => {
-        const examDebut = normalizeTime(examen.heure_debut);
-        const examFin = normalizeTime(examen.heure_fin);
-        return examDebut === dispoDebut && examFin === dispoFin;
-      });
-      
-      return correspondExamen;
-    });
-
-    return matchedSlot;
-  };
 
   // Créer une map des disponibilités mappées aux créneaux optimisés
   const disponibiliteMap = new Map<string, Disponibilite>();
