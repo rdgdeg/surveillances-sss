@@ -8,26 +8,45 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { getTheoreticalSurveillants, calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires } from "@/hooks/useExamenManagement";
+import { useContraintesAuditoiresMap } from "@/hooks/useContraintesAuditoires";
 
 export function ExamenValidationFinalView() {
   const { data: activeSession } = useActiveSession();
+  const { data: contraintesMap } = useContraintesAuditoiresMap();
 
-  // Récupérer les examens validés
+  // Récupérer les examens validés avec leurs équipes pédagogiques
   const { data: examensValides = [], isLoading: isLoadingExamens } = useQuery({
-    queryKey: ["examens-valides", activeSession?.id],
+    queryKey: ["examens-valides", activeSession?.id, contraintesMap],
     queryFn: async () => {
       if (!activeSession?.id) return [];
       const { data, error } = await supabase
         .from("examens")
-        .select("*")
+        .select(`
+          *,
+          personnes_aidantes (*)
+        `)
         .eq("session_id", activeSession.id)
         .eq("statut_validation", "VALIDE")
         .order("date_examen")
         .order("heure_debut");
       if (error) throw error;
-      return data || [];
+      
+      // Enrichir avec les calculs harmonisés
+      return (data || []).map(examen => {
+        const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
+        const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
+        const surveillantsNecessaires = calculerSurveillantsNecessaires(examen, contraintesMap);
+        
+        return {
+          ...examen,
+          surveillants_theorique: surveillantsTheorique,
+          surveillants_pedagogiques: surveillantsPedagogiques,
+          surveillants_necessaires: surveillantsNecessaires
+        };
+      });
     },
-    enabled: !!activeSession?.id,
+    enabled: !!activeSession?.id && !!contraintesMap,
   });
 
   // Récupérer les créneaux de surveillance générés
@@ -147,7 +166,7 @@ export function ExamenValidationFinalView() {
         </Card>
       </div>
 
-      {/* Liste des examens validés */}
+      {/* Liste des examens validés avec calculs détaillés */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -155,7 +174,7 @@ export function ExamenValidationFinalView() {
             <span>Examens Validés</span>
           </CardTitle>
           <CardDescription>
-            Liste définitive des examens créés et prêts pour attribution des surveillants.
+            Liste définitive des examens avec détail des besoins en surveillance (calculs harmonisés).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -169,46 +188,90 @@ export function ExamenValidationFinalView() {
                   <TableHead>Horaire</TableHead>
                   <TableHead>Salle</TableHead>
                   <TableHead>Faculté</TableHead>
-                  <TableHead>Surveillants</TableHead>
+                  <TableHead className="text-center">Théoriques</TableHead>
+                  <TableHead className="text-center">Prof + Apportés</TableHead>
+                  <TableHead className="text-center">Pédagogiques</TableHead>
+                  <TableHead className="text-center">Pré-assignés</TableHead>
+                  <TableHead className="text-center">Besoin Réel</TableHead>
                   <TableHead>Statut</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {examensValides.map((examen) => (
-                  <TableRow key={examen.id}>
-                    <TableCell className="font-mono text-sm">
-                      {examen.code_examen}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {examen.matiere}
-                    </TableCell>
-                    <TableCell>
-                      {format(new Date(examen.date_examen), "dd/MM/yyyy", { locale: fr })}
-                    </TableCell>
-                    <TableCell>
-                      {examen.heure_debut} - {examen.heure_fin}
-                    </TableCell>
-                    <TableCell>
-                      {examen.salle}
-                    </TableCell>
-                    <TableCell>
-                      {examen.faculte}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">
-                        <div>Requis: {examen.nombre_surveillants}</div>
-                        <div className="text-gray-500">
-                          À attribuer: {examen.surveillants_a_attribuer || examen.nombre_surveillants}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="default" className="bg-green-100 text-green-800">
-                        Validé
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {examensValides.map((examen) => {
+                  const profApportes = (examen.surveillants_enseignant || 0) + (examen.surveillants_amenes || 0);
+                  
+                  return (
+                    <TableRow key={examen.id}>
+                      <TableCell className="font-mono text-sm">
+                        {examen.code_examen}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {examen.matiere}
+                      </TableCell>
+                      <TableCell>
+                        {format(new Date(examen.date_examen), "dd/MM/yyyy", { locale: fr })}
+                      </TableCell>
+                      <TableCell>
+                        {examen.heure_debut} - {examen.heure_fin}
+                      </TableCell>
+                      <TableCell>
+                        {examen.salle}
+                      </TableCell>
+                      <TableCell>
+                        {examen.faculte}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className="bg-blue-50 text-blue-800">
+                          {examen.surveillants_theorique}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {profApportes > 0 ? (
+                          <div className="space-y-1">
+                            <Badge variant="outline" className="bg-green-50 text-green-800">
+                              {profApportes}
+                            </Badge>
+                            <div className="text-xs text-gray-500">
+                              Prof: {examen.surveillants_enseignant || 0} + 
+                              Amenés: {examen.surveillants_amenes || 0}
+                            </div>
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="text-gray-500">
+                            0
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className="bg-purple-50 text-purple-800">
+                          {examen.surveillants_pedagogiques}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className="bg-orange-50 text-orange-800">
+                          {examen.surveillants_pre_assignes || 0}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge 
+                          variant="default" 
+                          className={`${
+                            examen.surveillants_necessaires > 0 
+                              ? "bg-red-100 text-red-800" 
+                              : "bg-green-100 text-green-800"
+                          }`}
+                        >
+                          {examen.surveillants_necessaires}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="default" className="bg-green-100 text-green-800">
+                          Validé
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
