@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -21,6 +20,10 @@ export interface PlanningGeneralItem {
     email: string;
   }>;
   nombre_surveillants_requis: number;
+  surveillants_theorique_total: number;
+  prof_apportes_total: number;
+  pre_assignes_total: number;
+  besoin_reel_total: number;
 }
 
 export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
@@ -61,7 +64,7 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
           });
         });
 
-        // Requête pour récupérer tous les examens actifs avec leurs attributions
+        // Requête pour récupérer tous les examens actifs avec leurs attributions et équipes
         const { data: examens, error } = await supabase
           .from('examens')
           .select(`
@@ -77,6 +80,9 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
             enseignant_email,
             statut_validation,
             nombre_surveillants,
+            surveillants_enseignant,
+            surveillants_amenes,
+            surveillants_pre_assignes,
             is_active,
             attributions (
               surveillant_id,
@@ -86,7 +92,8 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
                 prenom,
                 email
               )
-            )
+            ),
+            personnes_aidantes (*)
           `)
           .eq('session_id', sessionId)
           .eq('is_active', true)
@@ -105,13 +112,21 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
           return [];
         }
 
-        // Traitement des données pour split des auditoires multiples
+        // Traitement des données pour split des auditoires multiples avec calculs harmonisés
         const planningItems: PlanningGeneralItem[] = [];
         
         examens.forEach((examen: any) => {
           console.log('Processing examen:', examen.id, examen.matiere, 'Enseignant:', examen.enseignant_nom);
           
-          // Split des auditoires (ex: "51 B, 71 - Simonart" → ["51 B", "71 - Simonart"])
+          // Calculer les totaux de l'examen avec la logique corrigée
+          const surveillantsTheoriqueTotal = getTheoreticalSurveillants(examen, contraintesMap);
+          const profApportesTotal = (examen.surveillants_enseignant || 0) + (examen.surveillants_amenes || 0);
+          const preAssignesTotal = examen.surveillants_pre_assignes || 0;
+          const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
+          const effectifPresent = Math.max(examen.surveillants_enseignant || 0, surveillantsPedagogiques);
+          const besoinReelTotal = Math.max(0, surveillantsTheoriqueTotal - effectifPresent - (examen.surveillants_amenes || 0) - preAssignesTotal);
+          
+          // Split des auditoires
           const auditoires = examen.salle
             .split(',')
             .map((aud: string) => aud.trim())
@@ -125,9 +140,9 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
             email: attr.surveillants?.email || ''
           })).filter((s: any) => s.id) || [];
 
-          // Créer une ligne par auditoire
+          // Créer une ligne par auditoire MAIS avec les totaux de l'examen
           auditoires.forEach((auditoire: string) => {
-            // Calculer le nombre de surveillants requis selon les contraintes
+            // Calculer le nombre de surveillants requis selon les contraintes pour cet auditoire
             const auditoireNormalized = auditoire.toLowerCase().trim();
             const nombreRequis = contraintesMap[auditoireNormalized] || 
                                 contraintesMap[auditoire] || 
@@ -147,7 +162,12 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
               enseignant_email: examen.enseignant_email || '',
               statut_validation: examen.statut_validation || 'NON_TRAITE',
               surveillants: surveillants,
-              nombre_surveillants_requis: nombreRequis
+              nombre_surveillants_requis: nombreRequis,
+              // Nouveaux champs avec les totaux de l'examen (pas par auditoire)
+              surveillants_theorique_total: surveillantsTheoriqueTotal,
+              prof_apportes_total: profApportesTotal,
+              pre_assignes_total: preAssignesTotal,
+              besoin_reel_total: besoinReelTotal
             };
 
             // Filtrage par terme de recherche
@@ -187,3 +207,65 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   });
 };
+
+// Fonctions utilitaires importées pour cohérence
+function getTheoreticalSurveillants(examen: any, contraintesMap: Record<string, number>) {
+  if (!examen?.salle) return examen?.nombre_surveillants || 1;
+  
+  if (!contraintesMap) {
+    return examen.nombre_surveillants || 1;
+  }
+  
+  const auditoireList = examen.salle
+    .split(",")
+    .map((a: string) => a.trim())
+    .filter((a: string) => !!a);
+
+  let total = 0;
+  let hasConstraints = false;
+
+  auditoireList.forEach((auditoire: string) => {
+    const auditoireNormalized = auditoire.toLowerCase().trim();
+    
+    let constraint = contraintesMap[auditoireNormalized];
+    
+    if (!constraint) {
+      const variations = [
+        auditoireNormalized.replace(/\s+/g, ''),
+        auditoireNormalized.replace(/\s+/g, ' '),
+        auditoire.trim(),
+        auditoire.trim().toLowerCase()
+      ];
+      
+      for (const variation of variations) {
+        if (contraintesMap[variation]) {
+          constraint = contraintesMap[variation];
+          break;
+        }
+      }
+    }
+    
+    if (constraint !== undefined) {
+      total += constraint;
+      hasConstraints = true;
+    } else {
+      total += 1;
+    }
+  });
+
+  if (!hasConstraints && total === auditoireList.length) {
+    return examen.nombre_surveillants || 1;
+  }
+  
+  return total;
+}
+
+function calculerSurveillantsPedagogiques(examen: any) {
+  if (!examen?.personnes_aidantes) return 0;
+  
+  return examen.personnes_aidantes.filter((p: any) =>
+    p.compte_dans_quota && 
+    p.present_sur_place && 
+    !p.est_enseignant
+  ).length;
+}

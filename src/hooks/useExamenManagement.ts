@@ -106,11 +106,10 @@ export function useExamenManagement() {
   };
 }
 
-// Fonctions utilitaires pour les calculs (à utiliser dans les composants qui ne peuvent pas utiliser le hook)
+// Fonctions utilitaires pour les calculs harmonisés (LOGIQUE CORRIGÉE)
 function getTheoreticalSurveillants(examen: any, contraintesMap?: Record<string, number>) {
   if (!examen?.salle) return examen?.nombre_surveillants || 1;
   
-  // Si pas de contraintes disponibles, utiliser le nombre_surveillants par défaut
   if (!contraintesMap) {
     return examen.nombre_surveillants || 1;
   }
@@ -123,7 +122,6 @@ function getTheoreticalSurveillants(examen: any, contraintesMap?: Record<string,
   let total = 0;
   let hasConstraints = false;
 
-  // Pour chaque auditoire, ajouter la contrainte correspondante
   auditoireList.forEach((auditoire: string) => {
     const auditoireNormalized = auditoire.toLowerCase().trim();
     
@@ -172,6 +170,7 @@ function calculerSurveillantsPedagogiques(examen: any) {
   ).length;
 }
 
+// FONCTION CORRIGÉE pour éviter le double comptage
 function calculerSurveillantsNecessaires(examen: any, contraintesMap?: Record<string, number>) {
   const pedagogiques = calculerSurveillantsPedagogiques(examen);
   const enseignantPresent = examen?.surveillants_enseignant || 0;
@@ -179,9 +178,13 @@ function calculerSurveillantsNecessaires(examen: any, contraintesMap?: Record<st
   const preAssignes = examen?.surveillants_pre_assignes || 0;
   const theoriques = getTheoreticalSurveillants(examen, contraintesMap);
   
+  // CORRECTION: Utiliser Math.max pour éviter le double comptage
+  // Si l'enseignant est présent ET qu'il y a des pédagogiques, on prend le max des deux
+  const effectifPresent = Math.max(enseignantPresent, pedagogiques);
+  
   return Math.max(
     0,
-    theoriques - pedagogiques - enseignantPresent - personnesAmenees - preAssignes
+    theoriques - effectifPresent - personnesAmenees - preAssignes
   );
 }
 

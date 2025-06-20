@@ -108,7 +108,7 @@ export const AvailabilityMatrix = () => {
     enabled: !!activeSession
   });
 
-  // Récupérer les examens avec les calculs harmonisés
+  // Récupérer les examens avec les calculs harmonisés corrigés
   const { data: examens = [] } = useQuery({
     queryKey: ['examens-matrix', activeSession?.id],
     queryFn: async () => {
@@ -127,7 +127,7 @@ export const AvailabilityMatrix = () => {
       
       if (error) throw error;
       
-      // Enrichir avec les calculs harmonisés
+      // Enrichir avec les calculs harmonisés corrigés
       return data.map(examen => ({
         ...examen,
         surveillants_necessaires: calculerSurveillantsNecessaires(examen, contraintesMap)
@@ -184,11 +184,11 @@ export const AvailabilityMatrix = () => {
     return matchedSlot;
   };
 
-  // Créer les créneaux de surveillance optimisés pour la matrice avec calculs harmonisés
+  // Créer les créneaux de surveillance optimisés pour la matrice avec calculs harmonisés corrigés
   const timeSlots: TimeSlot[] = optimizedCreneaux
     .filter(slot => slot.type === 'surveillance')
     .map(slot => {
-      // Calculer le nombre de surveillants nécessaires pour ce créneau avec les calculs harmonisés
+      // Calculer le nombre de surveillants nécessaires pour ce créneau avec les calculs harmonisés corrigés
       const examensInSlot = examens.filter(examen => {
         const creneauOptimise = optimizedCreneaux.find(c => 
           c.type === 'surveillance' && 
@@ -202,14 +202,14 @@ export const AvailabilityMatrix = () => {
         return creneauOptimise.examens.some(examSlot => examSlot.id === examen.id);
       });
       
-      // Utiliser les nouveaux calculs harmonisés
+      // Utiliser les nouveaux calculs harmonisés corrigés
       const surveillantsNecessaires = examensInSlot.reduce((sum, examen) => {
         const besoinReel = calculerSurveillantsNecessaires(examen, contraintesMap);
-        console.log(`[DEBUG] Exam ${examen.id} - Real need: ${besoinReel}`);
+        console.log(`[DEBUG] Exam ${examen.id} - Real need (corrected): ${besoinReel}`);
         return sum + besoinReel;
       }, 0);
       
-      console.log(`[DEBUG] Time slot ${slot.date_examen} ${slot.heure_debut}-${slot.heure_fin} - Total need: ${surveillantsNecessaires}`);
+      console.log(`[DEBUG] Time slot ${slot.date_examen} ${slot.heure_debut}-${slot.heure_fin} - Total need (corrected): ${surveillantsNecessaires}`);
       
       // Calculer le nombre de surveillants disponibles pour ce créneau
       const surveillantsDisponibles = disponibilites.filter(disp => {

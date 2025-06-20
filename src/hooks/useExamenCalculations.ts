@@ -74,7 +74,7 @@ export function useExamenCalculations(selectedExamen: any) {
     return total;
   };
 
-  // Compute number of pedagogical team members that count towards quota (EXCLUANT le prof présent)
+  // Compute number of pedagogical team members that count towards quota (EXCLUANT l'enseignant présent)
   const calculerSurveillantsPedagogiques = () => {
     if (!selectedExamen?.personnes_aidantes) return 0;
     
@@ -90,7 +90,7 @@ export function useExamenCalculations(selectedExamen: any) {
     return pedagogiques;
   };
 
-  // Compute number of surveillants still needed (real need)
+  // Compute number of surveillants still needed (real need) - LOGIQUE CORRIGÉE
   const calculerSurveillantsNecessaires = () => {
     const pedagogiques = calculerSurveillantsPedagogiques();
     const enseignantPresent = selectedExamen?.surveillants_enseignant || 0;
@@ -98,16 +98,22 @@ export function useExamenCalculations(selectedExamen: any) {
     const preAssignes = selectedExamen?.surveillants_pre_assignes || 0;
     const theoriques = getTheoreticalSurveillants();
     
-    // Total requis - pédagogiques - prof présent - amenés - pré-assignés, clamp à >=0
+    // CORRECTION: Utiliser Math.max pour éviter le double comptage
+    // Si l'enseignant est présent ET qu'il y a des pédagogiques, on prend le max des deux
+    // car l'enseignant peut faire partie de l'équipe pédagogique
+    const effectifPresent = Math.max(enseignantPresent, pedagogiques);
+    
+    // Total requis - effectif présent - amenés - pré-assignés, clamp à >=0
     const necessaires = Math.max(
       0,
-      theoriques - pedagogiques - enseignantPresent - personnesAmenees - preAssignes
+      theoriques - effectifPresent - personnesAmenees - preAssignes
     );
     
     console.log(`[DEBUG] Calculating real need for exam ${selectedExamen.code_examen}:`);
     console.log(`[DEBUG] - Theoretical: ${theoriques}`);
-    console.log(`[DEBUG] - Pedagogical team (excluding teachers): ${pedagogiques}`);
     console.log(`[DEBUG] - Teacher present: ${enseignantPresent}`);
+    console.log(`[DEBUG] - Pedagogical team (excluding teachers): ${pedagogiques}`);
+    console.log(`[DEBUG] - Effective present (max of teacher and pedagogical): ${effectifPresent}`);
     console.log(`[DEBUG] - Brought people: ${personnesAmenees}`);
     console.log(`[DEBUG] - Pre-assigned: ${preAssignes}`);
     console.log(`[DEBUG] - Real need: ${necessaires}`);

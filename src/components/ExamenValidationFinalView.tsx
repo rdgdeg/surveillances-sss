@@ -1,4 +1,3 @@
-
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +31,7 @@ export function ExamenValidationFinalView() {
         .order("heure_debut");
       if (error) throw error;
       
-      // Enrichir avec les calculs harmonisés
+      // Enrichir avec les calculs harmonisés corrigés
       return (data || []).map(examen => {
         const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
         const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
@@ -82,7 +81,7 @@ export function ExamenValidationFinalView() {
     sallesUniques: new Set(examensValides.map(e => e.salle)).size,
   };
 
-  if (isLoadingExamens || isLoadingCreneaux) {
+  if (isLoadingExamens) {
     return (
       <Card>
         <CardContent className="pt-6">
@@ -166,7 +165,7 @@ export function ExamenValidationFinalView() {
         </Card>
       </div>
 
-      {/* Liste des examens validés avec calculs détaillés */}
+      {/* Liste des examens validés avec calculs corrigés */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -174,7 +173,7 @@ export function ExamenValidationFinalView() {
             <span>Examens Validés</span>
           </CardTitle>
           <CardDescription>
-            Liste définitive des examens avec détail des besoins en surveillance (calculs harmonisés sans double comptage).
+            Liste définitive des examens avec calculs harmonisés corrigés (évitant le double comptage enseignant/pédagogique).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -190,7 +189,7 @@ export function ExamenValidationFinalView() {
                   <TableHead>Faculté</TableHead>
                   <TableHead className="text-center">Théoriques</TableHead>
                   <TableHead className="text-center">Prof + Apportés</TableHead>
-                  <TableHead className="text-center">Pédagogiques</TableHead>
+                  <TableHead className="text-center">Pédagogiques<br/><span className="text-xs">(hors prof)</span></TableHead>
                   <TableHead className="text-center">Pré-assignés</TableHead>
                   <TableHead className="text-center">Besoin Réel</TableHead>
                   <TableHead>Statut</TableHead>
@@ -199,6 +198,7 @@ export function ExamenValidationFinalView() {
               <TableBody>
                 {examensValides.map((examen) => {
                   const profApportes = (examen.surveillants_enseignant || 0) + (examen.surveillants_amenes || 0);
+                  const effectifPresent = Math.max(examen.surveillants_enseignant || 0, examen.surveillants_pedagogiques || 0);
                   
                   return (
                     <TableRow key={examen.id}>
@@ -247,7 +247,7 @@ export function ExamenValidationFinalView() {
                           {examen.surveillants_pedagogiques}
                         </Badge>
                         <div className="text-xs text-gray-500 mt-1">
-                          (hors prof)
+                          Équipe pédago.<br/>excluant prof
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -266,6 +266,9 @@ export function ExamenValidationFinalView() {
                         >
                           {examen.surveillants_necessaires}
                         </Badge>
+                        <div className="text-xs text-gray-500 mt-1">
+                          = {examen.surveillants_theorique} - max({examen.surveillants_enseignant || 0},{examen.surveillants_pedagogiques}) - {examen.surveillants_amenes || 0} - {examen.surveillants_pre_assignes || 0}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="default" className="bg-green-100 text-green-800">

@@ -48,7 +48,7 @@ export const NewPlanningView = () => {
     enabled: !!activeSession
   });
 
-  // Enrichir les examens avec les calculs corrects harmonisés
+  // Enrichir les examens avec les calculs harmonisés corrigés
   const examensEnrichis = examens.map(examen => {
     const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
     const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
@@ -237,73 +237,89 @@ export const NewPlanningView = () => {
             />
           </div>
 
-          {/* Liste des examens triés avec calculs harmonisés */}
+          {/* Liste des examens triés avec calculs harmonisés corrigés */}
           <div className="space-y-4">
-            {sortedExamens.map((examen) => (
-              <div key={examen.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-3 flex-1">
-                    <div className="flex items-center space-x-4">
-                      <Badge variant="outline" className="font-semibold">
-                        {formatDateWithDayBelgian(examen.date_examen)}
-                      </Badge>
-                      <Badge variant="outline">{examen.heure_debut} - {examen.heure_fin}</Badge>
-                      <Badge className={getStatutColor(examen)}>
-                        {getStatutText(examen)}
-                      </Badge>
-                    </div>
-                    
-                    <div>
-                      <h3 className="font-medium text-gray-900 text-lg">{examen.matiere}</h3>
-                      <p className="text-gray-600">Salle : {examen.salle}</p>
-                      <p className="text-sm text-gray-500">
-                        <strong>Surveillants théoriques (auditoires) : {examen.nombre_surveillants_calcule}</strong>
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Équipe pédagogique présente : {examen.surveillants_pedagogiques}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Enseignants supplémentaires : {examen.surveillants_enseignant || 0}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Surveillants amenés : {examen.surveillants_amenes || 0}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Pré-assignés : {examen.surveillants_pre_assignes || 0}
-                      </p>
-                      <p className="text-sm text-gray-500 font-medium text-blue-600">
-                        <strong>À attribuer (besoin réel) : {examen.surveillants_necessaires} ({examen.type_requis} obligatoire)</strong>
-                      </p>
+            {sortedExamens.map((examen) => {
+              const profApportes = (examen.surveillants_enseignant || 0) + (examen.surveillants_amenes || 0);
+              const effectifPresent = Math.max(examen.surveillants_enseignant || 0, examen.surveillants_pedagogiques || 0);
+              
+              return (
+                <div key={examen.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center space-x-4">
+                        <Badge variant="outline" className="font-semibold">
+                          {formatDateWithDayBelgian(examen.date_examen)}
+                        </Badge>
+                        <Badge variant="outline">{examen.heure_debut} - {examen.heure_fin}</Badge>
+                        <Badge className={getStatutColor(examen)}>
+                          {getStatutText(examen)}
+                        </Badge>
+                      </div>
+                      
+                      <div>
+                        <h3 className="font-medium text-gray-900 text-lg">{examen.matiere}</h3>
+                        <p className="text-gray-600">Salle : {examen.salle}</p>
+                        <p className="text-sm text-gray-500">
+                          <strong>Surveillants théoriques (auditoires) : {examen.nombre_surveillants_calcule}</strong>
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Prof + Apportés : {profApportes}
+                          {profApportes > 0 && (
+                            <span className="text-xs ml-2">
+                              (Prof: {examen.surveillants_enseignant || 0} + Amenés: {examen.surveillants_amenes || 0})
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Équipe pédagogique (hors prof) : {examen.surveillants_pedagogiques}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Enseignants supplémentaires : {examen.surveillants_enseignant || 0}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Surveillants amenés : {examen.surveillants_amenes || 0}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Pré-assignés : {examen.surveillants_pre_assignes || 0}
+                        </p>
+                        <p className="text-sm text-gray-500 font-medium text-blue-600">
+                          <strong>À attribuer (besoin réel) : {examen.surveillants_necessaires} ({examen.type_requis} obligatoire)</strong>
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Calcul: {examen.nombre_surveillants_calcule} - max({examen.surveillants_enseignant || 0},{examen.surveillants_pedagogiques}) - {examen.surveillants_amenes || 0} - {examen.surveillants_pre_assignes || 0} = {examen.surveillants_necessaires}
+                        </p>
+                      </div>
+
+                      <div>
+                        <h4 className="font-medium text-sm text-gray-700 mb-2">Surveillants assignés :</h4>
+                        {examen.attributions && examen.attributions.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {examen.attributions.map((attribution: any, index: number) => (
+                              <Badge key={index} variant="secondary">
+                                {attribution.surveillants.prenom} {attribution.surveillants.nom} ({attribution.surveillants.type})
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 italic">Aucun surveillant assigné</p>
+                        )}
+                      </div>
                     </div>
 
-                    <div>
-                      <h4 className="font-medium text-sm text-gray-700 mb-2">Surveillants assignés :</h4>
-                      {examen.attributions && examen.attributions.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {examen.attributions.map((attribution: any, index: number) => (
-                            <Badge key={index} variant="secondary">
-                              {attribution.surveillants.prenom} {attribution.surveillants.nom} ({attribution.surveillants.type})
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500 italic">Aucun surveillant assigné</p>
-                      )}
+                    <div className="ml-4">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                      >
+                        Gérer
+                      </Button>
                     </div>
-                  </div>
-
-                  <div className="ml-4">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                    >
-                      Gérer
-                    </Button>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {sortedExamens.length === 0 && (
