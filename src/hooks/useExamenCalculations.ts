@@ -18,9 +18,12 @@ export function useExamenCalculations(selectedExamen: any) {
     let total = 0;
     let hasConstraints = false;
 
+    console.log(`[DEBUG] Calculating theoretical surveillants for exam ${selectedExamen.code_examen}:`);
+    console.log(`[DEBUG] Auditoires: ${auditoireList.join(', ')}`);
+
     // Pour chaque auditoire, ajouter la contrainte correspondante
     auditoireList.forEach((auditoire: string) => {
-      // Normaliser le nom de l'auditoire pour la recherche (enlever espaces supplémentaires, normaliser casse)
+      // Normaliser le nom de l'auditoire pour la recherche
       const auditoireNormalized = auditoire.toLowerCase().trim();
       
       // Chercher une correspondance exacte ou partielle dans les contraintes
@@ -28,7 +31,6 @@ export function useExamenCalculations(selectedExamen: any) {
       
       // Si pas trouvé, essayer des variations courantes
       if (!constraint) {
-        // Essayer avec des variations de format (ex: "51 B" vs "51B")
         const variations = [
           auditoireNormalized.replace(/\s+/g, ''), // Sans espaces
           auditoireNormalized.replace(/\s+/g, ' '), // Un seul espace
@@ -47,14 +49,19 @@ export function useExamenCalculations(selectedExamen: any) {
       if (constraint !== undefined) {
         total += constraint;
         hasConstraints = true;
+        console.log(`[DEBUG] Found constraint for ${auditoire}: ${constraint} surveillants`);
       } else {
         // Si aucune contrainte trouvée pour cet auditoire, utiliser 1 par défaut
         total += 1;
+        console.log(`[DEBUG] No constraint found for ${auditoire}, using default: 1 surveillant`);
       }
     });
 
+    console.log(`[DEBUG] Total theoretical surveillants: ${total}`);
+
     // Si aucune contrainte trouvée du tout, on utilise le nombre_surveillants (pour compatibilité)
     if (!hasConstraints && total === auditoireList.length) {
+      console.log(`[DEBUG] No constraints found, falling back to nombre_surveillants: ${selectedExamen.nombre_surveillants || 1}`);
       return selectedExamen.nombre_surveillants || 1;
     }
     
@@ -64,22 +71,35 @@ export function useExamenCalculations(selectedExamen: any) {
   // Compute number of pedagogical team members that count towards quota
   const calculerSurveillantsPedagogiques = () => {
     if (!selectedExamen?.personnes_aidantes) return 0;
-    return selectedExamen.personnes_aidantes.filter((p: any) =>
+    const pedagogiques = selectedExamen.personnes_aidantes.filter((p: any) =>
       p.compte_dans_quota && p.present_sur_place
     ).length;
+    console.log(`[DEBUG] Pedagogical team members counting towards quota: ${pedagogiques}`);
+    return pedagogiques;
   };
 
-  // Compute number of surveillants still needed
+  // Compute number of surveillants still needed (real need)
   const calculerSurveillantsNecessaires = () => {
     const pedagogiques = calculerSurveillantsPedagogiques();
     const enseignantPresent = selectedExamen?.surveillants_enseignant || 0;
     const personnesAmenees = selectedExamen?.surveillants_amenes || 0;
+    const preAssignes = selectedExamen?.surveillants_pre_assignes || 0;
     const theoriques = getTheoreticalSurveillants();
-    // total requis - pédagogiques - prof - amenés, clamp à >=0
+    
+    // Total requis - pédagogiques - prof présent - amenés - pré-assignés, clamp à >=0
     const necessaires = Math.max(
       0,
-      theoriques - pedagogiques - enseignantPresent - personnesAmenees
+      theoriques - pedagogiques - enseignantPresent - personnesAmenees - preAssignes
     );
+    
+    console.log(`[DEBUG] Calculating real need for exam ${selectedExamen.code_examen}:`);
+    console.log(`[DEBUG] - Theoretical: ${theoriques}`);
+    console.log(`[DEBUG] - Pedagogical team: ${pedagogiques}`);
+    console.log(`[DEBUG] - Teacher present: ${enseignantPresent}`);
+    console.log(`[DEBUG] - Brought people: ${personnesAmenees}`);
+    console.log(`[DEBUG] - Pre-assigned: ${preAssignes}`);
+    console.log(`[DEBUG] - Real need: ${necessaires}`);
+    
     return necessaires;
   };
 

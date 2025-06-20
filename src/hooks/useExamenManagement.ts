@@ -47,15 +47,15 @@ export function useExamenManagement() {
     });
   }, [examensValides, faculteFilter, dateFilter]);
 
-  // Calculs enrichis pour chaque examen
+  // Calculs enrichis pour chaque examen utilisant les nouveaux calculs harmonisés
   const examensAvecCalculs = useMemo(() => {
     if (!filteredExamens) return [];
     
     return filteredExamens.map(examen => {
-      const calculations = useExamenCalculations(examen);
-      const surveillantsTheorique = calculations.getTheoreticalSurveillants();
-      const surveillantsPedagogiques = calculations.calculerSurveillantsPedagogiques();
-      const surveillantsNecessaires = calculations.calculerSurveillantsNecessaires();
+      // Utiliser un hook pour chaque examen pour obtenir les calculs corrects
+      const surveillantsTheorique = getTheoreticalSurveillants(examen);
+      const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
+      const surveillantsNecessaires = calculerSurveillantsNecessaires(examen);
       
       return {
         ...examen,
@@ -93,3 +93,74 @@ export function useExamenManagement() {
     examenTrouve,
   };
 }
+
+// Fonctions utilitaires pour les calculs (à utiliser dans les composants qui ne peuvent pas utiliser le hook)
+function getTheoreticalSurveillants(examen: any, contraintesMap?: Record<string, number>) {
+  if (!examen?.salle) return examen?.nombre_surveillants || 1;
+  
+  const auditoireList = examen.salle
+    .split(",")
+    .map((a: string) => a.trim())
+    .filter((a: string) => !!a);
+
+  let total = 0;
+  let hasConstraints = false;
+
+  // Pour chaque auditoire, ajouter la contrainte correspondante
+  auditoireList.forEach((auditoire: string) => {
+    const auditoireNormalized = auditoire.toLowerCase().trim();
+    
+    let constraint = contraintesMap?.[auditoireNormalized];
+    
+    if (!constraint && contraintesMap) {
+      const variations = [
+        auditoireNormalized.replace(/\s+/g, ''),
+        auditoireNormalized.replace(/\s+/g, ' '),
+        auditoire.trim(),
+        auditoire.trim().toLowerCase()
+      ];
+      
+      for (const variation of variations) {
+        if (contraintesMap[variation]) {
+          constraint = contraintesMap[variation];
+          break;
+        }
+      }
+    }
+    
+    if (constraint !== undefined) {
+      total += constraint;
+      hasConstraints = true;
+    } else {
+      total += 1;
+    }
+  });
+
+  if (!hasConstraints && total === auditoireList.length) {
+    return examen.nombre_surveillants || 1;
+  }
+  
+  return total;
+}
+
+function calculerSurveillantsPedagogiques(examen: any) {
+  if (!examen?.personnes_aidantes) return 0;
+  return examen.personnes_aidantes.filter((p: any) =>
+    p.compte_dans_quota && p.present_sur_place
+  ).length;
+}
+
+function calculerSurveillantsNecessaires(examen: any, contraintesMap?: Record<string, number>) {
+  const pedagogiques = calculerSurveillantsPedagogiques(examen);
+  const enseignantPresent = examen?.surveillants_enseignant || 0;
+  const personnesAmenees = examen?.surveillants_amenes || 0;
+  const preAssignes = examen?.surveillants_pre_assignes || 0;
+  const theoriques = getTheoreticalSurveillants(examen, contraintesMap);
+  
+  return Math.max(
+    0,
+    theoriques - pedagogiques - enseignantPresent - personnesAmenees - preAssignes
+  );
+}
+
+export { getTheoreticalSurveillants, calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires };

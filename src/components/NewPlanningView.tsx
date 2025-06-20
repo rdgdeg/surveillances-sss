@@ -10,7 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { DeleteAllExamensButton } from "@/components/DeleteAllExamensButton";
 import { formatDateWithDayBelgian } from "@/lib/dateUtils";
-import { useExamenCalculations } from "@/hooks/useExamenCalculations";
+import { getTheoreticalSurveillants, calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires } from "@/hooks/useExamenManagement";
+import { useContraintesAuditoiresMap } from "@/hooks/useContraintesAuditoires";
 
 export const NewPlanningView = () => {
   const [selectedDate, setSelectedDate] = useState("");
@@ -18,6 +19,7 @@ export const NewPlanningView = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: activeSession } = useActiveSession();
+  const { data: contraintesMap } = useContraintesAuditoiresMap();
 
   const { data: examens = [], isLoading } = useQuery({
     queryKey: ['examens', activeSession?.id],
@@ -46,15 +48,17 @@ export const NewPlanningView = () => {
     enabled: !!activeSession
   });
 
-  // Enrichir les examens avec les calculs corrects
+  // Enrichir les examens avec les calculs corrects harmonisés
   const examensEnrichis = examens.map(examen => {
-    const { getTheoreticalSurveillants, calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires } = useExamenCalculations(examen);
+    const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
+    const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
+    const surveillantsNecessaires = calculerSurveillantsNecessaires(examen, contraintesMap);
     
     return {
       ...examen,
-      nombre_surveillants_calcule: getTheoreticalSurveillants(),
-      surveillants_pedagogiques: calculerSurveillantsPedagogiques(),
-      surveillants_necessaires: calculerSurveillantsNecessaires()
+      nombre_surveillants_calcule: surveillantsTheorique,
+      surveillants_pedagogiques: surveillantsPedagogiques,
+      surveillants_necessaires: surveillantsNecessaires
     };
   });
 
@@ -79,7 +83,7 @@ export const NewPlanningView = () => {
 
   const getStatutColor = (examen: any) => {
     const assignedCount = examen.attributions?.length || 0;
-    const requiredCount = examen.surveillants_necessaires; // Utiliser le calcul correct
+    const requiredCount = examen.surveillants_necessaires;
     
     if (assignedCount === 0) return "bg-red-100 text-red-800";
     if (assignedCount < requiredCount) return "bg-orange-100 text-orange-800";
@@ -88,7 +92,7 @@ export const NewPlanningView = () => {
 
   const getStatutText = (examen: any) => {
     const assignedCount = examen.attributions?.length || 0;
-    const requiredCount = examen.surveillants_necessaires; // Utiliser le calcul correct
+    const requiredCount = examen.surveillants_necessaires;
     
     if (assignedCount === 0) return "En attente";
     if (assignedCount < requiredCount) return "Partiel";
@@ -198,7 +202,7 @@ export const NewPlanningView = () => {
                 <span>Planning des Examens - {activeSession.name}</span>
               </CardTitle>
               <CardDescription>
-                Vue d'ensemble et gestion des attributions de surveillances
+                Vue d'ensemble et gestion des attributions de surveillances (calculs harmonisés)
               </CardDescription>
             </div>
             <DeleteAllExamensButton />
@@ -233,7 +237,7 @@ export const NewPlanningView = () => {
             />
           </div>
 
-          {/* Liste des examens triés */}
+          {/* Liste des examens triés avec calculs harmonisés */}
           <div className="space-y-4">
             {sortedExamens.map((examen) => (
               <div key={examen.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -253,7 +257,7 @@ export const NewPlanningView = () => {
                       <h3 className="font-medium text-gray-900 text-lg">{examen.matiere}</h3>
                       <p className="text-gray-600">Salle : {examen.salle}</p>
                       <p className="text-sm text-gray-500">
-                        Surveillants calculés selon auditoires : {examen.nombre_surveillants_calcule}
+                        <strong>Surveillants théoriques (auditoires) : {examen.nombre_surveillants_calcule}</strong>
                       </p>
                       <p className="text-sm text-gray-500">
                         Équipe pédagogique présente : {examen.surveillants_pedagogiques}
@@ -264,8 +268,11 @@ export const NewPlanningView = () => {
                       <p className="text-sm text-gray-500">
                         Surveillants amenés : {examen.surveillants_amenes || 0}
                       </p>
-                      <p className="text-sm text-gray-500 font-medium">
-                        À attribuer : {examen.surveillants_necessaires} ({examen.type_requis} obligatoire)
+                      <p className="text-sm text-gray-500">
+                        Pré-assignés : {examen.surveillants_pre_assignes || 0}
+                      </p>
+                      <p className="text-sm text-gray-500 font-medium text-blue-600">
+                        <strong>À attribuer (besoin réel) : {examen.surveillants_necessaires} ({examen.type_requis} obligatoire)</strong>
                       </p>
                     </div>
 

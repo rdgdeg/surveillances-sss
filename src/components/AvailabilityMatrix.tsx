@@ -9,6 +9,8 @@ import { useActiveSession } from "@/hooks/useSessions";
 import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
 import { toast } from "@/hooks/use-toast";
 import { formatDateBelgian } from "@/lib/dateUtils";
+import { getTheoreticalSurveillants, calculerSurveillantsNecessaires } from "@/hooks/useExamenManagement";
+import { useContraintesAuditoiresMap } from "@/hooks/useContraintesAuditoires";
 import * as XLSX from 'xlsx';
 
 interface Disponibilite {
@@ -44,6 +46,7 @@ interface TimeSlot {
 export const AvailabilityMatrix = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
+  const { data: contraintesMap } = useContraintesAuditoiresMap();
 
   // Utiliser les créneaux optimisés comme base pour la matrice
   const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(activeSession?.id || null);
@@ -105,7 +108,7 @@ export const AvailabilityMatrix = () => {
     enabled: !!activeSession
   });
 
-  // Récupérer les examens pour calculer le nombre de surveillants nécessaires
+  // Récupérer les examens avec les calculs harmonisés
   const { data: examens = [] } = useQuery({
     queryKey: ['examens-matrix', activeSession?.id],
     queryFn: async () => {
@@ -113,15 +116,24 @@ export const AvailabilityMatrix = () => {
       
       const { data, error } = await supabase
         .from('examens')
-        .select('id, date_examen, heure_debut, heure_fin, surveillants_a_attribuer')
+        .select(`
+          id, date_examen, heure_debut, heure_fin, salle,
+          surveillants_enseignant, surveillants_amenes, surveillants_pre_assignes,
+          personnes_aidantes (*)
+        `)
         .eq('session_id', activeSession.id)
         .eq('is_active', true)
         .eq('statut_validation', 'VALIDE');
       
       if (error) throw error;
-      return data;
+      
+      // Enrichir avec les calculs harmonisés
+      return data.map(examen => ({
+        ...examen,
+        surveillants_necessaires: calculerSurveillantsNecessaires(examen, contraintesMap)
+      }));
     },
-    enabled: !!activeSession
+    enabled: !!activeSession && !!contraintesMap
   });
 
   // Fonction de normalisation des heures
@@ -172,11 +184,11 @@ export const AvailabilityMatrix = () => {
     return matchedSlot;
   };
 
-  // Créer les créneaux de surveillance optimisés pour la matrice
+  // Créer les créneaux de surveillance optimisés pour la matrice avec calculs harmonisés
   const timeSlots: TimeSlot[] = optimizedCreneaux
     .filter(slot => slot.type === 'surveillance')
     .map(slot => {
-      // Calculer le nombre de surveillants nécessaires pour ce créneau
+      // Calculer le nombre de surveillants nécessaires pour ce créneau avec les calculs harmonisés
       const examensInSlot = examens.filter(examen => {
         const creneauOptimise = optimizedCreneaux.find(c => 
           c.type === 'surveillance' && 
@@ -190,7 +202,14 @@ export const AvailabilityMatrix = () => {
         return creneauOptimise.examens.some(examSlot => examSlot.id === examen.id);
       });
       
-      const surveillantsNecessaires = examensInSlot.reduce((sum, examen) => sum + (examen.surveillants_a_attribuer || 0), 0);
+      // Utiliser les nouveaux calculs harmonisés
+      const surveillantsNecessaires = examensInSlot.reduce((sum, examen) => {
+        const besoinReel = calculerSurveillantsNecessaires(examen, contraintesMap);
+        console.log(`[DEBUG] Exam ${examen.id} - Real need: ${besoinReel}`);
+        return sum + besoinReel;
+      }, 0);
+      
+      console.log(`[DEBUG] Time slot ${slot.date_examen} ${slot.heure_debut}-${slot.heure_fin} - Total need: ${surveillantsNecessaires}`);
       
       // Calculer le nombre de surveillants disponibles pour ce créneau
       const surveillantsDisponibles = disponibilites.filter(disp => {
@@ -323,7 +342,7 @@ export const AvailabilityMatrix = () => {
             <span>Matrice des Disponibilités - {activeSession.name}</span>
           </CardTitle>
           <CardDescription className="text-blue-100">
-            Vue des disponibilités soumises par les surveillants pour les créneaux de surveillance optimisés. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
+            Vue des disponibilités avec calculs harmonisés basés sur les contraintes d'auditoires. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
           </CardDescription>
           <div className="flex space-x-2">
             <Button onClick={generateCallyTemplate} variant="outline" size="sm" className="bg-white text-uclouvain-blue border-white hover:bg-blue-50">
