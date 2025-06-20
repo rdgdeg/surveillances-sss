@@ -7,7 +7,13 @@ export function useExamenCalculations(selectedExamen: any) {
 
   // Compute the required number of surveillants based on all auditoires in "salle" (comma-separated)
   const getTheoreticalSurveillants = () => {
-    if (!selectedExamen?.salle || !contraintesMap) return selectedExamen?.nombre_surveillants || 1;
+    if (!selectedExamen?.salle) return selectedExamen?.nombre_surveillants || 1;
+    
+    // Si pas de contraintes disponibles, utiliser le nombre_surveillants par défaut
+    if (!contraintesMap) {
+      console.log(`[DEBUG] No constraints available, using default: ${selectedExamen.nombre_surveillants || 1}`);
+      return selectedExamen.nombre_surveillants || 1;
+    }
     
     // Découper le champ salle sur les virgules et additionner les contraintes de chaque auditoire
     const auditoireList = selectedExamen.salle

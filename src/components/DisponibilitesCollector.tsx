@@ -45,6 +45,7 @@ export function DisponibilitesCollector({
   const [dispos, setDispos] = useState<Record<string, { dispo: boolean; obligatoire: boolean; examenCode: string }>>({});
   const [telephone, setTelephone] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   
   // Nouveaux états pour les personnes inconnues
   const [nom, setNom] = useState("");
@@ -118,26 +119,75 @@ export function DisponibilitesCollector({
     }
   }, [surveillant]);
 
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+    
+    // Validation des créneaux obligatoires
+    Object.entries(dispos).forEach(([key, d]) => {
+      if (d.obligatoire && !d.examenCode.trim()) {
+        newErrors[key] = "Le code examen est obligatoire pour une surveillance obligatoire";
+      }
+    });
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleDispoChange = (key: string, checked: boolean) => {
     setDispos(d => ({
       ...d,
       [key]: { ...d[key], dispo: checked }
     }));
+    // Supprimer l'erreur si elle existe
+    if (errors[key]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[key];
+        return newErrors;
+      });
+    }
   };
+
   const handleObligatoireChange = (key: string, checked: boolean) => {
     setDispos(d => ({
       ...d,
       [key]: { ...d[key], obligatoire: checked }
     }));
+    // Si on décoche obligatoire, supprimer l'erreur
+    if (!checked && errors[key]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[key];
+        return newErrors;
+      });
+    }
   };
+
   const handleCodeChange = (key: string, val: string) => {
     setDispos(d => ({
       ...d,
       [key]: { ...d[key], examenCode: val }
     }));
+    // Supprimer l'erreur si le champ est rempli
+    if (val.trim() && errors[key]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[key];
+        return newErrors;
+      });
+    }
   };
 
   async function handleSave() {
+    if (!validateForm()) {
+      toast({ 
+        title: "Erreur de validation", 
+        description: "Veuillez corriger les erreurs avant de sauvegarder.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     if (surveillant) {
       // Personne connue - sauvegarder les disponibilités
       if (!telephone.match(/^\+?\d+$/)) {
@@ -160,6 +210,7 @@ export function DisponibilitesCollector({
           est_disponible: d.dispo,
           commentaire_surveillance_obligatoire: d.obligatoire ? "Créneau obligatoire" : null,
           nom_examen_obligatoire: d.examenCode || null,
+          type_choix: d.obligatoire ? "obligatoire" : "souhaitee"
         };
       });
       await supabase.from("disponibilites").delete().eq("surveillant_id", surveillant.id);
@@ -279,32 +330,44 @@ export function DisponibilitesCollector({
                     {creneauxJournée.map(cr => {
                       const key = `${cr.date_surveillance}|${cr.heure_debut_surveillance}|${cr.heure_fin_surveillance}`;
                       const d = dispos[key] || { dispo: false, obligatoire: false, examenCode: "" };
+                      const hasError = !!errors[key];
+                      
                       return (
-                        <div key={cr.id} className="flex items-center space-x-2 border p-2 rounded">
-                          <Checkbox
-                            checked={!!d.dispo}
-                            onCheckedChange={val => handleDispoChange(key, !!val)}
-                            disabled={showUnknownPersonForm} // Désactivé pour les candidats externes
-                          />
-                          <span>{cr.heure_debut_surveillance} - {cr.heure_fin_surveillance}</span>
+                        <div key={cr.id} className={`border p-2 rounded ${hasError ? 'border-red-500 bg-red-50' : ''}`}>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <Checkbox
+                              checked={!!d.dispo}
+                              onCheckedChange={val => handleDispoChange(key, !!val)}
+                              disabled={showUnknownPersonForm} // Désactivé pour les candidats externes
+                            />
+                            <span>{cr.heure_debut_surveillance} - {cr.heure_fin_surveillance}</span>
+                          </div>
+                          
                           {surveillant && (
-                            <>
-                              <span className="ml-2"> | </span>
-                              <Checkbox
-                                checked={!!d.obligatoire}
-                                onCheckedChange={val => handleObligatoireChange(key, !!val)}
-                              />
-                              <span className="text-xs">Obligatoire</span>
-                              {d.obligatoire && (
-                                <Input
-                                  className="ml-2 min-w-[120px]"
-                                  placeholder="Code examen"
-                                  value={d.examenCode}
-                                  onChange={e => handleCodeChange(key, e.target.value)}
-                                  size={8}
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  checked={!!d.obligatoire}
+                                  onCheckedChange={val => handleObligatoireChange(key, !!val)}
                                 />
+                                <span className="text-xs">Surveillance obligatoire</span>
+                              </div>
+                              
+                              {d.obligatoire && (
+                                <div>
+                                  <Input
+                                    placeholder="Code examen *"
+                                    value={d.examenCode}
+                                    onChange={e => handleCodeChange(key, e.target.value)}
+                                    className={hasError ? 'border-red-500' : ''}
+                                    required
+                                  />
+                                  {hasError && (
+                                    <p className="text-xs text-red-600 mt-1">{errors[key]}</p>
+                                  )}
+                                </div>
                               )}
-                            </>
+                            </div>
                           )}
                         </div>
                       );

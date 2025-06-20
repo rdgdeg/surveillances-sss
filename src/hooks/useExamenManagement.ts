@@ -4,7 +4,7 @@ import { useActiveSession } from "@/hooks/useSessions";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { useExamenCalculations } from "./useExamenCalculations";
+import { useContraintesAuditoiresMap } from "./useContraintesAuditoires";
 
 export function useExamenManagement() {
   const { data: activeSession } = useActiveSession();
@@ -12,6 +12,7 @@ export function useExamenManagement() {
   const [selectedExamen, setSelectedExamen] = useState<any>(null);
   const [faculteFilter, setFaculteFilter] = useState<string>("");
   const [dateFilter, setDateFilter] = useState<Date | null>(null);
+  const { data: contraintesMap } = useContraintesAuditoiresMap();
 
   const { data: examensValides } = useQuery({
     queryKey: ['examens-enseignant', activeSession?.id],
@@ -52,19 +53,30 @@ export function useExamenManagement() {
     if (!filteredExamens) return [];
     
     return filteredExamens.map(examen => {
-      // Utiliser un hook pour chaque examen pour obtenir les calculs corrects
-      const surveillantsTheorique = getTheoreticalSurveillants(examen);
-      const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
-      const surveillantsNecessaires = calculerSurveillantsNecessaires(examen);
-      
-      return {
-        ...examen,
-        surveillants_theorique: surveillantsTheorique,
-        surveillants_pedagogiques: surveillantsPedagogiques,
-        surveillants_necessaires: surveillantsNecessaires
-      };
+      try {
+        // Utiliser les fonctions utilitaires harmonisées
+        const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
+        const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
+        const surveillantsNecessaires = calculerSurveillantsNecessaires(examen, contraintesMap);
+        
+        return {
+          ...examen,
+          surveillants_theorique: surveillantsTheorique,
+          surveillants_pedagogiques: surveillantsPedagogiques,
+          surveillants_necessaires: surveillantsNecessaires
+        };
+      } catch (error) {
+        console.error(`Error calculating for exam ${examen.id}:`, error);
+        // En cas d'erreur, utiliser les valeurs par défaut
+        return {
+          ...examen,
+          surveillants_theorique: examen.nombre_surveillants || 1,
+          surveillants_pedagogiques: 0,
+          surveillants_necessaires: examen.nombre_surveillants || 1
+        };
+      }
     });
-  }, [filteredExamens]);
+  }, [filteredExamens, contraintesMap]);
 
   // Trouver un examen selon le code
   const examenTrouve = useMemo(() => (
@@ -98,6 +110,11 @@ export function useExamenManagement() {
 function getTheoreticalSurveillants(examen: any, contraintesMap?: Record<string, number>) {
   if (!examen?.salle) return examen?.nombre_surveillants || 1;
   
+  // Si pas de contraintes disponibles, utiliser le nombre_surveillants par défaut
+  if (!contraintesMap) {
+    return examen.nombre_surveillants || 1;
+  }
+  
   const auditoireList = examen.salle
     .split(",")
     .map((a: string) => a.trim())
@@ -110,9 +127,9 @@ function getTheoreticalSurveillants(examen: any, contraintesMap?: Record<string,
   auditoireList.forEach((auditoire: string) => {
     const auditoireNormalized = auditoire.toLowerCase().trim();
     
-    let constraint = contraintesMap?.[auditoireNormalized];
+    let constraint = contraintesMap[auditoireNormalized];
     
-    if (!constraint && contraintesMap) {
+    if (!constraint) {
       const variations = [
         auditoireNormalized.replace(/\s+/g, ''),
         auditoireNormalized.replace(/\s+/g, ' '),
