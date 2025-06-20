@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { UserPlus, Trash2, Save } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Examen {
   id: string;
@@ -39,6 +40,7 @@ interface PreAssignment {
 
 export const PreAssignmentManager = () => {
   const { data: activeSession } = useActiveSession();
+  const queryClient = useQueryClient();
   const [examens, setExamens] = useState<Examen[]>([]);
   const [surveillants, setSurveillants] = useState<Surveillant[]>([]);
   const [preAssignments, setPreAssignments] = useState<PreAssignment[]>([]);
@@ -145,6 +147,22 @@ export const PreAssignmentManager = () => {
 
     setIsSaving(true);
     try {
+      // D'abord, mettre à jour le nombre de pré-assignés dans l'examen
+      const { error: updateError } = await supabase
+        .from('examens')
+        .update({
+          surveillants_pre_assignes: ((await supabase
+            .from('examens')
+            .select('surveillants_pre_assignes')
+            .eq('id', selectedExamen)
+            .single()
+          ).data?.surveillants_pre_assignes || 0) + 1
+        })
+        .eq('id', selectedExamen);
+
+      if (updateError) throw updateError;
+
+      // Puis créer l'attribution
       const { data, error } = await supabase
         .from('attributions')
         .insert({
@@ -182,6 +200,10 @@ export const PreAssignmentManager = () => {
       setSelectedExamen("");
       setSelectedSurveillant("");
 
+      // Invalider les caches pour mettre à jour les besoins partout
+      queryClient.invalidateQueries({ queryKey: ["examens-valides"] });
+      queryClient.invalidateQueries({ queryKey: ["examens-enseignant"] });
+
       toast({
         title: "Assignation ajoutée",
         description: "La pré-assignation obligatoire a été créée avec succès",
@@ -199,8 +221,27 @@ export const PreAssignmentManager = () => {
   };
 
   const supprimerPreAssignation = async (assignmentId: string) => {
+    const assignment = preAssignments.find(pa => pa.id === assignmentId);
+    if (!assignment) return;
+
     setIsSaving(true);
     try {
+      // D'abord, mettre à jour le nombre de pré-assignés dans l'examen
+      const { error: updateError } = await supabase
+        .from('examens')
+        .update({
+          surveillants_pre_assignes: Math.max(0, ((await supabase
+            .from('examens')
+            .select('surveillants_pre_assignes')
+            .eq('id', assignment.examen_id)
+            .single()
+          ).data?.surveillants_pre_assignes || 0) - 1)
+        })
+        .eq('id', assignment.examen_id);
+
+      if (updateError) throw updateError;
+
+      // Puis supprimer l'attribution
       const { error } = await supabase
         .from('attributions')
         .delete()
@@ -209,6 +250,10 @@ export const PreAssignmentManager = () => {
       if (error) throw error;
 
       setPreAssignments(preAssignments.filter(pa => pa.id !== assignmentId));
+
+      // Invalider les caches pour mettre à jour les besoins partout
+      queryClient.invalidateQueries({ queryKey: ["examens-valides"] });
+      queryClient.invalidateQueries({ queryKey: ["examens-enseignant"] });
 
       toast({
         title: "Assignation supprimée",
@@ -272,7 +317,7 @@ export const PreAssignmentManager = () => {
                   {examens.map((examen) => (
                     <SelectItem key={examen.id} value={examen.id}>
                       <div className="text-left">
-                        <div className="font-medium">{examen.code_examen}</div>
+                        <div className="font-medium">{examen.code_examen} - {examen.matiere}</div>
                         <div className="text-xs text-gray-500">
                           {examen.date_examen} • {examen.heure_debut} • {examen.salle}
                         </div>

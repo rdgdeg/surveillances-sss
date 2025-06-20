@@ -174,7 +174,7 @@ export function ExamenValidationFinalView() {
             <span>Examens Validés</span>
           </CardTitle>
           <CardDescription>
-            Liste définitive des examens avec détail des besoins en surveillance (calculs harmonisés).
+            Liste définitive des examens avec détail des besoins en surveillance (calculs harmonisés sans double comptage).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -246,6 +246,9 @@ export function ExamenValidationFinalView() {
                         <Badge variant="outline" className="bg-purple-50 text-purple-800">
                           {examen.surveillants_pedagogiques}
                         </Badge>
+                        <div className="text-xs text-gray-500 mt-1">
+                          (hors prof)
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline" className="bg-orange-50 text-orange-800">

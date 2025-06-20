@@ -162,8 +162,13 @@ function getTheoreticalSurveillants(examen: any, contraintesMap?: Record<string,
 
 function calculerSurveillantsPedagogiques(examen: any) {
   if (!examen?.personnes_aidantes) return 0;
+  
+  // Compter seulement les personnes aidantes qui ne sont pas des enseignants
+  // et qui comptent dans le quota et sont présentes sur place
   return examen.personnes_aidantes.filter((p: any) =>
-    p.compte_dans_quota && p.present_sur_place
+    p.compte_dans_quota && 
+    p.present_sur_place && 
+    !p.est_enseignant // Exclure les enseignants pour éviter le double comptage
   ).length;
 }
 

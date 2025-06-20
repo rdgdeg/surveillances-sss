@@ -74,13 +74,19 @@ export function useExamenCalculations(selectedExamen: any) {
     return total;
   };
 
-  // Compute number of pedagogical team members that count towards quota
+  // Compute number of pedagogical team members that count towards quota (EXCLUANT le prof présent)
   const calculerSurveillantsPedagogiques = () => {
     if (!selectedExamen?.personnes_aidantes) return 0;
+    
+    // Compter seulement les personnes aidantes qui ne sont pas des enseignants
+    // et qui comptent dans le quota et sont présentes sur place
     const pedagogiques = selectedExamen.personnes_aidantes.filter((p: any) =>
-      p.compte_dans_quota && p.present_sur_place
+      p.compte_dans_quota && 
+      p.present_sur_place && 
+      !p.est_enseignant // Exclure les enseignants pour éviter le double comptage
     ).length;
-    console.log(`[DEBUG] Pedagogical team members counting towards quota: ${pedagogiques}`);
+    
+    console.log(`[DEBUG] Pedagogical team members counting towards quota (excluding teachers): ${pedagogiques}`);
     return pedagogiques;
   };
 
@@ -100,7 +106,7 @@ export function useExamenCalculations(selectedExamen: any) {
     
     console.log(`[DEBUG] Calculating real need for exam ${selectedExamen.code_examen}:`);
     console.log(`[DEBUG] - Theoretical: ${theoriques}`);
-    console.log(`[DEBUG] - Pedagogical team: ${pedagogiques}`);
+    console.log(`[DEBUG] - Pedagogical team (excluding teachers): ${pedagogiques}`);
     console.log(`[DEBUG] - Teacher present: ${enseignantPresent}`);
     console.log(`[DEBUG] - Brought people: ${personnesAmenees}`);
     console.log(`[DEBUG] - Pre-assigned: ${preAssignes}`);
