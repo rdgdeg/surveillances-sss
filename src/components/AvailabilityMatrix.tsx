@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,14 @@ interface Disponibilite {
   est_disponible: boolean;
   type_choix: string;
   nom_examen_obligatoire: string;
+}
+
+interface Attribution {
+  id: string;
+  surveillant_id: string;
+  examen_id: string;
+  is_pre_assigne: boolean;
+  is_obligatoire: boolean;
 }
 
 interface Surveillant {
@@ -108,6 +117,36 @@ export const AvailabilityMatrix = () => {
     enabled: !!activeSession
   });
 
+  // Récupérer les pré-attributions
+  const { data: attributions = [] } = useQuery({
+    queryKey: ['attributions-pre-assignees', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession) return [];
+      
+      const { data, error } = await supabase
+        .from('attributions')
+        .select(`
+          id,
+          surveillant_id,
+          examen_id,
+          is_pre_assigne,
+          is_obligatoire,
+          examens (
+            date_examen,
+            heure_debut,
+            heure_fin,
+            matiere
+          )
+        `)
+        .eq('session_id', activeSession.id)
+        .eq('is_pre_assigne', true);
+      
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!activeSession
+  });
+
   // Récupérer les examens avec les calculs harmonisés corrigés
   const { data: examens = [] } = useQuery({
     queryKey: ['examens-matrix', activeSession?.id],
@@ -184,6 +223,29 @@ export const AvailabilityMatrix = () => {
     return matchedSlot;
   };
 
+  // Fonction pour mapper une pré-attribution à un créneau optimisé
+  const mapAttributionToOptimizedSlot = (attribution: any, slots: TimeSlot[]) => {
+    const examen = attribution.examens;
+    if (!examen) return null;
+
+    const matchedSlot = slots.find(slot => {
+      if (slot.date !== examen.date_examen) return false;
+      
+      const creneauOptimise = optimizedCreneaux.find(c => 
+        c.type === 'surveillance' && 
+        c.date_examen === slot.date &&
+        c.heure_debut === slot.heure_debut &&
+        c.heure_fin === slot.heure_fin
+      );
+      
+      if (!creneauOptimise) return false;
+      
+      return creneauOptimise.examens.some(examSlot => examSlot.id === attribution.examen_id);
+    });
+
+    return matchedSlot;
+  };
+
   // Créer les créneaux de surveillance optimisés pour la matrice avec calculs harmonisés corrigés
   const timeSlots: TimeSlot[] = optimizedCreneaux
     .filter(slot => slot.type === 'surveillance')
@@ -211,8 +273,8 @@ export const AvailabilityMatrix = () => {
       
       console.log(`[DEBUG] Time slot ${slot.date_examen} ${slot.heure_debut}-${slot.heure_fin} - Total need (corrected): ${surveillantsNecessaires}`);
       
-      // Calculer le nombre de surveillants disponibles pour ce créneau
-      const surveillantsDisponibles = disponibilites.filter(disp => {
+      // Calculer le nombre de surveillants disponibles pour ce créneau (disponibilités + pré-attributions)
+      const surveillantsAvecDisponibilites = disponibilites.filter(disp => {
         const mappedSlot = mapDisponibiliteToOptimizedSlot(disp, [{
           date: slot.date_examen,
           heure_debut: slot.heure_debut,
@@ -224,6 +286,21 @@ export const AvailabilityMatrix = () => {
         }]);
         return !!mappedSlot;
       }).length;
+
+      const surveillantsPreAssignes = attributions.filter(attr => {
+        const mappedSlot = mapAttributionToOptimizedSlot(attr, [{
+          date: slot.date_examen,
+          heure_debut: slot.heure_debut,
+          heure_fin: slot.heure_fin,
+          heure_debut_surveillance: slot.heure_debut_surveillance,
+          label: '',
+          surveillants_necessaires: 0,
+          surveillants_disponibles: 0
+        }]);
+        return !!mappedSlot;
+      }).length;
+
+      const surveillantsDisponibles = surveillantsAvecDisponibilites + surveillantsPreAssignes;
 
       return {
         date: slot.date_examen,
@@ -251,9 +328,38 @@ export const AvailabilityMatrix = () => {
     }
   });
 
+  // Créer une map des pré-attributions mappées aux créneaux optimisés
+  const preAttributionMap = new Map<string, any>();
+  attributions.forEach(attr => {
+    const mappedSlot = mapAttributionToOptimizedSlot(attr, timeSlots);
+    if (mappedSlot) {
+      const key = `${attr.surveillant_id}-${mappedSlot.date}-${mappedSlot.heure_debut}-${mappedSlot.heure_fin}`;
+      preAttributionMap.set(key, attr);
+    }
+  });
+
   const getAvailabilityInfo = (surveillantId: string, slot: TimeSlot) => {
     const key = `${surveillantId}-${slot.date}-${slot.heure_debut}-${slot.heure_fin}`;
-    return disponibiliteMap.get(key);
+    
+    // Vérifier d'abord les disponibilités normales
+    const disponibilite = disponibiliteMap.get(key);
+    if (disponibilite) {
+      return {
+        type: 'disponibilite',
+        data: disponibilite
+      };
+    }
+    
+    // Puis vérifier les pré-attributions
+    const preAttribution = preAttributionMap.get(key);
+    if (preAttribution) {
+      return {
+        type: 'pre_attribution',
+        data: preAttribution
+      };
+    }
+    
+    return null;
   };
 
   // Fonction pour calculer les statistiques de disponibilité pour un surveillant
@@ -286,14 +392,16 @@ export const AvailabilityMatrix = () => {
         let cellValue = '✗';
         
         if (availability) {
-          if (availability.type_choix === 'obligatoire') {
+          if (availability.type === 'pre_attribution') {
+            cellValue = '★ (Pré-assigné)';
+          } else if (availability.data.type_choix === 'obligatoire') {
             cellValue = '★';
           } else {
             cellValue = '✓';
           }
           
-          if (availability.nom_examen_obligatoire) {
-            cellValue += ` (${availability.nom_examen_obligatoire})`;
+          if (availability.type === 'disponibilite' && availability.data.nom_examen_obligatoire) {
+            cellValue += ` (${availability.data.nom_examen_obligatoire})`;
           }
         }
         
@@ -342,7 +450,7 @@ export const AvailabilityMatrix = () => {
             <span>Matrice des Disponibilités - {activeSession.name}</span>
           </CardTitle>
           <CardDescription className="text-blue-100">
-            Vue des disponibilités avec calculs harmonisés basés sur les contraintes d'auditoires. ✓ = souhaité, ★ = obligatoire, ✗ = non disponible.
+            Vue des disponibilités avec calculs harmonisés basés sur les contraintes d'auditoires. ✓ = souhaité, ★ = obligatoire/pré-assigné, ✗ = non disponible.
           </CardDescription>
           <div className="flex space-x-2">
             <Button onClick={generateCallyTemplate} variant="outline" size="sm" className="bg-white text-uclouvain-blue border-white hover:bg-blue-50">
@@ -463,7 +571,15 @@ export const AvailabilityMatrix = () => {
                           let title = 'Non disponible';
                           
                           if (availability) {
-                            if (availability.type_choix === 'obligatoire') {
+                            if (availability.type === 'pre_attribution') {
+                              bgColor = 'bg-purple-100';
+                              textColor = 'text-purple-800';
+                              symbol = '★';
+                              title = 'Pré-assigné';
+                              if (availability.data.is_obligatoire) {
+                                title += ' (Obligatoire)';
+                              }
+                            } else if (availability.data.type_choix === 'obligatoire') {
                               bgColor = 'bg-green-100';
                               textColor = 'text-green-800';
                               symbol = '★';
@@ -475,8 +591,8 @@ export const AvailabilityMatrix = () => {
                               title = 'Disponible (souhaité)';
                             }
                             
-                            if (availability.nom_examen_obligatoire) {
-                              title += ` - Examen: ${availability.nom_examen_obligatoire}`;
+                            if (availability.type === 'disponibilite' && availability.data.nom_examen_obligatoire) {
+                              title += ` - Examen: ${availability.data.nom_examen_obligatoire}`;
                             }
                           }
                           
@@ -509,6 +625,10 @@ export const AvailabilityMatrix = () => {
                 <div className="flex items-center space-x-1">
                   <span className="w-4 h-4 bg-green-100 text-green-800 flex items-center justify-center text-xs rounded">★</span>
                   <span>Surveillance obligatoire</span>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span className="w-4 h-4 bg-purple-100 text-purple-800 flex items-center justify-center text-xs rounded">★</span>
+                  <span>Pré-assigné</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <span className="w-4 h-4 bg-red-100 text-red-800 flex items-center justify-center text-xs rounded">✗</span>

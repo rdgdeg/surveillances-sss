@@ -1,490 +1,304 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Users, Search, Download, Star, CheckCircle, Eye, AlertCircle, UserX, Edit } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActiveSession } from "@/hooks/useSessions";
-import { toast } from "@/hooks/use-toast";
-import { DisponibiliteDetailModal } from "./DisponibiliteDetailModal";
-import { EditDisponibilitesModal } from "./EditDisponibilitesModal";
+import { supabase } from "@/integrations/supabase/client";
+import { Search, Users, Download, Calendar, CheckCircle, AlertTriangle } from "lucide-react";
+import { ListeDisponibilitesSurveillants } from "./ListeDisponibilitesSurveillants";
+import { SurveillantDisponibilite } from "./SuiviDisponibilites";
 import * as XLSX from 'xlsx';
-
-interface SurveillantStats {
-  id: string;
-  nom: string;
-  prenom: string;
-  email: string;
-  type: string;
-  total_disponibilites: number;
-  obligatoires: number;
-  souhaitees: number;
-  a_soumis: boolean;
-}
-
-interface Disponibilite {
-  id: string;
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-  type_choix: string;
-  nom_examen_selectionne?: string;
-  nom_examen_obligatoire?: string;
-  commentaire_surveillance_obligatoire?: string;
-}
 
 export const SuiviDisponibilitesAdmin = () => {
   const { data: activeSession } = useActiveSession();
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedSurveillant, setSelectedSurveillant] = useState<SurveillantStats | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [filterType, setFilterType] = useState<string>("tous");
+  const [sortBy, setSortBy] = useState<string>("completion_desc");
 
-  // Récupérer toutes les données des surveillants avec leurs disponibilités
-  const { data: surveillantsStats = [], isLoading } = useQuery({
-    queryKey: ['surveillants-stats', activeSession?.id],
-    queryFn: async (): Promise<SurveillantStats[]> => {
-      if (!activeSession?.id) return [];
-
-      // Récupérer tous les surveillants actifs de la session
-      const { data: surveillants, error: surveillantsError } = await supabase
-        .from('surveillant_sessions')
-        .select(`
-          surveillants (
-            id, nom, prenom, email, type
-          )
-        `)
-        .eq('session_id', activeSession.id)
-        .eq('is_active', true);
-
-      if (surveillantsError) throw surveillantsError;
-
-      // Récupérer toutes les disponibilités de la session
-      const { data: disponibilites, error: dispoError } = await supabase
-        .from('disponibilites')
-        .select('*')
-        .eq('session_id', activeSession.id)
-        .eq('est_disponible', true);
-
-      if (dispoError) throw dispoError;
-
-      // Créer les statistiques pour chaque surveillant
-      const stats: SurveillantStats[] = [];
+  // Récupérer tous les créneaux d'examens pour cette session
+  const { data: totalCreneaux = 0 } = useQuery({
+    queryKey: ['total-creneaux', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession?.id) return 0;
       
-      const surveillantsList = surveillants.map(item => item.surveillants).filter(Boolean);
+      const { data, error } = await supabase
+        .from('examens')
+        .select('id')
+        .eq('session_id', activeSession.id)
+        .eq('is_active', true)
+        .eq('statut_validation', 'VALIDE');
       
-      for (const surveillant of surveillantsList) {
-        if (!surveillant) continue;
-        
-        const surveillantDispos = disponibilites?.filter(d => d.surveillant_id === surveillant.id) || [];
-        const obligatoires = surveillantDispos.filter(d => d.type_choix === 'obligatoire');
-        const souhaitees = surveillantDispos.filter(d => d.type_choix !== 'obligatoire');
-        
-        stats.push({
-          id: surveillant.id,
-          nom: surveillant.nom,
-          prenom: surveillant.prenom,
-          email: surveillant.email,
-          type: surveillant.type,
-          total_disponibilites: surveillantDispos.length,
-          obligatoires: obligatoires.length,
-          souhaitees: souhaitees.length,
-          a_soumis: surveillantDispos.length > 0
-        });
-      }
-
-      // Trier par nom et prénom alphabétiquement
-      return stats.sort((a, b) => {
-        return `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`);
-      });
+      if (error) throw error;
+      return data?.length || 0;
     },
     enabled: !!activeSession?.id
   });
 
-  // Appliquer les filtres
-  const filteredSurveillants = surveillantsStats.filter(surveillant => {
-    // Filtre par type
-    if (typeFilter !== "all" && surveillant.type !== typeFilter) return false;
-    
-    // Filtre par statut de soumission
-    if (statusFilter === "responded" && !surveillant.a_soumis) return false;
-    if (statusFilter === "not_responded" && surveillant.a_soumis) return false;
-    
-    // Filtre par recherche
-    if (searchTerm && !`${surveillant.nom} ${surveillant.prenom} ${surveillant.email}`.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    
-    return true;
-  });
-
-  // Récupérer les disponibilités détaillées pour un surveillant spécifique
-  const { data: disponibilitesDetail = [] } = useQuery({
-    queryKey: ['disponibilites-detail', selectedSurveillant?.id, activeSession?.id],
-    queryFn: async (): Promise<Disponibilite[]> => {
-      if (!selectedSurveillant?.id || !activeSession?.id) return [];
-
-      const { data, error } = await supabase
-        .from('disponibilites')
-        .select('*')
+  // Récupérer les surveillants avec leurs disponibilités ET pré-attributions
+  const { data: surveillantsData = [], isLoading } = useQuery({
+    queryKey: ['surveillants-disponibilites', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession?.id) return [];
+      
+      // Récupérer les surveillants actifs
+      const { data: surveillants, error: surveillantsError } = await supabase
+        .from('surveillant_sessions')
+        .select(`
+          surveillants (
+            id, nom, prenom, email, type, affectation_fac
+          )
+        `)
         .eq('session_id', activeSession.id)
-        .eq('surveillant_id', selectedSurveillant.id)
-        .eq('est_disponible', true);
+        .eq('is_active', true);
+      
+      if (surveillantsError) throw surveillantsError;
 
-      if (error) throw error;
-      return data || [];
+      // Pour chaque surveillant, compter ses disponibilités et pré-attributions
+      const surveillantsAvecStats = await Promise.all(
+        (surveillants || []).map(async (item) => {
+          const surveillant = item.surveillants;
+          if (!surveillant) return null;
+
+          // Compter les disponibilités renseignées
+          const { count: disponibilitesCount } = await supabase
+            .from('disponibilites')
+            .select('*', { count: 'exact', head: true })
+            .eq('surveillant_id', surveillant.id)
+            .eq('session_id', activeSession.id)
+            .eq('est_disponible', true);
+
+          // Compter les pré-attributions
+          const { count: preAttributionsCount } = await supabase
+            .from('attributions')
+            .select('*', { count: 'exact', head: true })
+            .eq('surveillant_id', surveillant.id)
+            .eq('session_id', activeSession.id)
+            .eq('is_pre_assigne', true);
+
+          // Récupérer la dernière réponse
+          const { data: derniereReponse } = await supabase
+            .from('disponibilites')
+            .select('created_at')
+            .eq('surveillant_id', surveillant.id)
+            .eq('session_id', activeSession.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          const totalReponses = (disponibilitesCount || 0) + (preAttributionsCount || 0);
+          const pourcentageCompletion = totalCreneaux > 0 ? Math.round((totalReponses / totalCreneaux) * 100) : 0;
+
+          return {
+            id: surveillant.id,
+            nom: surveillant.nom,
+            prenom: surveillant.prenom,
+            email: surveillant.email,
+            type: surveillant.type,
+            faculte: surveillant.affectation_fac || 'Non spécifiée',
+            creneaux_repondus: totalReponses,
+            total_creneaux: totalCreneaux,
+            pourcentage_completion: pourcentageCompletion,
+            derniere_reponse: derniereReponse?.[0]?.created_at || null
+          } as SurveillantDisponibilite;
+        })
+      );
+
+      return surveillantsAvecStats.filter(Boolean) as SurveillantDisponibilite[];
     },
-    enabled: !!selectedSurveillant?.id && !!activeSession?.id
+    enabled: !!activeSession?.id && totalCreneaux > 0
   });
 
-  const handleShowDetails = (surveillant: SurveillantStats) => {
-    setSelectedSurveillant(surveillant);
-    setModalOpen(true);
+  // Filtrage par terme de recherche
+  const surveillantsFiltres = surveillantsData.filter(surveillant => {
+    const searchMatch = !searchTerm || 
+      surveillant.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      surveillant.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      surveillant.email.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const typeMatch = filterType === "tous" || surveillant.type === filterType;
+
+    return searchMatch && typeMatch;
+  });
+
+  // Tri des surveillants
+  const surveillantsTries = [...surveillantsFiltres].sort((a, b) => {
+    switch (sortBy) {
+      case "completion_desc":
+        return b.pourcentage_completion - a.pourcentage_completion;
+      case "completion_asc":
+        return a.pourcentage_completion - b.pourcentage_completion;
+      case "nom":
+        return a.nom.localeCompare(b.nom);
+      case "derniere_reponse":
+        if (!a.derniere_reponse && !b.derniere_reponse) return 0;
+        if (!a.derniere_reponse) return 1;
+        if (!b.derniere_reponse) return -1;
+        return new Date(b.derniere_reponse).getTime() - new Date(a.derniere_reponse).getTime();
+      default:
+        return 0;
+    }
+  });
+
+  // Statistiques globales
+  const stats = {
+    total: surveillantsData.length,
+    complets: surveillantsData.filter(s => s.pourcentage_completion === 100).length,
+    partiels: surveillantsData.filter(s => s.pourcentage_completion > 0 && s.pourcentage_completion < 100).length,
+    aucune: surveillantsData.filter(s => s.pourcentage_completion === 0).length,
+    pourcentageMoyen: surveillantsData.length > 0 
+      ? Math.round(surveillantsData.reduce((sum, s) => sum + s.pourcentage_completion, 0) / surveillantsData.length)
+      : 0
   };
 
-  const handleEditDisponibilites = (surveillant: SurveillantStats) => {
-    setSelectedSurveillant(surveillant);
-    setEditModalOpen(true);
-  };
+  // Types uniques pour le filtre
+  const typesUniques = Array.from(new Set(surveillantsData.map(s => s.type))).sort();
 
   const exportToExcel = () => {
-    if (filteredSurveillants.length === 0) {
-      toast({
-        title: "Aucune donnée",
-        description: "Aucun surveillant à exporter.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const exportData = filteredSurveillants.map(s => ({
-      'Nom': s.nom,
-      'Prénom': s.prenom,
-      'Email': s.email,
-      'Type': s.type,
-      'Total Disponibilités': s.total_disponibilites,
-      'Surveillances Obligatoires': s.obligatoires,
-      'Disponibilités Souhaitées': s.souhaitees,
-      'A Soumis': s.a_soumis ? 'Oui' : 'Non'
+    const dataToExport = surveillantsTries.map(surveillant => ({
+      'Nom': surveillant.nom,
+      'Prénom': surveillant.prenom,
+      'Email': surveillant.email,
+      'Type': surveillant.type,
+      'Faculté': surveillant.faculte,
+      'Créneaux répondus': surveillant.creneaux_repondus,
+      'Total créneaux': surveillant.total_creneaux,
+      'Pourcentage': `${surveillant.pourcentage_completion}%`,
+      'Dernière réponse': surveillant.derniere_reponse 
+        ? new Date(surveillant.derniere_reponse).toLocaleDateString('fr-FR')
+        : 'Jamais'
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Suivi Disponibilités");
-
-    const fileName = `suivi_disponibilites_${activeSession?.name || 'session'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-
-    toast({
-      title: "Export réussi",
-      description: `Données exportées vers ${fileName}`,
-    });
-  };
-
-  const exportNonRespondents = () => {
-    const nonRespondents = surveillantsStats.filter(s => !s.a_soumis);
-    
-    if (nonRespondents.length === 0) {
-      toast({
-        title: "Aucun non-répondant",
-        description: "Tous les surveillants ont déjà soumis leurs disponibilités.",
-      });
-      return;
-    }
-
-    const exportData = nonRespondents.map(s => ({
-      'Nom': s.nom,
-      'Prénom': s.prenom,
-      'Email': s.email,
-      'Type': s.type
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Non Répondants");
-
-    const fileName = `non_repondants_${activeSession?.name || 'session'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-
-    toast({
-      title: "Export réussi",
-      description: `${nonRespondents.length} non-répondants exportés vers ${fileName}`,
-    });
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Disponibilités');
+    XLSX.writeFile(wb, `suivi_disponibilites_${activeSession?.name || 'session'}.xlsx`);
   };
 
   if (!activeSession) {
     return (
       <Card>
-        <CardContent className="pt-6">
-          <p className="text-center text-gray-500">
-            Aucune session active. Activez une session pour voir le suivi des disponibilités.
-          </p>
+        <CardContent className="p-6 text-center">
+          <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <p className="text-gray-600">Aucune session active sélectionnée.</p>
         </CardContent>
       </Card>
     );
   }
 
-  const totalSurveillants = surveillantsStats.length;
-  const ayantSoumis = surveillantsStats.filter(s => s.a_soumis).length;
-  const nonRepondants = totalSurveillants - ayantSoumis;
-  const tauxReponse = totalSurveillants > 0 ? Math.round((ayantSoumis / totalSurveillants) * 100) : 0;
-  const totalDisponibilites = surveillantsStats.reduce((sum, s) => sum + s.total_disponibilites, 0);
-  const totalObligatoires = surveillantsStats.reduce((sum, s) => sum + s.obligatoires, 0);
-
   return (
-    <>
-      <div className="space-y-6">
+    <div className="space-y-6">
+      {/* Statistiques globales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Users className="h-5 w-5" />
-                <span>Suivi des disponibilités par surveillant</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button onClick={exportNonRespondents} variant="outline" className="flex items-center space-x-2">
-                  <UserX className="h-4 w-4" />
-                  <span>Exporter non-répondants</span>
-                </Button>
-                <Button onClick={exportToExcel} className="flex items-center space-x-2">
-                  <Download className="h-4 w-4" />
-                  <span>Exporter Excel</span>
-                </Button>
-              </div>
-            </CardTitle>
-            <CardDescription>
-              Session {activeSession.name} - Vue détaillée par surveillant
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {/* Filtres */}
-            <div className="flex space-x-4 mb-6">
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filtrer par type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les types</SelectItem>
-                  <SelectItem value="Assistant">Assistant</SelectItem>
-                  <SelectItem value="Jobiste">Jobiste</SelectItem>
-                  <SelectItem value="PAT">PAT</SelectItem>
-                  <SelectItem value="FASB">FASB</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filtrer par statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="responded">Ont répondu</SelectItem>
-                  <SelectItem value="not_responded">N'ont pas encore répondu</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <div className="relative flex-1 max-w-sm">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-500" />
-                <Input
-                  placeholder="Rechercher par nom, prénom ou email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-            </div>
-
-            {/* Statistiques globales avec pourcentage d'accomplissement */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-              <Card className="border-blue-200 bg-blue-50">
-                <CardContent className="pt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">{totalSurveillants}</div>
-                    <div className="text-sm text-blue-700">Surveillants actifs</div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className={`border-2 ${tauxReponse >= 80 ? 'border-green-200 bg-green-50' : tauxReponse >= 50 ? 'border-orange-200 bg-orange-50' : 'border-red-200 bg-red-50'}`}>
-                <CardContent className="pt-4">
-                  <div className="text-center">
-                    <div className={`text-2xl font-bold ${tauxReponse >= 80 ? 'text-green-600' : tauxReponse >= 50 ? 'text-orange-600' : 'text-red-600'}`}>
-                      {ayantSoumis}/{totalSurveillants}
-                    </div>
-                    <div className={`text-sm ${tauxReponse >= 80 ? 'text-green-700' : tauxReponse >= 50 ? 'text-orange-700' : 'text-red-700'}`}>
-                      Ont répondu ({tauxReponse}%)
-                    </div>
-                    <Progress 
-                      value={tauxReponse} 
-                      className={`mt-2 ${tauxReponse >= 80 ? '[&>div]:bg-green-500' : tauxReponse >= 50 ? '[&>div]:bg-orange-500' : '[&>div]:bg-red-500'}`}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-red-200 bg-red-50">
-                <CardContent className="pt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">{nonRepondants}</div>
-                    <div className="text-sm text-red-700">À relancer</div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-purple-200 bg-purple-50">
-                <CardContent className="pt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600">{totalDisponibilites}</div>
-                    <div className="text-sm text-purple-700">Total disponibilités</div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-orange-200 bg-orange-50">
-                <CardContent className="pt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-orange-600">{totalObligatoires}</div>
-                    <div className="text-sm text-orange-700">Surveillances obligatoires</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Affichage du nombre de résultats filtrés */}
-            {(typeFilter !== "all" || statusFilter !== "all" || searchTerm) && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-700">
-                  {filteredSurveillants.length} surveillant{filteredSurveillants.length > 1 ? 's' : ''} 
-                  {filteredSurveillants.length !== totalSurveillants && ` sur ${totalSurveillants}`} 
-                  affiché{filteredSurveillants.length > 1 ? 's' : ''} selon les filtres appliqués
-                </p>
-              </div>
-            )}
-
-            {/* Tableau des surveillants */}
-            {isLoading ? (
-              <p>Chargement...</p>
-            ) : filteredSurveillants.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-300">
-                  <thead>
-                    <tr className="bg-gray-50">
-                      <th className="border border-gray-300 p-3 text-left">Surveillant</th>
-                      <th className="border border-gray-300 p-3 text-left">Type</th>
-                      <th className="border border-gray-300 p-3 text-center">Total</th>
-                      <th className="border border-gray-300 p-3 text-center">Obligatoires</th>
-                      <th className="border border-gray-300 p-3 text-center">Souhaitées</th>
-                      <th className="border border-gray-300 p-3 text-center">Statut</th>
-                      <th className="border border-gray-300 p-3 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredSurveillants.map((surveillant) => (
-                      <tr key={surveillant.id} className={`hover:bg-gray-50 ${!surveillant.a_soumis ? 'bg-red-50' : ''}`}>
-                        <td className="border border-gray-300 p-3">
-                          <div>
-                            <div className="font-medium">{surveillant.nom} {surveillant.prenom}</div>
-                            <div className="text-sm text-gray-600">{surveillant.email}</div>
-                          </div>
-                        </td>
-                        <td className="border border-gray-300 p-3">
-                          <Badge variant="outline">{surveillant.type}</Badge>
-                        </td>
-                        <td className="border border-gray-300 p-3 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleShowDetails(surveillant)}
-                            className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                          >
-                            {surveillant.total_disponibilites}
-                          </Button>
-                        </td>
-                        <td className="border border-gray-300 p-3 text-center">
-                          <div className="flex items-center justify-center space-x-1">
-                            {surveillant.obligatoires > 0 && <Star className="h-3 w-3 text-orange-500" />}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleShowDetails(surveillant)}
-                              className="text-orange-600 hover:text-orange-800 hover:bg-orange-50"
-                            >
-                              {surveillant.obligatoires}
-                            </Button>
-                          </div>
-                        </td>
-                        <td className="border border-gray-300 p-3 text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleShowDetails(surveillant)}
-                            className="text-green-600 hover:text-green-800 hover:bg-green-50"
-                          >
-                            {surveillant.souhaitees}
-                          </Button>
-                        </td>
-                        <td className="border border-gray-300 p-3 text-center">
-                          <div className="flex items-center justify-center">
-                            {surveillant.a_soumis ? (
-                              <CheckCircle className="h-5 w-5 text-green-500" />
-                            ) : (
-                              <AlertCircle className="h-5 w-5 text-red-500" />
-                            )}
-                          </div>
-                        </td>
-                        <td className="border border-gray-300 p-3 text-center">
-                          <div className="flex items-center justify-center space-x-1">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleShowDetails(surveillant)}
-                              className="flex items-center space-x-1"
-                            >
-                              <Eye className="h-3 w-3" />
-                              <span>Voir</span>
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleEditDisponibilites(surveillant)}
-                              className="flex items-center space-x-1 text-blue-600 hover:text-blue-800"
-                            >
-                              <Edit className="h-3 w-3" />
-                              <span>Modifier</span>
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                <p>Aucun surveillant trouvé pour les critères sélectionnés.</p>
-              </div>
-            )}
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
+            <div className="text-sm text-gray-600">Total surveillants</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-green-600">{stats.complets}</div>
+            <div className="text-sm text-gray-600">Complets (100%)</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-orange-600">{stats.partiels}</div>
+            <div className="text-sm text-gray-600">Partiels</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-red-600">{stats.aucune}</div>
+            <div className="text-sm text-gray-600">Aucune réponse</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-purple-600">{stats.pourcentageMoyen}%</div>
+            <div className="text-sm text-gray-600">Taux moyen</div>
           </CardContent>
         </Card>
       </div>
 
-      <DisponibiliteDetailModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        surveillant={selectedSurveillant}
-        disponibilites={disponibilitesDetail}
-      />
+      {/* Filtres et recherche */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center space-x-2">
+              <Users className="h-5 w-5" />
+              <span>Suivi des Disponibilités - {activeSession.name}</span>
+            </span>
+            <Button onClick={exportToExcel} variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export Excel
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Rechercher un surveillant..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <Select value={filterType} onValueChange={setFilterType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Filtrer par type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tous">Tous les types</SelectItem>
+                {typesUniques.map(type => (
+                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-      <EditDisponibilitesModal
-        isOpen={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
-        surveillant={selectedSurveillant}
-      />
-    </>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger>
+                <SelectValue placeholder="Trier par" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="completion_desc">Complétion (décroissant)</SelectItem>
+                <SelectItem value="completion_asc">Complétion (croissant)</SelectItem>
+                <SelectItem value="nom">Nom alphabétique</SelectItem>
+                <SelectItem value="derniere_reponse">Dernière réponse</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>{surveillantsTries.length} surveillants affichés</span>
+            <span>Total de {totalCreneaux} créneaux dans cette session</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Liste des surveillants */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Liste détaillée</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Chargement des données...</p>
+            </div>
+          ) : (
+            <ListeDisponibilitesSurveillants surveillants={surveillantsTries} />
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
