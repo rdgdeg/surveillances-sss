@@ -347,24 +347,36 @@ export const PlanningGeneral = () => {
                           </TableCell>
                           <TableCell>
                             <div className="space-y-1">
-                              {item.surveillants.length > 0 ? (
-                                item.surveillants.map((surveillant) => (
-                                  <div key={surveillant.id} className="flex items-center space-x-2">
-                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                    <span className="text-sm">
-                                      {surveillant.prenom} {surveillant.nom}
-                                    </span>
+                              {/* Afficher les surveillants seulement sur la ligne principale */}
+                              {item.is_main_exam_row ? (
+                                <>
+                                  {item.surveillants.length > 0 ? (
+                                    item.surveillants.map((surveillant) => (
+                                      <div key={surveillant.id} className="flex items-center space-x-2">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                        <span className="text-sm">
+                                          {surveillant.prenom} {surveillant.nom}
+                                        </span>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="flex items-center space-x-2 text-blue-600">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                      <span className="text-sm italic">À venir</span>
+                                    </div>
+                                  )}
+                                  <div className="text-xs text-gray-500 mt-1">
+                                    Total besoin: {item.besoin_reel_total}
+                                    {item.pre_assignes_total > 0 && (
+                                      <span className="block">Pré-assignés: {item.pre_assignes_total}</span>
+                                    )}
                                   </div>
-                                ))
+                                </>
                               ) : (
-                                <div className="flex items-center space-x-2 text-blue-600">
-                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                  <span className="text-sm italic">À venir</span>
+                                <div className="text-xs text-gray-400 italic">
+                                  Même examen (voir ligne principale)
                                 </div>
                               )}
-                              <div className="text-xs text-gray-500 mt-1">
-                                {item.surveillants.length}/{item.nombre_surveillants_requis} requis
-                              </div>
                             </div>
                           </TableCell>
                           <TableCell>

@@ -1,3 +1,4 @@
+
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -24,6 +25,8 @@ export interface PlanningGeneralItem {
   prof_apportes_total: number;
   pre_assignes_total: number;
   besoin_reel_total: number;
+  // Nouveau champ pour indiquer si c'est la ligne principale de l'examen
+  is_main_exam_row: boolean;
 }
 
 export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
@@ -145,14 +148,16 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
             email: attr.surveillants?.email || ''
           })).filter((s: any) => s.id) || [];
 
-          // Créer une ligne par auditoire MAIS avec les totaux de l'examen
-          auditoires.forEach((auditoire: string) => {
+          // Créer une ligne par auditoire MAIS avec les totaux de l'examen uniquement sur la première ligne
+          auditoires.forEach((auditoire: string, index: number) => {
             // Calculer le nombre de surveillants requis selon les contraintes pour cet auditoire
             const auditoireNormalized = auditoire.toLowerCase().trim();
             const nombreRequis = contraintesMap[auditoireNormalized] || 
                                 contraintesMap[auditoire] || 
                                 contraintesMap[auditoire.toLowerCase().replace(/\s+/g, '')] ||
                                 examen.nombre_surveillants || 1;
+
+            const isMainRow = index === 0; // Seule la première ligne affiche les surveillants
 
             const item: PlanningGeneralItem = {
               id: `${examen.id}_${auditoire.replace(/\s+/g, '_')}`,
@@ -166,13 +171,15 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
               enseignant_nom: examen.enseignant_nom || '',
               enseignant_email: examen.enseignant_email || '',
               statut_validation: examen.statut_validation || 'NON_TRAITE',
-              surveillants: surveillants,
+              // Les surveillants n'apparaissent que sur la ligne principale
+              surveillants: isMainRow ? surveillants : [],
               nombre_surveillants_requis: nombreRequis,
-              // Nouveaux champs avec les totaux de l'examen (pas par auditoire)
-              surveillants_theorique_total: surveillantsTheoriqueTotal,
-              prof_apportes_total: profApportesTotal,
-              pre_assignes_total: preAssignesTotal,
-              besoin_reel_total: besoinReelTotal
+              // Les totaux n'apparaissent que sur la ligne principale  
+              surveillants_theorique_total: isMainRow ? surveillantsTheoriqueTotal : 0,
+              prof_apportes_total: isMainRow ? profApportesTotal : 0,
+              pre_assignes_total: isMainRow ? preAssignesTotal : 0,
+              besoin_reel_total: isMainRow ? besoinReelTotal : 0,
+              is_main_exam_row: isMainRow
             };
 
             // Filtrage par terme de recherche
@@ -185,11 +192,11 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
                 item.faculte.toLowerCase().includes(searchLower) ||
                 item.enseignant_nom.toLowerCase().includes(searchLower) ||
                 item.date_examen.includes(searchTerm) ||
-                item.surveillants.some(s => 
+                (isMainRow && item.surveillants.some(s => 
                   s.nom.toLowerCase().includes(searchLower) ||
                   s.prenom.toLowerCase().includes(searchLower) ||
                   s.email.toLowerCase().includes(searchLower)
-                );
+                ));
               
               if (matchesSearch) {
                 planningItems.push(item);
