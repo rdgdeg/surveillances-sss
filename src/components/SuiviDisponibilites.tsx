@@ -15,8 +15,9 @@ interface SurveillantDisponibilite {
   prenom: string;
   email: string;
   type: string;
-  total_creneaux: number;
+  faculte: string;
   creneaux_repondus: number;
+  total_creneaux: number;
   pourcentage_completion: number;
   derniere_reponse: string | null;
 }
@@ -82,7 +83,7 @@ export const SuiviDisponibilites = () => {
           .from('surveillant_sessions')
           .select(`
             surveillant_id,
-            surveillants!inner(id, nom, prenom, email, type)
+            surveillants!inner(id, nom, prenom, email, type, faculte)
           `)
           .eq('session_id', activeSession.id)
           .eq('is_active', true)
@@ -156,6 +157,7 @@ export const SuiviDisponibilites = () => {
               prenom: surveillant.prenom,
               email: surveillant.email,
               type: surveillant.type,
+              faculte: surveillant.faculte,
               total_creneaux: totalPourSession,
               creneaux_repondus: creneauxRepondus,
               pourcentage_completion: pourcentage,

@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useActiveSession } from "@/hooks/useSessions";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, Users, Download, Calendar, CheckCircle, AlertTriangle } from "lucide-react";
-import { ListeDisponibilitesSurveillants } from "./ListeDisponibilitesSurveillants";
 import { SurveillantDisponibilite } from "./SuiviDisponibilites";
+import { DisponibilitesAdminView } from "./DisponibilitesAdminView";
 import * as XLSX from 'xlsx';
 
 export const SuiviDisponibilitesAdmin = () => {
@@ -283,10 +283,10 @@ export const SuiviDisponibilitesAdmin = () => {
         </CardContent>
       </Card>
 
-      {/* Liste des surveillants */}
+      {/* Vue des disponibilités avec possibilité de modification */}
       <Card>
         <CardHeader>
-          <CardTitle>Liste détaillée</CardTitle>
+          <CardTitle>Liste détaillée avec modification</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -295,7 +295,7 @@ export const SuiviDisponibilitesAdmin = () => {
               <p className="text-gray-600">Chargement des données...</p>
             </div>
           ) : (
-            <ListeDisponibilitesSurveillants surveillants={surveillantsTries} />
+            <DisponibilitesAdminView />
           )}
         </CardContent>
       </Card>
