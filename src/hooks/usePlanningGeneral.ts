@@ -118,13 +118,18 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
         examens.forEach((examen: any) => {
           console.log('Processing examen:', examen.id, examen.matiere, 'Enseignant:', examen.enseignant_nom);
           
-          // Calculer les totaux de l'examen avec la logique corrigée
+          // Calculer les totaux de l'examen avec la FORMULE SIMPLIFIÉE
           const surveillantsTheoriqueTotal = getTheoreticalSurveillants(examen, contraintesMap);
           const profApportesTotal = (examen.surveillants_enseignant || 0) + (examen.surveillants_amenes || 0);
           const preAssignesTotal = examen.surveillants_pre_assignes || 0;
-          const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
-          const effectifPresent = Math.max(examen.surveillants_enseignant || 0, surveillantsPedagogiques);
-          const besoinReelTotal = Math.max(0, surveillantsTheoriqueTotal - effectifPresent - (examen.surveillants_amenes || 0) - preAssignesTotal);
+          
+          // FORMULE SIMPLIFIÉE : Théoriques - Enseignant - Amenés - Pré-assignés
+          const besoinReelTotal = Math.max(0, 
+            surveillantsTheoriqueTotal - 
+            (examen.surveillants_enseignant || 0) - 
+            (examen.surveillants_amenes || 0) - 
+            preAssignesTotal
+          );
           
           // Split des auditoires
           const auditoires = examen.salle
@@ -208,7 +213,7 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
   });
 };
 
-// Fonctions utilitaires importées pour cohérence
+// Fonctions utilitaires importées pour cohérence avec FORMULE SIMPLIFIÉE
 function getTheoreticalSurveillants(examen: any, contraintesMap: Record<string, number>) {
   if (!examen?.salle) return examen?.nombre_surveillants || 1;
   

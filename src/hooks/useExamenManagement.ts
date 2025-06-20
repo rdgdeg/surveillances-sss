@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useEffect } from "react";
 import { useActiveSession } from "@/hooks/useSessions";
 import { useQuery } from "@tanstack/react-query";
@@ -106,7 +105,7 @@ export function useExamenManagement() {
   };
 }
 
-// Fonctions utilitaires pour les calculs harmonisés (LOGIQUE CORRIGÉE)
+// Fonctions utilitaires pour les calculs harmonisés (FORMULE SIMPLIFIÉE)
 function getTheoreticalSurveillants(examen: any, contraintesMap?: Record<string, number>) {
   if (!examen?.salle) return examen?.nombre_surveillants || 1;
   
@@ -170,21 +169,17 @@ function calculerSurveillantsPedagogiques(examen: any) {
   ).length;
 }
 
-// FONCTION CORRIGÉE pour éviter le double comptage
+// FONCTION SIMPLIFIÉE selon les instructions de l'utilisateur
 function calculerSurveillantsNecessaires(examen: any, contraintesMap?: Record<string, number>) {
-  const pedagogiques = calculerSurveillantsPedagogiques(examen);
   const enseignantPresent = examen?.surveillants_enseignant || 0;
   const personnesAmenees = examen?.surveillants_amenes || 0;
   const preAssignes = examen?.surveillants_pre_assignes || 0;
   const theoriques = getTheoreticalSurveillants(examen, contraintesMap);
   
-  // CORRECTION: Utiliser Math.max pour éviter le double comptage
-  // Si l'enseignant est présent ET qu'il y a des pédagogiques, on prend le max des deux
-  const effectifPresent = Math.max(enseignantPresent, pedagogiques);
-  
+  // FORMULE SIMPLIFIÉE : Théoriques - Enseignant (si présent) - Personnes apportées - Pré-assignés
   return Math.max(
     0,
-    theoriques - effectifPresent - personnesAmenees - preAssignes
+    theoriques - enseignantPresent - personnesAmenees - preAssignes
   );
 }
 

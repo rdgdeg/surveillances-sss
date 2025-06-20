@@ -90,30 +90,22 @@ export function useExamenCalculations(selectedExamen: any) {
     return pedagogiques;
   };
 
-  // Compute number of surveillants still needed (real need) - LOGIQUE CORRIGÉE
+  // FORMULE SIMPLIFIÉE : Théoriques - Enseignant (si présent) - Personnes apportées - Pré-assignés
   const calculerSurveillantsNecessaires = () => {
-    const pedagogiques = calculerSurveillantsPedagogiques();
     const enseignantPresent = selectedExamen?.surveillants_enseignant || 0;
     const personnesAmenees = selectedExamen?.surveillants_amenes || 0;
     const preAssignes = selectedExamen?.surveillants_pre_assignes || 0;
     const theoriques = getTheoreticalSurveillants();
     
-    // CORRECTION: Utiliser Math.max pour éviter le double comptage
-    // Si l'enseignant est présent ET qu'il y a des pédagogiques, on prend le max des deux
-    // car l'enseignant peut faire partie de l'équipe pédagogique
-    const effectifPresent = Math.max(enseignantPresent, pedagogiques);
-    
-    // Total requis - effectif présent - amenés - pré-assignés, clamp à >=0
+    // FORMULE SIMPLIFIÉE comme demandé par l'utilisateur
     const necessaires = Math.max(
       0,
-      theoriques - effectifPresent - personnesAmenees - preAssignes
+      theoriques - enseignantPresent - personnesAmenees - preAssignes
     );
     
     console.log(`[DEBUG] Calculating real need for exam ${selectedExamen.code_examen}:`);
     console.log(`[DEBUG] - Theoretical: ${theoriques}`);
     console.log(`[DEBUG] - Teacher present: ${enseignantPresent}`);
-    console.log(`[DEBUG] - Pedagogical team (excluding teachers): ${pedagogiques}`);
-    console.log(`[DEBUG] - Effective present (max of teacher and pedagogical): ${effectifPresent}`);
     console.log(`[DEBUG] - Brought people: ${personnesAmenees}`);
     console.log(`[DEBUG] - Pre-assigned: ${preAssignes}`);
     console.log(`[DEBUG] - Real need: ${necessaires}`);

@@ -48,11 +48,18 @@ export const NewPlanningView = () => {
     enabled: !!activeSession
   });
 
-  // Enrichir les examens avec les calculs harmonisés corrigés
+  // Enrichir les examens avec les calculs harmonisés SIMPLIFIÉS
   const examensEnrichis = examens.map(examen => {
     const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
     const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
-    const surveillantsNecessaires = calculerSurveillantsNecessaires(examen, contraintesMap);
+    
+    // FORMULE SIMPLIFIÉE : Théoriques - Enseignant - Amenés - Pré-assignés
+    const surveillantsNecessaires = Math.max(0, 
+      surveillantsTheorique - 
+      (examen.surveillants_enseignant || 0) - 
+      (examen.surveillants_amenes || 0) - 
+      (examen.surveillants_pre_assignes || 0)
+    );
     
     return {
       ...examen,
@@ -237,11 +244,10 @@ export const NewPlanningView = () => {
             />
           </div>
 
-          {/* Liste des examens triés avec calculs harmonisés corrigés */}
+          {/* Liste des examens triés avec calculs harmonisés SIMPLIFIÉS */}
           <div className="space-y-4">
             {sortedExamens.map((examen) => {
               const profApportes = (examen.surveillants_enseignant || 0) + (examen.surveillants_amenes || 0);
-              const effectifPresent = Math.max(examen.surveillants_enseignant || 0, examen.surveillants_pedagogiques || 0);
               
               return (
                 <div key={examen.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
@@ -264,18 +270,7 @@ export const NewPlanningView = () => {
                           <strong>Surveillants théoriques (auditoires) : {examen.nombre_surveillants_calcule}</strong>
                         </p>
                         <p className="text-sm text-gray-500">
-                          Prof + Apportés : {profApportes}
-                          {profApportes > 0 && (
-                            <span className="text-xs ml-2">
-                              (Prof: {examen.surveillants_enseignant || 0} + Amenés: {examen.surveillants_amenes || 0})
-                            </span>
-                          )}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Équipe pédagogique (hors prof) : {examen.surveillants_pedagogiques}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Enseignants supplémentaires : {examen.surveillants_enseignant || 0}
+                          Enseignant présent : {examen.surveillants_enseignant || 0}
                         </p>
                         <p className="text-sm text-gray-500">
                           Surveillants amenés : {examen.surveillants_amenes || 0}
@@ -287,7 +282,7 @@ export const NewPlanningView = () => {
                           <strong>À attribuer (besoin réel) : {examen.surveillants_necessaires} ({examen.type_requis} obligatoire)</strong>
                         </p>
                         <p className="text-xs text-gray-400">
-                          Calcul: {examen.nombre_surveillants_calcule} - max({examen.surveillants_enseignant || 0},{examen.surveillants_pedagogiques}) - {examen.surveillants_amenes || 0} - {examen.surveillants_pre_assignes || 0} = {examen.surveillants_necessaires}
+                          Calcul: {examen.nombre_surveillants_calcule} - {examen.surveillants_enseignant || 0} - {examen.surveillants_amenes || 0} - {examen.surveillants_pre_assignes || 0} = {examen.surveillants_necessaires}
                         </p>
                       </div>
 

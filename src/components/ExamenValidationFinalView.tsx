@@ -31,11 +31,18 @@ export function ExamenValidationFinalView() {
         .order("heure_debut");
       if (error) throw error;
       
-      // Enrichir avec les calculs harmonisés corrigés
+      // Enrichir avec les calculs harmonisés SIMPLIFIÉS
       return (data || []).map(examen => {
         const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
         const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
-        const surveillantsNecessaires = calculerSurveillantsNecessaires(examen, contraintesMap);
+        
+        // FORMULE SIMPLIFIÉE : Théoriques - Enseignant - Amenés - Pré-assignés
+        const surveillantsNecessaires = Math.max(0, 
+          surveillantsTheorique - 
+          (examen.surveillants_enseignant || 0) - 
+          (examen.surveillants_amenes || 0) - 
+          (examen.surveillants_pre_assignes || 0)
+        );
         
         return {
           ...examen,
@@ -165,7 +172,7 @@ export function ExamenValidationFinalView() {
         </Card>
       </div>
 
-      {/* Liste des examens validés avec calculs corrigés */}
+      {/* Liste des examens validés avec calculs SIMPLIFIÉS */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -173,7 +180,7 @@ export function ExamenValidationFinalView() {
             <span>Examens Validés</span>
           </CardTitle>
           <CardDescription>
-            Liste définitive des examens avec calculs harmonisés corrigés (évitant le double comptage enseignant/pédagogique).
+            Liste définitive des examens avec calculs simplifiés (Théoriques - Enseignant - Amenés - Pré-assignés).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -188,8 +195,8 @@ export function ExamenValidationFinalView() {
                   <TableHead>Salle</TableHead>
                   <TableHead>Faculté</TableHead>
                   <TableHead className="text-center">Théoriques</TableHead>
-                  <TableHead className="text-center">Prof + Apportés</TableHead>
-                  <TableHead className="text-center">Pédagogiques<br/><span className="text-xs">(hors prof)</span></TableHead>
+                  <TableHead className="text-center">Enseignant</TableHead>
+                  <TableHead className="text-center">Amenés</TableHead>
                   <TableHead className="text-center">Pré-assignés</TableHead>
                   <TableHead className="text-center">Besoin Réel</TableHead>
                   <TableHead>Statut</TableHead>
@@ -197,9 +204,6 @@ export function ExamenValidationFinalView() {
               </TableHeader>
               <TableBody>
                 {examensValides.map((examen) => {
-                  const profApportes = (examen.surveillants_enseignant || 0) + (examen.surveillants_amenes || 0);
-                  const effectifPresent = Math.max(examen.surveillants_enseignant || 0, examen.surveillants_pedagogiques || 0);
-                  
                   return (
                     <TableRow key={examen.id}>
                       <TableCell className="font-mono text-sm">
@@ -226,29 +230,14 @@ export function ExamenValidationFinalView() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-center">
-                        {profApportes > 0 ? (
-                          <div className="space-y-1">
-                            <Badge variant="outline" className="bg-green-50 text-green-800">
-                              {profApportes}
-                            </Badge>
-                            <div className="text-xs text-gray-500">
-                              Prof: {examen.surveillants_enseignant || 0} + 
-                              Amenés: {examen.surveillants_amenes || 0}
-                            </div>
-                          </div>
-                        ) : (
-                          <Badge variant="outline" className="text-gray-500">
-                            0
-                          </Badge>
-                        )}
+                        <Badge variant="outline" className="bg-green-50 text-green-800">
+                          {examen.surveillants_enseignant || 0}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="outline" className="bg-purple-50 text-purple-800">
-                          {examen.surveillants_pedagogiques}
+                        <Badge variant="outline" className="bg-yellow-50 text-yellow-800">
+                          {examen.surveillants_amenes || 0}
                         </Badge>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Équipe pédago.<br/>excluant prof
-                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline" className="bg-orange-50 text-orange-800">
@@ -267,7 +256,7 @@ export function ExamenValidationFinalView() {
                           {examen.surveillants_necessaires}
                         </Badge>
                         <div className="text-xs text-gray-500 mt-1">
-                          = {examen.surveillants_theorique} - max({examen.surveillants_enseignant || 0},{examen.surveillants_pedagogiques}) - {examen.surveillants_amenes || 0} - {examen.surveillants_pre_assignes || 0}
+                          = {examen.surveillants_theorique} - {examen.surveillants_enseignant || 0} - {examen.surveillants_amenes || 0} - {examen.surveillants_pre_assignes || 0}
                         </div>
                       </TableCell>
                       <TableCell>
