@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -83,7 +84,7 @@ export const SuiviDisponibilites = () => {
           .from('surveillant_sessions')
           .select(`
             surveillant_id,
-            surveillants!inner(id, nom, prenom, email, type, faculte)
+            surveillants!inner(id, nom, prenom, email, type, affectation_fac)
           `)
           .eq('session_id', activeSession.id)
           .eq('is_active', true)
@@ -157,7 +158,7 @@ export const SuiviDisponibilites = () => {
               prenom: surveillant.prenom,
               email: surveillant.email,
               type: surveillant.type,
-              faculte: surveillant.faculte,
+              faculte: surveillant.affectation_fac || 'Non spécifiée',
               total_creneaux: totalPourSession,
               creneaux_repondus: creneauxRepondus,
               pourcentage_completion: pourcentage,
