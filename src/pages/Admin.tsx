@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlanningGeneralVisibilityControl } from "@/components/PlanningGeneralVisibilityControl";
 import { SurveillantObligationsManager } from "@/components/SurveillantObligationsManager";
 import { SurveillantAdvancedManager } from "@/components/SurveillantAdvancedManager";
+import { NewFileUploader } from "@/components/NewFileUploader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 const Admin = () => {
@@ -34,6 +35,7 @@ const Admin = () => {
         <TabsContent value="surveillants" className="space-y-6">
           {activeTab === "surveillants" && (
             <div className="space-y-6">
+              <NewFileUploader />
               <SurveillantAdvancedManager />
               <SurveillantObligationsManager />
             </div>
