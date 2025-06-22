@@ -1,8 +1,8 @@
 
-import { PlanningGeneral as PlanningGeneralComponent } from '@/components/PlanningGeneral';
+import { PlanningGeneralProtected } from '@/components/PlanningGeneralProtected';
 
 const PlanningGeneral = () => {
-  return <PlanningGeneralComponent />;
+  return <PlanningGeneralProtected />;
 };
 
 export default PlanningGeneral;

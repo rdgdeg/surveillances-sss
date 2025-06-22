@@ -1078,6 +1078,7 @@ export type Database = {
           is_active: boolean
           name: string
           period: number
+          planning_general_visible: boolean | null
           updated_at: string
           year: number
         }
@@ -1087,6 +1088,7 @@ export type Database = {
           is_active?: boolean
           name: string
           period: number
+          planning_general_visible?: boolean | null
           updated_at?: string
           year: number
         }
@@ -1096,6 +1098,7 @@ export type Database = {
           is_active?: boolean
           name?: string
           period?: number
+          planning_general_visible?: boolean | null
           updated_at?: string
           year?: number
         }
@@ -1103,6 +1106,7 @@ export type Database = {
       }
       surveillant_sessions: {
         Row: {
+          a_obligations: boolean | null
           created_at: string
           date_desactivation: string | null
           id: string
@@ -1115,6 +1119,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          a_obligations?: boolean | null
           created_at?: string
           date_desactivation?: string | null
           id?: string
@@ -1127,6 +1132,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          a_obligations?: boolean | null
           created_at?: string
           date_desactivation?: string | null
           id?: string
