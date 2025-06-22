@@ -61,14 +61,15 @@ export const SurveillantObligationsManager = () => {
 
   const updateObligationsMutation = useMutation({
     mutationFn: async (updates: { id: string; a_obligations: boolean }[]) => {
-      const { error } = await supabase
-        .from('surveillant_sessions')
-        .upsert(updates.map(update => ({
-          id: update.id,
-          a_obligations: update.a_obligations
-        })));
-      
-      if (error) throw error;
+      // Utiliser une boucle pour mettre à jour chaque enregistrement individuellement
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('surveillant_sessions')
+          .update({ a_obligations: update.a_obligations })
+          .eq('id', update.id);
+        
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['surveillants-obligations'] });
