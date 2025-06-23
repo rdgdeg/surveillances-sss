@@ -1,612 +1,261 @@
-import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Card, CardContent } from "@/components/ui/card";
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useSessions, useActiveSession } from "@/hooks/useSessions";
-import { RefreshCw, CheckCircle, AlertTriangle, Info, Users, MessageSquare } from "lucide-react";
-import { AvailabilityInstructionsScreen } from "./AvailabilityInstructionsScreen";
-import { OptimizedAvailabilityForm } from "./OptimizedAvailabilityForm";
-import { SessionSelectionScreen } from "./SessionSelectionScreen";
-import { ModificationRequestForm } from "./ModificationRequestForm";
-import { ExistingAvailabilitiesEditor } from "./ExistingAvailabilitiesEditor";
+import { useActiveSession } from "@/hooks/useSessions";
 
-export const SimpleSurveillantAvailabilityForm = () => {
-  const { data: sessions = [] } = useSessions();
+interface Surveillant {
+  id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  type: string;
+}
+
+interface Availability {
+  id: string;
+  date_examen: string;
+  heure_debut: string;
+  heure_fin: string;
+  est_disponible: boolean;
+}
+
+interface SurveillantAvailability {
+  id: string;
+  surveillant_id: string;
+  date_examen: string;
+  heure_debut: string;
+  heure_fin: string;
+  est_disponible: boolean;
+}
+
+export const SimpleSurveillantAvailabilityForm = ({ surveillant }: { surveillant: Surveillant | undefined }) => {
+  const [selectedSlots, setSelectedSlots] = useState<{ date: string; heure_debut: string; heure_fin: string; }[]>([]);
   const { data: activeSession } = useActiveSession();
-  const [email, setEmail] = useState("");
-  const [surveillantId, setSurveillantId] = useState<string | null>(null);
-  const [surveillantData, setSurveillantData] = useState<any>(null);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState<'email' | 'existing-availabilities' | 'modification-request' | 'edit-availabilities' | 'session-selection' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
-  
-  // Pour surveillant inconnu
-  const [nom, setNom] = useState('');
-  const [prenom, setPrenom] = useState('');
-  const [telephone, setTelephone] = useState('');
-  const [surveillancesADeduire, setSurveillancesADeduire] = useState(0);
 
-  // Vérifier les disponibilités existantes
-  const { data: existingDisponibilites } = useQuery({
-    queryKey: ['check-existing-disponibilites', email, selectedSessionId],
+  const { data: availabilities = [], isLoading } = useQuery({
+    queryKey: ['availabilities', activeSession?.id, surveillant?.id],
     queryFn: async () => {
-      if (!email.trim() || !selectedSessionId) return [];
+      if (!activeSession?.id || !surveillant?.id) return [];
 
       const { data, error } = await supabase
-        .from('disponibilites')
+        .from('surveillant_disponibilites')
         .select('*')
-        .eq('session_id', selectedSessionId)
-        .eq('surveillant_id', surveillantId);
+        .eq('session_id', activeSession.id)
+        .eq('surveillant_id', surveillant.id);
 
       if (error) throw error;
-      return data || [];
+      return data as SurveillantAvailability[];
     },
-    enabled: !!email && !!selectedSessionId && !!surveillantId
+    enabled: !!activeSession?.id && !!surveillant?.id
   });
 
-  // Rechercher le surveillant par email
-  const handleEmailSubmit = async () => {
-    if (!email.trim()) {
-      toast({
-        title: "Email requis",
-        description: "Veuillez saisir votre adresse email.",
-        variant: "destructive"
-      });
-      return;
-    }
+  const { data: slots = [] } = useQuery({
+    queryKey: ['slots', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession?.id) return [];
 
-    console.log('Searching for surveillant with email:', email.trim().toLowerCase());
+      const { data, error } = await supabase
+        .from('slots_examen')
+        .select('*')
+        .eq('session_id', activeSession.id);
 
-    const { data, error } = await supabase
-      .from('surveillants')
-      .select('id, nom, prenom, type, surveillances_a_deduire, telephone, email')
-      .eq('email', email.trim().toLowerCase())
-      .maybeSingle();
-
-    console.log('Surveillant search result:', { data, error, searchEmail: email.trim().toLowerCase() });
-
-    if (error) {
-      console.error('Error searching for surveillant:', error);
-      setCurrentStep('email-confirmation');
-      return;
-    }
-
-    if (!data) {
-      console.log('No surveillant found with email:', email.trim().toLowerCase());
-      setCurrentStep('email-confirmation');
-      return;
-    }
-
-    console.log('Found surveillant:', data);
-    setSurveillantId(data.id);
-    setSurveillantData(data);
-    setSurveillancesADeduire(data.surveillances_a_deduire || 0);
-    setNom(data.nom);
-    setPrenom(data.prenom);
-    setTelephone(data.telephone || '');
-    
-    setCurrentStep('session-selection');
-    toast({
-      title: "Surveillant trouvé",
-      description: `Bonjour ${data.prenom} ${data.nom}`,
-    });
-  };
-
-  const handleEmailConfirmation = () => {
-    setSurveillantId(null);
-    setSurveillantData(null);
-    setSurveillancesADeduire(0);
-    setCurrentStep('session-selection');
-    toast({
-      title: "Email confirmé",
-      description: "Vous pouvez maintenant procéder à votre candidature.",
-    });
-  };
-
-  const handleSessionSelect = (sessionId: string) => {
-    setSelectedSessionId(sessionId);
-    
-    if (surveillantId) {
-      setCurrentStep('existing-availabilities');
-    } else {
-      setCurrentStep('instructions');
-    }
-  };
+      if (error) throw error;
+      return data as Availability[];
+    },
+    enabled: !!activeSession?.id
+  });
 
   useEffect(() => {
-    if (currentStep === 'existing-availabilities' && existingDisponibilites !== undefined) {
-      if (existingDisponibilites.length > 0) {
-        return;
-      } else {
-        setCurrentStep('instructions');
-      }
+    if (slots && availabilities) {
+      const initiallySelected = slots.filter(slot =>
+        availabilities.some(avail =>
+          avail.date_examen === slot.date_examen &&
+          avail.heure_debut === slot.heure_debut &&
+          avail.heure_fin === slot.heure_fin &&
+          avail.est_disponible
+        )
+      ).map(slot => ({ date: slot.date_examen, heure_debut: slot.heure_debut, heure_fin: slot.heure_fin }));
+      setSelectedSlots(initiallySelected);
     }
-  }, [currentStep, existingDisponibilites]);
+  }, [slots, availabilities]);
 
-  // Mutation pour créer un surveillant inconnu
-  const createSurveillantMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedSessionId) {
-        throw new Error('Aucune session sélectionnée');
-      }
+  const toggleSlot = (date: string, heure_debut: string, heure_fin: string) => {
+    const slot = { date, heure_debut, heure_fin };
+    const isSelected = selectedSlots.some(s =>
+      s.date === slot.date && s.heure_debut === slot.heure_debut && s.heure_fin === slot.heure_fin
+    );
 
-      const { data, error } = await supabase
-        .from('surveillants')
-        .insert({
-          email: email.trim().toLowerCase(),
-          nom,
-          prenom,
-          telephone,
-          statut: 'candidat',
-          type: 'Candidat',
-          surveillances_a_deduire: 0
-        })
-        .select('id')
-        .single();
-
-      if (error) throw error;
-
-      const { data: existingRelation } = await supabase
-        .from('surveillant_sessions')
-        .select('id')
-        .eq('surveillant_id', data.id)
-        .eq('session_id', selectedSessionId)
-        .single();
-
-      if (!existingRelation) {
-        const { error: sessionError } = await supabase
-          .from('surveillant_sessions')
-          .insert({
-            surveillant_id: data.id,
-            session_id: selectedSessionId,
-            quota: 0,
-            is_active: true
-          });
-
-        if (sessionError) throw sessionError;
-      }
-
-      return data;
-    },
-    onSuccess: (data) => {
-      setSurveillantId(data.id);
-      setSurveillantData({
-        id: data.id,
-        nom,
-        prenom,
-        type: 'Candidat'
-      });
-      setCurrentStep('availability');
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message,
-        variant: "destructive"
-      });
+    if (isSelected) {
+      setSelectedSlots(prev => prev.filter(s =>
+        !(s.date === slot.date && s.heure_debut === slot.heure_debut && s.heure_fin === slot.heure_fin)
+      ));
+    } else {
+      setSelectedSlots(prev => [...prev, slot]);
     }
-  });
+  };
 
-  // Mutation pour mettre à jour un surveillant existant
-  const updateSurveillantMutation = useMutation({
-    mutationFn: async () => {
-      if (!surveillantId || !selectedSessionId) throw new Error('Données manquantes');
-
-      const { error } = await supabase
-        .from('surveillants')
-        .update({ 
-          surveillances_a_deduire: surveillancesADeduire,
-          telephone: telephone 
-        })
-        .eq('id', surveillantId);
-
-      if (error) throw error;
-
-      const { data: existingRelation } = await supabase
-        .from('surveillant_sessions')
-        .select('id')
-        .eq('surveillant_id', surveillantId)
-        .eq('session_id', selectedSessionId)
-        .single();
-
-      if (!existingRelation) {
-        const { error: sessionError } = await supabase
-          .from('surveillant_sessions')
-          .insert({
-            surveillant_id: surveillantId,
-            session_id: selectedSessionId,
-            quota: 0,
-            is_active: true
-          });
-
-        if (sessionError) throw sessionError;
-      }
-    },
-    onSuccess: () => {
-      setCurrentStep('availability');
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  const handleSubmit = async () => {
-    if (!activeSession?.id || !surveillantData) {
-      toast({
-        title: "Erreur",
-        description: "Session ou informations surveillant manquantes.",
-        variant: "destructive"
-      });
-      return;
-    }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!surveillant || !activeSession) return;
 
     // Validation spéciale pour PAT FASB
-    if (surveillantData.type === 'PAT FASB') {
-      const nombreDispos = Object.values(disponibilites).filter(d => d.est_disponible).length;
-      if (nombreDispos < 15) {
+    if (surveillant.type === 'PAT FASB') {
+      const selectedCount = selectedSlots.filter(slot => 
+        availabilities.some(avail => 
+          avail.date_examen === slot.date_examen &&
+          avail.heure_debut === slot.heure_debut &&
+          avail.heure_fin === slot.heure_fin &&
+          avail.est_disponible
+        )
+      ).length;
+      
+      if (selectedCount < 15) {
         toast({
           title: "Erreur de validation",
-          description: `En tant que PAT FASB, vous devez cocher au moins 15 disponibilités. Vous n'en avez coché que ${nombreDispos}.`,
+          description: "Les PAT FASB doivent sélectionner au moins 15 disponibilités.",
           variant: "destructive"
         });
         return;
       }
     }
 
-    if (surveillantId) {
-      await updateSurveillantMutation.mutateAsync();
-    } else {
-      await createSurveillantMutation.mutateAsync();
-    }
+    const updates = slots.map(slot => {
+      const isCurrentlyAvailable = availabilities.some(avail =>
+        avail.date_examen === slot.date_examen &&
+        avail.heure_debut === slot.heure_debut &&
+        avail.heure_fin === slot.heure_fin &&
+        avail.est_disponible
+      );
+      const shouldBeAvailable = selectedSlots.some(s =>
+        s.date === slot.date_examen && s.heure_debut === slot.heure_debut && s.heure_fin === slot.heure_fin
+      );
+
+      return {
+        date_examen: slot.date_examen,
+        heure_debut: slot.heure_debut,
+        heure_fin: slot.heure_fin,
+        est_disponible: shouldBeAvailable,
+        surveillant_id: surveillant.id,
+        session_id: activeSession.id,
+        id: availabilities.find(avail =>
+          avail.date_examen === slot.date_examen &&
+          avail.heure_debut === slot.heure_debut &&
+          avail.heure_fin === slot.heure_fin
+        )?.id
+      };
+    });
+
+    // Optimistic update
+    // queryClient.setQueryData(['availabilities', activeSession.id, surveillant.id], (old: SurveillantAvailability[] | undefined) => {
+    //   return updates.filter(update => update.est_disponible).map(update => ({
+    //     date_examen: update.date_examen,
+    //     heure_debut: update.heure_debut,
+    //     heure_fin: update.heure_fin,
+    //     est_disponible: update.est_disponible,
+    //     surveillant_id: surveillant.id,
+    //     session_id: activeSession.id,
+    //   }))
+    // });
+
+    await Promise.all(updates.map(async update => {
+      const existingAvailability = availabilities.find(avail =>
+        avail.date_examen === update.date_examen &&
+        avail.heure_debut === update.heure_debut &&
+        avail.heure_fin === update.heure_fin
+      );
+
+      if (existingAvailability) {
+        // Update existing availability
+        const { error } = await supabase
+          .from('surveillant_disponibilites')
+          .update({ est_disponible: update.est_disponible })
+          .eq('id', existingAvailability.id);
+
+        if (error) {
+          console.error("Update error", error);
+          toast({
+            title: "Erreur",
+            description: `Impossible de mettre à jour la disponibilité pour ${update.date_examen} ${update.heure_debut}-${update.heure_fin}.`,
+            variant: "destructive"
+          });
+        }
+      } else if (update.est_disponible) {
+        // Create new availability
+        const { error } = await supabase
+          .from('surveillant_disponibilites')
+          .insert({
+            date_examen: update.date_examen,
+            heure_debut: update.heure_debut,
+            heure_fin: update.heure_fin,
+            est_disponible: update.est_disponible,
+            surveillant_id: surveillant.id,
+            session_id: activeSession.id
+          });
+
+        if (error) {
+          console.error("Insert error", error);
+          toast({
+            title: "Erreur",
+            description: `Impossible d'ajouter la disponibilité pour ${update.date_examen} ${update.heure_debut}-${update.heure_fin}.`,
+            variant: "destructive"
+          });
+        }
+      }
+    }));
+
+    toast({
+      title: "Disponibilités mises à jour",
+      description: "Les disponibilités ont été sauvegardées.",
+    });
   };
 
-  const handleContinueFromInstructions = async () => {
-    if (surveillantId) {
-      await updateSurveillantMutation.mutateAsync();
-    } else {
-      await createSurveillantMutation.mutateAsync();
-    }
-  };
-
-  const handleAvailabilitySuccess = () => {
-    setCurrentStep('success');
-  };
-
-  const resetForm = () => {
-    setEmail("");
-    setSurveillantId(null);
-    setSurveillantData(null);
-    setSelectedSessionId(null);
-    setNom('');
-    setPrenom('');
-    setTelephone('');
-    setSurveillancesADeduire(0);
-    setCurrentStep('email');
-  };
-
-  // Sélectionner automatiquement la session active s'il n'y en a qu'une
-  useEffect(() => {
-    if (currentStep === 'session-selection' && sessions.length === 1 && activeSession) {
-      setSelectedSessionId(activeSession.id);
-    }
-  }, [currentStep, sessions, activeSession]);
-
-  if (!activeSession) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-center text-gray-500">
-            Aucune session active. Veuillez contacter l'administration.
-          </p>
-        </CardContent>
-      </Card>
-    );
+  if (isLoading) {
+    return <CardContent>Chargement des disponibilités...</CardContent>;
   }
 
-  if (currentStep === 'email') {
-    return (
-      <div className="space-y-6">
-        {/* Instructions d'accueil */}
-        <Card className="border-blue-200">
-          <CardContent className="pt-6">
-            <div className="text-center space-y-4">
-              <div className="flex justify-center">
-                <Users className="h-12 w-12 text-blue-600" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-blue-800 mb-2">Déclaration de disponibilités</h1>
-                <p className="text-lg text-gray-600 mb-4">Surveillance d'examens UCLouvain</p>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
-                <h3 className="font-semibold text-blue-800 mb-3 flex items-center">
-                  <Info className="h-5 w-5 mr-2" />
-                  Pourquoi déclarer vos disponibilités ?
-                </h3>
-                <div className="space-y-2 text-sm text-blue-700">
-                  <div className="flex items-start space-x-2">
-                    <CheckCircle className="h-4 w-4 mt-0.5 text-blue-600" />
-                    <span><strong>Surveillance obligatoire :</strong> Vous devez déclarer vos disponibilités pour les surveillances d'examens</span>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <Users className="h-4 w-4 mt-0.5 text-blue-600" />
-                    <span><strong>Organisation :</strong> Vos disponibilités nous aident à organiser les surveillances efficacement</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="max-w-md mx-auto space-y-4">
-              <div>
-                <Label htmlFor="email">Votre adresse email UCLouvain</Label>
-                <div className="flex space-x-2 mt-1">
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="prenom.nom@uclouvain.be"
-                    className="flex-1"
-                    onKeyDown={(e) => e.key === 'Enter' && handleEmailSubmit()}
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Disponibilités</CardTitle>
+        <CardDescription>Sélectionnez les plages horaires où vous êtes disponible.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {slots.length === 0 ? (
+            <p>Aucune plage horaire disponible pour cette session.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {slots.map(slot => (
+                <div key={`${slot.date_examen}-${slot.heure_debut}-${slot.heure_fin}`} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`slot-${slot.date_examen}-${slot.heure_debut}-${slot.heure_fin}`}
+                    checked={selectedSlots.some(s =>
+                      s.date === slot.date_examen && s.heure_debut === slot.heure_debut && s.heure_fin === slot.heure_fin
+                    )}
+                    onCheckedChange={(checked) => {
+                      toggleSlot(slot.date_examen, slot.heure_debut, slot.heure_fin);
+                    }}
                   />
-                  <Button onClick={handleEmailSubmit} disabled={!email.trim()}>
-                    Valider
-                  </Button>
+                  <label
+                    htmlFor={`slot-${slot.date_examen}-${slot.heure_debut}-${slot.heure_fin}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    {new Date(slot.date_examen).toLocaleDateString()} - {slot.heure_debut} - {slot.heure_fin}
+                  </label>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  Utilisez votre adresse officielle UCLouvain pour accéder à vos informations
-                </p>
-              </div>
+              ))}
             </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (currentStep === 'existing-availabilities' && existingDisponibilites && existingDisponibilites.length > 0) {
-    const selectedSession = sessions.find(s => s.id === selectedSessionId);
-    
-    return (
-      <Card className="max-w-2xl mx-auto border-orange-200">
-        <CardContent className="pt-6">
-          <div className="text-center space-y-4">
-            <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto" />
-            <div>
-              <h2 className="text-xl font-bold text-orange-800 mb-2">
-                Disponibilités déjà enregistrées
-              </h2>
-              <p className="text-orange-700 mb-4">
-                Vous avez déjà introduit vos disponibilités pour la session <strong>{selectedSession?.name}</strong>.
-              </p>
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-orange-800">
-                  <strong>{existingDisponibilites.length}</strong> créneaux ont été déclarés et sont en cours de traitement.
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center space-x-2 text-blue-800 mb-2">
-                <MessageSquare className="h-5 w-5" />
-                <span className="font-medium">Souhaitez-vous modifier vos disponibilités ?</span>
-              </div>
-              <p className="text-sm text-blue-700">
-                Vous pouvez modifier directement vos disponibilités existantes ou en ajouter de nouvelles.
-              </p>
-            </div>
-
-            <div className="flex space-x-3">
-              <Button
-                variant="outline"
-                onClick={resetForm}
-                className="flex-1"
-              >
-                Retour
-              </Button>
-              <Button
-                onClick={() => setCurrentStep('edit-availabilities')}
-                className="flex-1 bg-blue-600 hover:bg-blue-700"
-              >
-                Modifier mes disponibilités
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setCurrentStep('modification-request')}
-                className="flex-1 border-orange-600 text-orange-600"
-              >
-                Demander aide admin
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (currentStep === 'edit-availabilities' && surveillantId && selectedSessionId) {
-    return (
-      <ExistingAvailabilitiesEditor
-        surveillantId={surveillantId}
-        sessionId={selectedSessionId}
-        email={email}
-        onComplete={() => setCurrentStep('success')}
-      />
-    );
-  }
-
-  if (currentStep === 'modification-request') {
-    const selectedSession = sessions.find(s => s.id === selectedSessionId);
-    
-    return (
-      <ModificationRequestForm
-        email={email}
-        selectedSession={selectedSession!}
-        onSuccess={() => setCurrentStep('success')}
-      />
-    );
-  }
-
-  if (currentStep === 'session-selection') {
-    return (
-      <SessionSelectionScreen
-        sessions={sessions}
-        activeSessionId={activeSession?.id}
-        email={email}
-        surveillantData={surveillantData}
-        onSessionSelect={handleSessionSelect}
-        existingDisponibilites={[]}
-      />
-    );
-  }
-
-  if (currentStep === 'email-confirmation') {
-    return (
-      <Card className="border-orange-200">
-        <CardContent className="pt-6">
-          <div className="max-w-lg mx-auto space-y-4">
-            <div className="text-center">
-              <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-              <h2 className="text-xl font-bold mb-2 text-orange-800">Email non reconnu</h2>
-              <p className="text-orange-700 mb-4">
-                Votre email <strong>{email}</strong> ne semble pas être reconnu dans notre système.
-              </p>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-800 mb-2">💡 Vérifications importantes :</h3>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• Avez-vous bien utilisé votre adresse email UCLouvain officielle ?</li>
-                <li>• Votre adresse doit être de la forme : prenom.nom@uclouvain.be</li>
-                <li>• Si vous êtes étudiant, utilisez votre adresse @student.uclouvain.be</li>
-                <li>• Vérifiez qu'il n'y a pas de fautes de frappe</li>
-              </ul>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-sm text-gray-600 text-center">
-                Si votre email est correct et que vous souhaitez tout de même postuler comme candidat externe, 
-                vous pouvez continuer. Sinon, vous pouvez corriger votre adresse email.
-              </p>
-              
-              <div className="flex space-x-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentStep('email')}
-                  className="flex-1"
-                >
-                  Corriger l'email
-                </Button>
-                <Button
-                  onClick={handleEmailConfirmation}
-                  className="flex-1 bg-orange-600 hover:bg-orange-700"
-                >
-                  Confirmer et continuer
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (currentStep === 'instructions') {
-    const selectedSession = sessions.find(s => s.id === selectedSessionId);
-    
-    return (
-      <AvailabilityInstructionsScreen
-        email={email}
-        surveillantData={surveillantData}
-        telephone={telephone}
-        setTelephone={setTelephone}
-        surveillancesADeduire={surveillancesADeduire}
-        setSurveillancesADeduire={setSurveillancesADeduire}
-        onContinue={handleContinueFromInstructions}
-        nom={nom}
-        setNom={setNom}
-        prenom={prenom}
-        setPrenom={setPrenom}
-        selectedSession={selectedSession}
-      />
-    );
-  }
-
-  if (currentStep === 'availability' && surveillantId && selectedSessionId) {
-    const selectedSession = sessions.find(s => s.id === selectedSessionId);
-    
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600">Étape 2/2 •</span>
-            <span className="font-medium">{surveillantData?.prenom} {surveillantData?.nom}</span>
-            {selectedSession && (
-              <span className="text-sm text-gray-500">• Session : {selectedSession.name}</span>
-            )}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={resetForm}
-          >
-            <RefreshCw className="h-4 w-4 mr-1" />
-            Recommencer
+          )}
+          <Button type="submit">
+            Sauvegarder
           </Button>
-        </div>
-
-        <OptimizedAvailabilityForm
-          surveillantId={surveillantId}
-          sessionId={selectedSessionId}
-          email={email}
-          onSuccess={handleAvailabilitySuccess}
-        />
-      </div>
-    );
-  }
-
-  if (currentStep === 'success') {
-    return (
-      <Card className="border-green-200">
-        <CardContent className="pt-6">
-          <div className="text-center space-y-4">
-            <CheckCircle className="h-16 w-16 text-green-600 mx-auto" />
-            <div>
-              <h2 className="text-2xl font-bold text-green-800 mb-2">
-                {currentStep === 'success' && existingDisponibilites && existingDisponibilites.length > 0 
-                  ? 'Modifications enregistrées !' 
-                  : 'Disponibilités enregistrées !'}
-              </h2>
-              <p className="text-gray-600 mb-4">
-                {currentStep === 'success' && existingDisponibilites && existingDisponibilites.length > 0
-                  ? `Merci ${surveillantData?.prenom}. Vos modifications ont été enregistrées avec succès.`
-                  : `Merci ${surveillantData?.prenom}. Vos disponibilités ont été transmises au service des surveillances.`}
-              </p>
-              <p className="text-sm text-gray-500 mb-6">
-                Vous recevrez une confirmation par email une fois les attributions finalisées.
-              </p>
-            </div>
-            <div className="flex justify-center space-x-4">
-              <Button onClick={resetForm}>
-                Nouvelle déclaration
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return null;
+        </form>
+      </CardContent>
+    </Card>
+  );
 };
