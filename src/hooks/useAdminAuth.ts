@@ -1,129 +1,73 @@
 
 import { useState, useEffect } from 'react';
+import { User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import type { User } from '@supabase/supabase-js';
 
-interface AdminAuthState {
-  user: User | null;
-  isAdmin: boolean;
-  isLoading: boolean;
-}
+const ADMIN_EMAIL = 'raphael.degand@ldmedia.be';
 
 export const useAdminAuth = () => {
-  const [state, setState] = useState<AdminAuthState>({
-    user: null,
-    isAdmin: false,
-    isLoading: true
-  });
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     // Vérifier la session actuelle
     const checkSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session?.user) {
-          // Vérifier si l'utilisateur est admin
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single();
-          
-          setState({
-            user: session.user,
-            isAdmin: profile?.role === 'admin',
-            isLoading: false
-          });
-        } else {
-          setState({
-            user: null,
-            isAdmin: false,
-            isLoading: false
-          });
-        }
-      } catch (error) {
-        console.error('Erreur lors de la vérification de la session:', error);
-        setState({
-          user: null,
-          isAdmin: false,
-          isLoading: false
-        });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.email === ADMIN_EMAIL) {
+        setIsAdmin(true);
+        setUser(session.user);
       }
+      setIsLoading(false);
     };
 
     checkSession();
 
     // Écouter les changements d'authentification
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          // Vérifier si l'utilisateur est admin
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single();
-          
-          setState({
-            user: session.user,
-            isAdmin: profile?.role === 'admin',
-            isLoading: false
-          });
+      (event, session) => {
+        if (session?.user?.email === ADMIN_EMAIL) {
+          setIsAdmin(true);
+          setUser(session.user);
         } else {
-          setState({
-            user: null,
-            isAdmin: false,
-            isLoading: false
-          });
+          setIsAdmin(false);
+          setUser(null);
         }
+        setIsLoading(false);
       }
     );
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const login = async (email: string, password: string) => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    
+    if (email !== ADMIN_EMAIL) {
+      return { error: 'Accès refusé. Seul l\'administrateur autorisé peut accéder à cette section.' };
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     });
-    
+
     if (error) {
-      setState(prev => ({ ...prev, isLoading: false }));
       return { error: error.message };
     }
-    
-    return { data };
+
+    return { data, error: null };
   };
 
   const logout = async () => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    
     const { error } = await supabase.auth.signOut();
-    
-    if (error) {
-      setState(prev => ({ ...prev, isLoading: false }));
-      return { error: error.message };
-    }
-    
-    setState({
-      user: null,
-      isAdmin: false,
-      isLoading: false
-    });
-    
-    return { error: null };
+    setIsAdmin(false);
+    setUser(null);
+    return { error };
   };
 
   return {
-    user: state.user,
-    isAdmin: state.isAdmin,
-    isLoading: state.isLoading,
+    isAdmin,
+    user,
+    isLoading,
     login,
     logout
   };

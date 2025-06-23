@@ -1,454 +1,582 @@
-
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { toast } from "@/hooks/use-toast";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useActiveSession } from "@/hooks/useSessions";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useSessions, useActiveSession } from "@/hooks/useSessions";
+import { RefreshCw, CheckCircle, AlertTriangle, Info, Users, MessageSquare } from "lucide-react";
+import { AvailabilityInstructionsScreen } from "./AvailabilityInstructionsScreen";
+import { OptimizedAvailabilityForm } from "./OptimizedAvailabilityForm";
+import { SessionSelectionScreen } from "./SessionSelectionScreen";
+import { ModificationRequestForm } from "./ModificationRequestForm";
+import { ExistingAvailabilitiesEditor } from "./ExistingAvailabilitiesEditor";
 
-interface Surveillant {
-  id: string;
-  nom: string;
-  prenom: string;
-  email: string;
-  type: string;
-}
-
-interface Examen {
-  id: string;
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-  matiere: string;
-  salle: string;
-  code_examen: string;
-}
-
-interface SurveillantAvailability {
-  id: string;
-  surveillant_id: string;
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-  est_disponible: boolean;
-  type_choix?: string;
-  nom_examen_selectionne?: string;
-  nom_examen_obligatoire?: string;
-  commentaire_surveillance_obligatoire?: string;
-}
-
-interface SelectedSlot {
-  date: string;
-  heure_debut: string;
-  heure_fin: string;
-  type_choix: 'souhaitee' | 'obligatoire';
-  nom_examen_selectionne?: string;
-  nom_examen_obligatoire?: string;
-  commentaire_surveillance_obligatoire?: string;
-}
-
-export const SimpleSurveillantAvailabilityForm = ({ surveillant: initialSurveillant }: { surveillant?: Surveillant | undefined } = {}) => {
-  const [email, setEmail] = useState("");
-  const [surveillant, setSurveillant] = useState<Surveillant | undefined>(initialSurveillant);
-  const [selectedSlots, setSelectedSlots] = useState<SelectedSlot[]>([]);
+export const SimpleSurveillantAvailabilityForm = () => {
+  const { data: sessions = [] } = useSessions();
   const { data: activeSession } = useActiveSession();
+  const [email, setEmail] = useState("");
+  const [surveillantId, setSurveillantId] = useState<string | null>(null);
+  const [surveillantData, setSurveillantData] = useState<any>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState<'email' | 'existing-availabilities' | 'modification-request' | 'edit-availabilities' | 'session-selection' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
+  
+  // Pour surveillant inconnu
+  const [nom, setNom] = useState('');
+  const [prenom, setPrenom] = useState('');
+  const [telephone, setTelephone] = useState('');
+  const [surveillancesADeduire, setSurveillancesADeduire] = useState(0);
 
-  // Rechercher le surveillant par email
-  const { data: foundSurveillant, isLoading: searchLoading } = useQuery({
-    queryKey: ['searchSurveillant', email],
+  // Vérifier les disponibilités existantes
+  const { data: existingDisponibilites } = useQuery({
+    queryKey: ['check-existing-disponibilites', email, selectedSessionId],
     queryFn: async () => {
-      if (!email.includes('@')) return null;
-      
-      const { data, error } = await supabase
-        .from('surveillants')
-        .select('*')
-        .eq('email', email.toLowerCase().trim())
-        .maybeSingle();
-
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!email && email.includes('@') && !initialSurveillant
-  });
-
-  // Mettre à jour le surveillant quand on le trouve
-  useEffect(() => {
-    if (foundSurveillant) {
-      setSurveillant(foundSurveillant);
-    } else if (email && email.includes('@') && !foundSurveillant && !searchLoading) {
-      setSurveillant(undefined);
-    }
-  }, [foundSurveillant, email, searchLoading]);
-
-  const { data: availabilities = [], isLoading } = useQuery({
-    queryKey: ['availabilities', activeSession?.id, surveillant?.id],
-    queryFn: async () => {
-      if (!activeSession?.id || !surveillant?.id) return [];
+      if (!email.trim() || !selectedSessionId) return [];
 
       const { data, error } = await supabase
         .from('disponibilites')
         .select('*')
-        .eq('session_id', activeSession.id)
-        .eq('surveillant_id', surveillant.id);
+        .eq('session_id', selectedSessionId)
+        .eq('surveillant_id', surveillantId);
 
       if (error) throw error;
-      return data as SurveillantAvailability[];
+      return data || [];
     },
-    enabled: !!activeSession?.id && !!surveillant?.id
+    enabled: !!email && !!selectedSessionId && !!surveillantId
   });
 
-  // Récupérer les examens de la session active
-  const { data: examens = [] } = useQuery({
-    queryKey: ['examens', activeSession?.id],
-    queryFn: async () => {
-      if (!activeSession?.id) return [];
+  // Rechercher le surveillant par email
+  const handleEmailSubmit = async () => {
+    if (!email.trim()) {
+      toast({
+        title: "Email requis",
+        description: "Veuillez saisir votre adresse email.",
+        variant: "destructive"
+      });
+      return;
+    }
 
-      const { data, error } = await supabase
-        .from('examens')
-        .select('*')
-        .eq('session_id', activeSession.id)
-        .eq('is_active', true)
-        .order('date_examen', { ascending: true })
-        .order('heure_debut', { ascending: true });
+    console.log('Searching for surveillant with email:', email.trim().toLowerCase());
 
-      if (error) throw error;
-      return data as Examen[];
-    },
-    enabled: !!activeSession?.id
-  });
+    const { data, error } = await supabase
+      .from('surveillants')
+      .select('id, nom, prenom, type, surveillances_a_deduire, telephone, email')
+      .eq('email', email.trim().toLowerCase())
+      .maybeSingle();
+
+    console.log('Surveillant search result:', { data, error, searchEmail: email.trim().toLowerCase() });
+
+    if (error) {
+      console.error('Error searching for surveillant:', error);
+      setCurrentStep('email-confirmation');
+      return;
+    }
+
+    if (!data) {
+      console.log('No surveillant found with email:', email.trim().toLowerCase());
+      setCurrentStep('email-confirmation');
+      return;
+    }
+
+    console.log('Found surveillant:', data);
+    setSurveillantId(data.id);
+    setSurveillantData(data);
+    setSurveillancesADeduire(data.surveillances_a_deduire || 0);
+    setNom(data.nom);
+    setPrenom(data.prenom);
+    setTelephone(data.telephone || '');
+    
+    setCurrentStep('session-selection');
+    toast({
+      title: "Surveillant trouvé",
+      description: `Bonjour ${data.prenom} ${data.nom}`,
+    });
+  };
+
+  const handleEmailConfirmation = () => {
+    setSurveillantId(null);
+    setSurveillantData(null);
+    setSurveillancesADeduire(0);
+    setCurrentStep('session-selection');
+    toast({
+      title: "Email confirmé",
+      description: "Vous pouvez maintenant procéder à votre candidature.",
+    });
+  };
+
+  const handleSessionSelect = (sessionId: string) => {
+    setSelectedSessionId(sessionId);
+    
+    if (surveillantId) {
+      setCurrentStep('existing-availabilities');
+    } else {
+      setCurrentStep('instructions');
+    }
+  };
 
   useEffect(() => {
-    if (examens && availabilities) {
-      const initiallySelected = examens.filter(examen =>
-        availabilities.some(avail =>
-          avail.date_examen === examen.date_examen &&
-          avail.heure_debut === examen.heure_debut &&
-          avail.heure_fin === examen.heure_fin &&
-          avail.est_disponible
-        )
-      ).map(examen => {
-        const availability = availabilities.find(avail =>
-          avail.date_examen === examen.date_examen &&
-          avail.heure_debut === examen.heure_debut &&
-          avail.heure_fin === examen.heure_fin
-        );
-        
-        return {
-          date: examen.date_examen,
-          heure_debut: examen.heure_debut,
-          heure_fin: examen.heure_fin,
-          type_choix: (availability?.type_choix as 'souhaitee' | 'obligatoire') || 'souhaitee',
-          nom_examen_selectionne: availability?.nom_examen_selectionne,
-          nom_examen_obligatoire: availability?.nom_examen_obligatoire,
-          commentaire_surveillance_obligatoire: availability?.commentaire_surveillance_obligatoire
-        };
-      });
-      setSelectedSlots(initiallySelected);
-    }
-  }, [examens, availabilities]);
-
-  const toggleSlot = (date: string, heure_debut: string, heure_fin: string) => {
-    const slotKey = `${date}-${heure_debut}-${heure_fin}`;
-    const isSelected = selectedSlots.some(s =>
-      s.date === date && s.heure_debut === heure_debut && s.heure_fin === heure_fin
-    );
-
-    if (isSelected) {
-      setSelectedSlots(prev => prev.filter(s =>
-        !(s.date === date && s.heure_debut === heure_debut && s.heure_fin === heure_fin)
-      ));
-    } else {
-      setSelectedSlots(prev => [...prev, {
-        date,
-        heure_debut,
-        heure_fin,
-        type_choix: 'souhaitee'
-      }]);
-    }
-  };
-
-  const updateSlotType = (date: string, heure_debut: string, heure_fin: string, type_choix: 'souhaitee' | 'obligatoire') => {
-    setSelectedSlots(prev => prev.map(slot =>
-      slot.date === date && slot.heure_debut === heure_debut && slot.heure_fin === heure_fin
-        ? { ...slot, type_choix }
-        : slot
-    ));
-  };
-
-  const updateSlotComment = (date: string, heure_debut: string, heure_fin: string, field: string, value: string) => {
-    setSelectedSlots(prev => prev.map(slot =>
-      slot.date === date && slot.heure_debut === heure_debut && slot.heure_fin === heure_fin
-        ? { ...slot, [field]: value }
-        : slot
-    ));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!surveillant || !activeSession) return;
-
-    // Validation spéciale pour PAT FASB
-    if (surveillant.type === 'PAT FASB') {
-      if (selectedSlots.length < 15) {
-        toast({
-          title: "Erreur de validation",
-          description: "Les PAT FASB doivent sélectionner au moins 15 disponibilités.",
-          variant: "destructive"
-        });
+    if (currentStep === 'existing-availabilities' && existingDisponibilites !== undefined) {
+      if (existingDisponibilites.length > 0) {
         return;
+      } else {
+        setCurrentStep('instructions');
       }
     }
+  }, [currentStep, existingDisponibilites]);
 
-    const updates = examens.map(examen => {
-      const isCurrentlyAvailable = availabilities.some(avail =>
-        avail.date_examen === examen.date_examen &&
-        avail.heure_debut === examen.heure_debut &&
-        avail.heure_fin === examen.heure_fin &&
-        avail.est_disponible
-      );
-      
-      const selectedSlot = selectedSlots.find(s =>
-        s.date === examen.date_examen && 
-        s.heure_debut === examen.heure_debut && 
-        s.heure_fin === examen.heure_fin
-      );
-      
-      const shouldBeAvailable = !!selectedSlot;
-
-      return {
-        date_examen: examen.date_examen,
-        heure_debut: examen.heure_debut,
-        heure_fin: examen.heure_fin,
-        est_disponible: shouldBeAvailable,
-        surveillant_id: surveillant.id,
-        session_id: activeSession.id,
-        type_choix: selectedSlot?.type_choix || 'souhaitee',
-        nom_examen_selectionne: selectedSlot?.nom_examen_selectionne,
-        nom_examen_obligatoire: selectedSlot?.nom_examen_obligatoire,
-        commentaire_surveillance_obligatoire: selectedSlot?.commentaire_surveillance_obligatoire,
-        id: availabilities.find(avail =>
-          avail.date_examen === examen.date_examen &&
-          avail.heure_debut === examen.heure_debut &&
-          avail.heure_fin === examen.heure_fin
-        )?.id
-      };
-    });
-
-    await Promise.all(updates.map(async update => {
-      const existingAvailability = availabilities.find(avail =>
-        avail.date_examen === update.date_examen &&
-        avail.heure_debut === update.heure_debut &&
-        avail.heure_fin === update.heure_fin
-      );
-
-      if (existingAvailability) {
-        // Update existing availability
-        const { error } = await supabase
-          .from('disponibilites')
-          .update({
-            est_disponible: update.est_disponible,
-            type_choix: update.type_choix,
-            nom_examen_selectionne: update.nom_examen_selectionne,
-            nom_examen_obligatoire: update.nom_examen_obligatoire,
-            commentaire_surveillance_obligatoire: update.commentaire_surveillance_obligatoire
-          })
-          .eq('id', existingAvailability.id);
-
-        if (error) {
-          console.error("Update error", error);
-          toast({
-            title: "Erreur",
-            description: `Impossible de mettre à jour la disponibilité pour ${update.date_examen} ${update.heure_debut}-${update.heure_fin}.`,
-            variant: "destructive"
-          });
-        }
-      } else if (update.est_disponible) {
-        // Create new availability
-        const { error } = await supabase
-          .from('disponibilites')
-          .insert({
-            date_examen: update.date_examen,
-            heure_debut: update.heure_debut,
-            heure_fin: update.heure_fin,
-            est_disponible: update.est_disponible,
-            surveillant_id: surveillant.id,
-            session_id: activeSession.id,
-            type_choix: update.type_choix,
-            nom_examen_selectionne: update.nom_examen_selectionne,
-            nom_examen_obligatoire: update.nom_examen_obligatoire,
-            commentaire_surveillance_obligatoire: update.commentaire_surveillance_obligatoire
-          });
-
-        if (error) {
-          console.error("Insert error", error);
-          toast({
-            title: "Erreur",
-            description: `Impossible d'ajouter la disponibilité pour ${update.date_examen} ${update.heure_debut}-${update.heure_fin}.`,
-            variant: "destructive"
-          });
-        }
+  // Mutation pour créer un surveillant inconnu
+  const createSurveillantMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedSessionId) {
+        throw new Error('Aucune session sélectionnée');
       }
-    }));
 
-    toast({
-      title: "Disponibilités mises à jour",
-      description: "Les disponibilités ont été sauvegardées.",
-    });
+      const { data, error } = await supabase
+        .from('surveillants')
+        .insert({
+          email: email.trim().toLowerCase(),
+          nom,
+          prenom,
+          telephone,
+          statut: 'candidat',
+          type: 'Candidat',
+          surveillances_a_deduire: 0
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      const { data: existingRelation } = await supabase
+        .from('surveillant_sessions')
+        .select('id')
+        .eq('surveillant_id', data.id)
+        .eq('session_id', selectedSessionId)
+        .single();
+
+      if (!existingRelation) {
+        const { error: sessionError } = await supabase
+          .from('surveillant_sessions')
+          .insert({
+            surveillant_id: data.id,
+            session_id: selectedSessionId,
+            quota: 0,
+            is_active: true
+          });
+
+        if (sessionError) throw sessionError;
+      }
+
+      return data;
+    },
+    onSuccess: (data) => {
+      setSurveillantId(data.id);
+      setSurveillantData({
+        id: data.id,
+        nom,
+        prenom,
+        type: 'Candidat'
+      });
+      setCurrentStep('availability');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Mutation pour mettre à jour un surveillant existant
+  const updateSurveillantMutation = useMutation({
+    mutationFn: async () => {
+      if (!surveillantId || !selectedSessionId) throw new Error('Données manquantes');
+
+      const { error } = await supabase
+        .from('surveillants')
+        .update({ 
+          surveillances_a_deduire: surveillancesADeduire,
+          telephone: telephone 
+        })
+        .eq('id', surveillantId);
+
+      if (error) throw error;
+
+      const { data: existingRelation } = await supabase
+        .from('surveillant_sessions')
+        .select('id')
+        .eq('surveillant_id', surveillantId)
+        .eq('session_id', selectedSessionId)
+        .single();
+
+      if (!existingRelation) {
+        const { error: sessionError } = await supabase
+          .from('surveillant_sessions')
+          .insert({
+            surveillant_id: surveillantId,
+            session_id: selectedSessionId,
+            quota: 0,
+            is_active: true
+          });
+
+        if (sessionError) throw sessionError;
+      }
+    },
+    onSuccess: () => {
+      setCurrentStep('availability');
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleContinueFromInstructions = async () => {
+    if (surveillantId) {
+      await updateSurveillantMutation.mutateAsync();
+    } else {
+      await createSurveillantMutation.mutateAsync();
+    }
   };
 
-  if (isLoading) {
-    return <CardContent>Chargement des disponibilités...</CardContent>;
+  const handleAvailabilitySuccess = () => {
+    setCurrentStep('success');
+  };
+
+  const resetForm = () => {
+    setEmail("");
+    setSurveillantId(null);
+    setSurveillantData(null);
+    setSelectedSessionId(null);
+    setNom('');
+    setPrenom('');
+    setTelephone('');
+    setSurveillancesADeduire(0);
+    setCurrentStep('email');
+  };
+
+  // Sélectionner automatiquement la session active s'il n'y en a qu'une
+  useEffect(() => {
+    if (currentStep === 'session-selection' && sessions.length === 1 && activeSession) {
+      setSelectedSessionId(activeSession.id);
+    }
+  }, [currentStep, sessions, activeSession]);
+
+  if (!activeSession) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-center text-gray-500">
+            Aucune session active. Veuillez contacter l'administration.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Disponibilités</CardTitle>
-        <CardDescription>
-          {!initialSurveillant ? "Saisissez votre email pour charger vos disponibilités." : "Sélectionnez les plages horaires où vous êtes disponible."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {!initialSurveillant && (
-          <div className="space-y-4 mb-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email UCLouvain
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="votre.email@uclouvain.be"
-                className="mb-4"
-              />
-            </div>
-            
-            {email && email.includes('@') && !surveillant && !searchLoading && (
-              <div className="text-red-600 text-sm">
-                Aucun surveillant trouvé avec cet email.
+  if (currentStep === 'email') {
+    return (
+      <div className="space-y-6">
+        {/* Instructions d'accueil */}
+        <Card className="border-blue-200">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <Users className="h-12 w-12 text-blue-600" />
               </div>
-            )}
-            
-            {surveillant && (
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="font-medium text-blue-900">
-                  {surveillant.prenom} {surveillant.nom}
+              <div>
+                <h1 className="text-3xl font-bold text-blue-800 mb-2">Déclaration de disponibilités</h1>
+                <p className="text-lg text-gray-600 mb-4">Surveillance d'examens UCLouvain</p>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+                <h3 className="font-semibold text-blue-800 mb-3 flex items-center">
+                  <Info className="h-5 w-5 mr-2" />
+                  Pourquoi déclarer vos disponibilités ?
                 </h3>
-                <p className="text-sm text-blue-700">
-                  Type: {surveillant.type} | Email: {surveillant.email}
+                <div className="space-y-2 text-sm text-blue-700">
+                  <div className="flex items-start space-x-2">
+                    <CheckCircle className="h-4 w-4 mt-0.5 text-blue-600" />
+                    <span><strong>Surveillance obligatoire :</strong> Vous devez déclarer vos disponibilités pour les surveillances d'examens</span>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <Users className="h-4 w-4 mt-0.5 text-blue-600" />
+                    <span><strong>Organisation :</strong> Vos disponibilités nous aident à organiser les surveillances efficacement</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="max-w-md mx-auto space-y-4">
+              <div>
+                <Label htmlFor="email">Votre adresse email UCLouvain</Label>
+                <div className="flex space-x-2 mt-1">
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="prenom.nom@uclouvain.be"
+                    className="flex-1"
+                    onKeyDown={(e) => e.key === 'Enter' && handleEmailSubmit()}
+                  />
+                  <Button onClick={handleEmailSubmit} disabled={!email.trim()}>
+                    Valider
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  Utilisez votre adresse officielle UCLouvain pour accéder à vos informations
                 </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (currentStep === 'existing-availabilities' && existingDisponibilites && existingDisponibilites.length > 0) {
+    const selectedSession = sessions.find(s => s.id === selectedSessionId);
+    
+    return (
+      <Card className="max-w-2xl mx-auto border-orange-200">
+        <CardContent className="pt-6">
+          <div className="text-center space-y-4">
+            <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto" />
+            <div>
+              <h2 className="text-xl font-bold text-orange-800 mb-2">
+                Disponibilités déjà enregistrées
+              </h2>
+              <p className="text-orange-700 mb-4">
+                Vous avez déjà introduit vos disponibilités pour la session <strong>{selectedSession?.name}</strong>.
+              </p>
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-orange-800">
+                  <strong>{existingDisponibilites.length}</strong> créneaux ont été déclarés et sont en cours de traitement.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-center space-x-2 text-blue-800 mb-2">
+                <MessageSquare className="h-5 w-5" />
+                <span className="font-medium">Souhaitez-vous modifier vos disponibilités ?</span>
+              </div>
+              <p className="text-sm text-blue-700">
+                Vous pouvez modifier directement vos disponibilités existantes ou en ajouter de nouvelles.
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <Button
+                variant="outline"
+                onClick={resetForm}
+                className="flex-1"
+              >
+                Retour
+              </Button>
+              <Button
+                onClick={() => setCurrentStep('edit-availabilities')}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+              >
+                Modifier mes disponibilités
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setCurrentStep('modification-request')}
+                className="flex-1 border-orange-600 text-orange-600"
+              >
+                Demander aide admin
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (currentStep === 'edit-availabilities' && surveillantId && selectedSessionId) {
+    return (
+      <ExistingAvailabilitiesEditor
+        surveillantId={surveillantId}
+        sessionId={selectedSessionId}
+        email={email}
+        onComplete={() => setCurrentStep('success')}
+      />
+    );
+  }
+
+  if (currentStep === 'modification-request') {
+    const selectedSession = sessions.find(s => s.id === selectedSessionId);
+    
+    return (
+      <ModificationRequestForm
+        email={email}
+        selectedSession={selectedSession!}
+        onSuccess={() => setCurrentStep('success')}
+      />
+    );
+  }
+
+  if (currentStep === 'session-selection') {
+    return (
+      <SessionSelectionScreen
+        sessions={sessions}
+        activeSessionId={activeSession?.id}
+        email={email}
+        surveillantData={surveillantData}
+        onSessionSelect={handleSessionSelect}
+        existingDisponibilites={[]}
+      />
+    );
+  }
+
+  if (currentStep === 'email-confirmation') {
+    return (
+      <Card className="border-orange-200">
+        <CardContent className="pt-6">
+          <div className="max-w-lg mx-auto space-y-4">
+            <div className="text-center">
+              <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+              <h2 className="text-xl font-bold mb-2 text-orange-800">Email non reconnu</h2>
+              <p className="text-orange-700 mb-4">
+                Votre email <strong>{email}</strong> ne semble pas être reconnu dans notre système.
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="font-semibold text-blue-800 mb-2">💡 Vérifications importantes :</h3>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• Avez-vous bien utilisé votre adresse email UCLouvain officielle ?</li>
+                <li>• Votre adresse doit être de la forme : prenom.nom@uclouvain.be</li>
+                <li>• Si vous êtes étudiant, utilisez votre adresse @student.uclouvain.be</li>
+                <li>• Vérifiez qu'il n'y a pas de fautes de frappe</li>
+              </ul>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600 text-center">
+                Si votre email est correct et que vous souhaitez tout de même postuler comme candidat externe, 
+                vous pouvez continuer. Sinon, vous pouvez corriger votre adresse email.
+              </p>
+              
+              <div className="flex space-x-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setCurrentStep('email')}
+                  className="flex-1"
+                >
+                  Corriger l'email
+                </Button>
+                <Button
+                  onClick={handleEmailConfirmation}
+                  className="flex-1 bg-orange-600 hover:bg-orange-700"
+                >
+                  Confirmer et continuer
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (currentStep === 'instructions') {
+    const selectedSession = sessions.find(s => s.id === selectedSessionId);
+    
+    return (
+      <AvailabilityInstructionsScreen
+        email={email}
+        surveillantData={surveillantData}
+        telephone={telephone}
+        setTelephone={setTelephone}
+        surveillancesADeduire={surveillancesADeduire}
+        setSurveillancesADeduire={setSurveillancesADeduire}
+        onContinue={handleContinueFromInstructions}
+        nom={nom}
+        setNom={setNom}
+        prenom={prenom}
+        setPrenom={setPrenom}
+        selectedSession={selectedSession}
+      />
+    );
+  }
+
+  if (currentStep === 'availability' && surveillantId && selectedSessionId) {
+    const selectedSession = sessions.find(s => s.id === selectedSessionId);
+    
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">Étape 2/2 •</span>
+            <span className="font-medium">{surveillantData?.prenom} {surveillantData?.nom}</span>
+            {selectedSession && (
+              <span className="text-sm text-gray-500">• Session : {selectedSession.name}</span>
             )}
           </div>
-        )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetForm}
+          >
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Recommencer
+          </Button>
+        </div>
 
-        {(surveillant || initialSurveillant) && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {examens.length === 0 ? (
-              <p>Aucun examen disponible pour cette session.</p>
-            ) : (
-              <div className="space-y-4">
-                {examens.map(examen => {
-                  const selectedSlot = selectedSlots.find(s =>
-                    s.date === examen.date_examen && 
-                    s.heure_debut === examen.heure_debut && 
-                    s.heure_fin === examen.heure_fin
-                  );
-                  const isSelected = !!selectedSlot;
-                  
-                  return (
-                    <div key={`${examen.date_examen}-${examen.heure_debut}-${examen.heure_fin}-${examen.id}`} 
-                         className="border p-4 rounded-lg space-y-3">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`slot-${examen.id}`}
-                          checked={isSelected}
-                          onCheckedChange={() => {
-                            toggleSlot(examen.date_examen, examen.heure_debut, examen.heure_fin);
-                          }}
-                        />
-                        <label
-                          htmlFor={`slot-${examen.id}`}
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          {new Date(examen.date_examen).toLocaleDateString()} - {examen.heure_debut} - {examen.heure_fin}
-                        </label>
-                      </div>
-                      
-                      <div className="text-sm text-gray-600 ml-6">
-                        <p><strong>Matière:</strong> {examen.matiere}</p>
-                        <p><strong>Salle:</strong> {examen.salle}</p>
-                        {examen.code_examen && <p><strong>Code:</strong> {examen.code_examen}</p>}
-                      </div>
+        <OptimizedAvailabilityForm
+          surveillantId={surveillantId}
+          sessionId={selectedSessionId}
+          email={email}
+          onSuccess={handleAvailabilitySuccess}
+        />
+      </div>
+    );
+  }
 
-                      {isSelected && (
-                        <div className="ml-6 space-y-3 bg-gray-50 p-3 rounded">
-                          <div className="flex items-center space-x-4">
-                            <Label className="text-sm font-medium">Type de disponibilité:</Label>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id={`souhaitee-${examen.id}`}
-                                name={`type-${examen.id}`}
-                                checked={selectedSlot?.type_choix === 'souhaitee'}
-                                onChange={() => updateSlotType(examen.date_examen, examen.heure_debut, examen.heure_fin, 'souhaitee')}
-                              />
-                              <Label htmlFor={`souhaitee-${examen.id}`} className="text-sm">Souhaitée</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="radio"
-                                id={`obligatoire-${examen.id}`}
-                                name={`type-${examen.id}`}
-                                checked={selectedSlot?.type_choix === 'obligatoire'}
-                                onChange={() => updateSlotType(examen.date_examen, examen.heure_debut, examen.heure_fin, 'obligatoire')}
-                              />
-                              <Label htmlFor={`obligatoire-${examen.id}`} className="text-sm">Obligatoire</Label>
-                            </div>
-                          </div>
+  if (currentStep === 'success') {
+    return (
+      <Card className="border-green-200">
+        <CardContent className="pt-6">
+          <div className="text-center space-y-4">
+            <CheckCircle className="h-16 w-16 text-green-600 mx-auto" />
+            <div>
+              <h2 className="text-2xl font-bold text-green-800 mb-2">
+                {currentStep === 'success' && existingDisponibilites && existingDisponibilites.length > 0 
+                  ? 'Modifications enregistrées !' 
+                  : 'Disponibilités enregistrées !'}
+              </h2>
+              <p className="text-gray-600 mb-4">
+                {currentStep === 'success' && existingDisponibilites && existingDisponibilites.length > 0
+                  ? `Merci ${surveillantData?.prenom}. Vos modifications ont été enregistrées avec succès.`
+                  : `Merci ${surveillantData?.prenom}. Vos disponibilités ont été transmises au service des surveillances.`}
+              </p>
+              <p className="text-sm text-gray-500 mb-6">
+                Vous recevrez une confirmation par email une fois les attributions finalisées.
+              </p>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <Button onClick={resetForm}>
+                Nouvelle déclaration
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
-                          {selectedSlot?.type_choix === 'obligatoire' && (
-                            <div className="space-y-2">
-                              <div>
-                                <Label htmlFor={`nom-examen-${examen.id}`} className="text-sm">Nom de l'examen obligatoire:</Label>
-                                <Input
-                                  id={`nom-examen-${examen.id}`}
-                                  value={selectedSlot?.nom_examen_obligatoire || ''}
-                                  onChange={(e) => updateSlotComment(examen.date_examen, examen.heure_debut, examen.heure_fin, 'nom_examen_obligatoire', e.target.value)}
-                                  className="text-sm"
-                                />
-                              </div>
-                              <div>
-                                <Label htmlFor={`commentaire-${examen.id}`} className="text-sm">Commentaire:</Label>
-                                <Input
-                                  id={`commentaire-${examen.id}`}
-                                  value={selectedSlot?.commentaire_surveillance_obligatoire || ''}
-                                  onChange={(e) => updateSlotComment(examen.date_examen, examen.heure_debut, examen.heure_fin, 'commentaire_surveillance_obligatoire', e.target.value)}
-                                  className="text-sm"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <Button type="submit">
-              Sauvegarder
-            </Button>
-          </form>
-        )}
-      </CardContent>
-    </Card>
-  );
+  return null;
 };
