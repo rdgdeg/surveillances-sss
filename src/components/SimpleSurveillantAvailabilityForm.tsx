@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
+import { Label } from "@/components/ui/label";
 
 interface Surveillant {
   id: string;
@@ -17,14 +18,14 @@ interface Surveillant {
   type: string;
 }
 
-interface CreneauSurveillance {
+interface Examen {
   id: string;
-  date_surveillance: string;
-  heure_debut_surveillance: string;
-  heure_fin_surveillance: string;
-  examen_id: string;
-  type_creneau: string;
-  created_at: string;
+  date_examen: string;
+  heure_debut: string;
+  heure_fin: string;
+  matiere: string;
+  salle: string;
+  code_examen: string;
 }
 
 interface SurveillantAvailability {
@@ -34,12 +35,26 @@ interface SurveillantAvailability {
   heure_debut: string;
   heure_fin: string;
   est_disponible: boolean;
+  type_choix?: string;
+  nom_examen_selectionne?: string;
+  nom_examen_obligatoire?: string;
+  commentaire_surveillance_obligatoire?: string;
+}
+
+interface SelectedSlot {
+  date: string;
+  heure_debut: string;
+  heure_fin: string;
+  type_choix: 'souhaitee' | 'obligatoire';
+  nom_examen_selectionne?: string;
+  nom_examen_obligatoire?: string;
+  commentaire_surveillance_obligatoire?: string;
 }
 
 export const SimpleSurveillantAvailabilityForm = ({ surveillant: initialSurveillant }: { surveillant?: Surveillant | undefined } = {}) => {
   const [email, setEmail] = useState("");
   const [surveillant, setSurveillant] = useState<Surveillant | undefined>(initialSurveillant);
-  const [selectedSlots, setSelectedSlots] = useState<{ date: string; heure_debut: string; heure_fin: string; }[]>([]);
+  const [selectedSlots, setSelectedSlots] = useState<SelectedSlot[]>([]);
   const { data: activeSession } = useActiveSession();
 
   // Rechercher le surveillant par email
@@ -86,49 +101,90 @@ export const SimpleSurveillantAvailabilityForm = ({ surveillant: initialSurveill
     enabled: !!activeSession?.id && !!surveillant?.id
   });
 
-  const { data: slots = [] } = useQuery({
-    queryKey: ['slots', activeSession?.id],
+  // Récupérer les examens de la session active
+  const { data: examens = [] } = useQuery({
+    queryKey: ['examens', activeSession?.id],
     queryFn: async () => {
       if (!activeSession?.id) return [];
 
       const { data, error } = await supabase
-        .from('creneaux_surveillance')
+        .from('examens')
         .select('*')
-        .eq('examen_id', activeSession.id);
+        .eq('session_id', activeSession.id)
+        .eq('is_active', true)
+        .order('date_examen', { ascending: true })
+        .order('heure_debut', { ascending: true });
 
       if (error) throw error;
-      return data as CreneauSurveillance[];
+      return data as Examen[];
     },
     enabled: !!activeSession?.id
   });
 
   useEffect(() => {
-    if (slots && availabilities) {
-      const initiallySelected = slots.filter(slot =>
+    if (examens && availabilities) {
+      const initiallySelected = examens.filter(examen =>
         availabilities.some(avail =>
-          avail.date_examen === slot.date_surveillance &&
-          avail.heure_debut === slot.heure_debut_surveillance &&
-          avail.heure_fin === slot.heure_fin_surveillance &&
+          avail.date_examen === examen.date_examen &&
+          avail.heure_debut === examen.heure_debut &&
+          avail.heure_fin === examen.heure_fin &&
           avail.est_disponible
         )
-      ).map(slot => ({ date: slot.date_surveillance, heure_debut: slot.heure_debut_surveillance, heure_fin: slot.heure_fin_surveillance }));
+      ).map(examen => {
+        const availability = availabilities.find(avail =>
+          avail.date_examen === examen.date_examen &&
+          avail.heure_debut === examen.heure_debut &&
+          avail.heure_fin === examen.heure_fin
+        );
+        
+        return {
+          date: examen.date_examen,
+          heure_debut: examen.heure_debut,
+          heure_fin: examen.heure_fin,
+          type_choix: (availability?.type_choix as 'souhaitee' | 'obligatoire') || 'souhaitee',
+          nom_examen_selectionne: availability?.nom_examen_selectionne,
+          nom_examen_obligatoire: availability?.nom_examen_obligatoire,
+          commentaire_surveillance_obligatoire: availability?.commentaire_surveillance_obligatoire
+        };
+      });
       setSelectedSlots(initiallySelected);
     }
-  }, [slots, availabilities]);
+  }, [examens, availabilities]);
 
   const toggleSlot = (date: string, heure_debut: string, heure_fin: string) => {
-    const slot = { date, heure_debut, heure_fin };
+    const slotKey = `${date}-${heure_debut}-${heure_fin}`;
     const isSelected = selectedSlots.some(s =>
-      s.date === slot.date && s.heure_debut === slot.heure_debut && s.heure_fin === slot.heure_fin
+      s.date === date && s.heure_debut === heure_debut && s.heure_fin === heure_fin
     );
 
     if (isSelected) {
       setSelectedSlots(prev => prev.filter(s =>
-        !(s.date === slot.date && s.heure_debut === slot.heure_debut && s.heure_fin === slot.heure_fin)
+        !(s.date === date && s.heure_debut === heure_debut && s.heure_fin === heure_fin)
       ));
     } else {
-      setSelectedSlots(prev => [...prev, slot]);
+      setSelectedSlots(prev => [...prev, {
+        date,
+        heure_debut,
+        heure_fin,
+        type_choix: 'souhaitee'
+      }]);
     }
+  };
+
+  const updateSlotType = (date: string, heure_debut: string, heure_fin: string, type_choix: 'souhaitee' | 'obligatoire') => {
+    setSelectedSlots(prev => prev.map(slot =>
+      slot.date === date && slot.heure_debut === heure_debut && slot.heure_fin === heure_fin
+        ? { ...slot, type_choix }
+        : slot
+    ));
+  };
+
+  const updateSlotComment = (date: string, heure_debut: string, heure_fin: string, field: string, value: string) => {
+    setSelectedSlots(prev => prev.map(slot =>
+      slot.date === date && slot.heure_debut === heure_debut && slot.heure_fin === heure_fin
+        ? { ...slot, [field]: value }
+        : slot
+    ));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -148,28 +204,37 @@ export const SimpleSurveillantAvailabilityForm = ({ surveillant: initialSurveill
       }
     }
 
-    const updates = slots.map(slot => {
+    const updates = examens.map(examen => {
       const isCurrentlyAvailable = availabilities.some(avail =>
-        avail.date_examen === slot.date_surveillance &&
-        avail.heure_debut === slot.heure_debut_surveillance &&
-        avail.heure_fin === slot.heure_fin_surveillance &&
+        avail.date_examen === examen.date_examen &&
+        avail.heure_debut === examen.heure_debut &&
+        avail.heure_fin === examen.heure_fin &&
         avail.est_disponible
       );
-      const shouldBeAvailable = selectedSlots.some(s =>
-        s.date === slot.date_surveillance && s.heure_debut === slot.heure_debut_surveillance && s.heure_fin === slot.heure_fin_surveillance
+      
+      const selectedSlot = selectedSlots.find(s =>
+        s.date === examen.date_examen && 
+        s.heure_debut === examen.heure_debut && 
+        s.heure_fin === examen.heure_fin
       );
+      
+      const shouldBeAvailable = !!selectedSlot;
 
       return {
-        date_examen: slot.date_surveillance,
-        heure_debut: slot.heure_debut_surveillance,
-        heure_fin: slot.heure_fin_surveillance,
+        date_examen: examen.date_examen,
+        heure_debut: examen.heure_debut,
+        heure_fin: examen.heure_fin,
         est_disponible: shouldBeAvailable,
         surveillant_id: surveillant.id,
         session_id: activeSession.id,
+        type_choix: selectedSlot?.type_choix || 'souhaitee',
+        nom_examen_selectionne: selectedSlot?.nom_examen_selectionne,
+        nom_examen_obligatoire: selectedSlot?.nom_examen_obligatoire,
+        commentaire_surveillance_obligatoire: selectedSlot?.commentaire_surveillance_obligatoire,
         id: availabilities.find(avail =>
-          avail.date_examen === slot.date_surveillance &&
-          avail.heure_debut === slot.heure_debut_surveillance &&
-          avail.heure_fin === slot.heure_fin_surveillance
+          avail.date_examen === examen.date_examen &&
+          avail.heure_debut === examen.heure_debut &&
+          avail.heure_fin === examen.heure_fin
         )?.id
       };
     });
@@ -185,7 +250,13 @@ export const SimpleSurveillantAvailabilityForm = ({ surveillant: initialSurveill
         // Update existing availability
         const { error } = await supabase
           .from('disponibilites')
-          .update({ est_disponible: update.est_disponible })
+          .update({
+            est_disponible: update.est_disponible,
+            type_choix: update.type_choix,
+            nom_examen_selectionne: update.nom_examen_selectionne,
+            nom_examen_obligatoire: update.nom_examen_obligatoire,
+            commentaire_surveillance_obligatoire: update.commentaire_surveillance_obligatoire
+          })
           .eq('id', existingAvailability.id);
 
         if (error) {
@@ -206,7 +277,11 @@ export const SimpleSurveillantAvailabilityForm = ({ surveillant: initialSurveill
             heure_fin: update.heure_fin,
             est_disponible: update.est_disponible,
             surveillant_id: surveillant.id,
-            session_id: activeSession.id
+            session_id: activeSession.id,
+            type_choix: update.type_choix,
+            nom_examen_selectionne: update.nom_examen_selectionne,
+            nom_examen_obligatoire: update.nom_examen_obligatoire,
+            commentaire_surveillance_obligatoire: update.commentaire_surveillance_obligatoire
           });
 
         if (error) {
@@ -276,29 +351,96 @@ export const SimpleSurveillantAvailabilityForm = ({ surveillant: initialSurveill
 
         {(surveillant || initialSurveillant) && (
           <form onSubmit={handleSubmit} className="space-y-4">
-            {slots.length === 0 ? (
-              <p>Aucune plage horaire disponible pour cette session.</p>
+            {examens.length === 0 ? (
+              <p>Aucun examen disponible pour cette session.</p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {slots.map(slot => (
-                  <div key={`${slot.date_surveillance}-${slot.heure_debut_surveillance}-${slot.heure_fin_surveillance}`} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`slot-${slot.date_surveillance}-${slot.heure_debut_surveillance}-${slot.heure_fin_surveillance}`}
-                      checked={selectedSlots.some(s =>
-                        s.date === slot.date_surveillance && s.heure_debut === slot.heure_debut_surveillance && s.heure_fin === slot.heure_fin_surveillance
+              <div className="space-y-4">
+                {examens.map(examen => {
+                  const selectedSlot = selectedSlots.find(s =>
+                    s.date === examen.date_examen && 
+                    s.heure_debut === examen.heure_debut && 
+                    s.heure_fin === examen.heure_fin
+                  );
+                  const isSelected = !!selectedSlot;
+                  
+                  return (
+                    <div key={`${examen.date_examen}-${examen.heure_debut}-${examen.heure_fin}-${examen.id}`} 
+                         className="border p-4 rounded-lg space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`slot-${examen.id}`}
+                          checked={isSelected}
+                          onCheckedChange={() => {
+                            toggleSlot(examen.date_examen, examen.heure_debut, examen.heure_fin);
+                          }}
+                        />
+                        <label
+                          htmlFor={`slot-${examen.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          {new Date(examen.date_examen).toLocaleDateString()} - {examen.heure_debut} - {examen.heure_fin}
+                        </label>
+                      </div>
+                      
+                      <div className="text-sm text-gray-600 ml-6">
+                        <p><strong>Matière:</strong> {examen.matiere}</p>
+                        <p><strong>Salle:</strong> {examen.salle}</p>
+                        {examen.code_examen && <p><strong>Code:</strong> {examen.code_examen}</p>}
+                      </div>
+
+                      {isSelected && (
+                        <div className="ml-6 space-y-3 bg-gray-50 p-3 rounded">
+                          <div className="flex items-center space-x-4">
+                            <Label className="text-sm font-medium">Type de disponibilité:</Label>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="radio"
+                                id={`souhaitee-${examen.id}`}
+                                name={`type-${examen.id}`}
+                                checked={selectedSlot?.type_choix === 'souhaitee'}
+                                onChange={() => updateSlotType(examen.date_examen, examen.heure_debut, examen.heure_fin, 'souhaitee')}
+                              />
+                              <Label htmlFor={`souhaitee-${examen.id}`} className="text-sm">Souhaitée</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="radio"
+                                id={`obligatoire-${examen.id}`}
+                                name={`type-${examen.id}`}
+                                checked={selectedSlot?.type_choix === 'obligatoire'}
+                                onChange={() => updateSlotType(examen.date_examen, examen.heure_debut, examen.heure_fin, 'obligatoire')}
+                              />
+                              <Label htmlFor={`obligatoire-${examen.id}`} className="text-sm">Obligatoire</Label>
+                            </div>
+                          </div>
+
+                          {selectedSlot?.type_choix === 'obligatoire' && (
+                            <div className="space-y-2">
+                              <div>
+                                <Label htmlFor={`nom-examen-${examen.id}`} className="text-sm">Nom de l'examen obligatoire:</Label>
+                                <Input
+                                  id={`nom-examen-${examen.id}`}
+                                  value={selectedSlot?.nom_examen_obligatoire || ''}
+                                  onChange={(e) => updateSlotComment(examen.date_examen, examen.heure_debut, examen.heure_fin, 'nom_examen_obligatoire', e.target.value)}
+                                  className="text-sm"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`commentaire-${examen.id}`} className="text-sm">Commentaire:</Label>
+                                <Input
+                                  id={`commentaire-${examen.id}`}
+                                  value={selectedSlot?.commentaire_surveillance_obligatoire || ''}
+                                  onChange={(e) => updateSlotComment(examen.date_examen, examen.heure_debut, examen.heure_fin, 'commentaire_surveillance_obligatoire', e.target.value)}
+                                  className="text-sm"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
-                      onCheckedChange={(checked) => {
-                        toggleSlot(slot.date_surveillance, slot.heure_debut_surveillance, slot.heure_fin_surveillance);
-                      }}
-                    />
-                    <label
-                      htmlFor={`slot-${slot.date_surveillance}-${slot.heure_debut_surveillance}-${slot.heure_fin_surveillance}`}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      {new Date(slot.date_surveillance).toLocaleDateString()} - {slot.heure_debut_surveillance} - {slot.heure_fin_surveillance}
-                    </label>
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
             <Button type="submit">
