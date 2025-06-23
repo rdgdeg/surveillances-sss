@@ -17,12 +17,14 @@ interface Surveillant {
   type: string;
 }
 
-interface Availability {
+interface CreneauSurveillance {
   id: string;
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-  est_disponible: boolean;
+  date_surveillance: string;
+  heure_debut_surveillance: string;
+  heure_fin_surveillance: string;
+  examen_id: string;
+  type_creneau: string;
+  created_at: string;
 }
 
 interface SurveillantAvailability {
@@ -92,10 +94,10 @@ export const SimpleSurveillantAvailabilityForm = ({ surveillant: initialSurveill
       const { data, error } = await supabase
         .from('creneaux_surveillance')
         .select('*')
-        .eq('examen_id', activeSession.id); // Cette requête doit être ajustée selon votre structure
+        .eq('examen_id', activeSession.id);
 
       if (error) throw error;
-      return data as Availability[];
+      return data as CreneauSurveillance[];
     },
     enabled: !!activeSession?.id
   });
