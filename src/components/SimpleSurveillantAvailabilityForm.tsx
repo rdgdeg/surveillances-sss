@@ -237,6 +237,36 @@ export const SimpleSurveillantAvailabilityForm = () => {
     }
   });
 
+  const handleSubmit = async () => {
+    if (!activeSession?.id || !surveillantData) {
+      toast({
+        title: "Erreur",
+        description: "Session ou informations surveillant manquantes.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validation spéciale pour PAT FASB
+    if (surveillantData.type === 'PAT FASB') {
+      const nombreDispos = Object.values(disponibilites).filter(d => d.est_disponible).length;
+      if (nombreDispos < 15) {
+        toast({
+          title: "Erreur de validation",
+          description: `En tant que PAT FASB, vous devez cocher au moins 15 disponibilités. Vous n'en avez coché que ${nombreDispos}.`,
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    if (surveillantId) {
+      await updateSurveillantMutation.mutateAsync();
+    } else {
+      await createSurveillantMutation.mutateAsync();
+    }
+  };
+
   const handleContinueFromInstructions = async () => {
     if (surveillantId) {
       await updateSurveillantMutation.mutateAsync();
