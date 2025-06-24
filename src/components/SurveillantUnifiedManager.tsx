@@ -88,6 +88,23 @@ interface NewSurveillant {
   quota?: number;
 }
 
+// Fonction pour calculer le quota théorique selon le type et ETP
+const calculateTheoreticalQuota = (type: string, eft: number | null): number => {
+  if (!eft || eft === 0) return 0;
+  
+  switch (type) {
+    case 'PAT':
+    case 'Doctorant':
+      return 0; // PAT et Doctorant = 0
+    case 'PAT FASB':
+      return Math.round(eft * 12); // PAT FASB = 12 * ETP
+    case 'Assistant':
+      return Math.round(eft * 6); // Assistant = 6 * ETP
+    default:
+      return 6; // Valeur par défaut pour les autres types
+  }
+};
+
 export function SurveillantUnifiedManager() {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
