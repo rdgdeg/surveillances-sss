@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, RotateCcw, Edit, Save, Power, PowerOff } from "lucide-react";
+import { Plus, X, RotateCcw, Edit, Save, Power, PowerOff, Search } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CustomStatusModal } from "./CustomStatusModal";
 import { FacultesMultiSelect, FACULTES_FILTERED } from "./FacultesMultiSelect";
@@ -94,7 +95,7 @@ export function SurveillantUnifiedManager() {
   const [editRow, setEditRow] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<{
     etp?: number;
-    quota?: number;
+    quota_theorique?: number;
     faculte_interdite?: string[];
     statut?: string;
     affectation_fac?: string;
@@ -107,6 +108,7 @@ export function SurveillantUnifiedManager() {
   const [activeTab, setActiveTab] = useState<"actifs" | "desactives">("actifs");
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   
   // États pour l'ajout manuel
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -127,11 +129,11 @@ export function SurveillantUnifiedManager() {
 
   // 1. CHARGEMENT surveillants (jointure surveillant_sessions)
   const { data: surveillants, isLoading } = useQuery({
-    queryKey: ["unified-surveillants", activeSession?.id],
+    queryKey: ["unified-surveillants", activeSession?.id, searchTerm],
     queryFn: async () => {
       if (!activeSession?.id) return [];
       
-      const { data, error } = await supabase
+      let query = supabase
         .from("surveillant_sessions")
         .select(`
           id,
@@ -153,12 +155,14 @@ export function SurveillantUnifiedManager() {
             date_fin_contrat
           )
         `)
-        .eq("session_id", activeSession.id)
-        .order("surveillants(nom)", { ascending: true });
+        .eq("session_id", activeSession.id);
+
+      // Appliquer le filtre de recherche côté client après récupération
+      const { data, error } = await query.order("surveillants(nom)", { ascending: true });
 
       if (error) throw error;
 
-      return (data ?? []).map((row: any) => ({
+      let filteredData = (data ?? []).map((row: any) => ({
         id: row.surveillants.id,
         nom: row.surveillants.nom,
         prenom: row.surveillants.prenom,
@@ -178,6 +182,19 @@ export function SurveillantUnifiedManager() {
         is_active: row.is_active === undefined ? true : row.is_active,
         a_obligations: row.a_obligations ?? true,
       })) as SurveillantJoinWithArray[];
+
+      // Filtrage par terme de recherche
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filteredData = filteredData.filter(item =>
+          item.nom.toLowerCase().includes(term) ||
+          item.prenom.toLowerCase().includes(term) ||
+          item.email.toLowerCase().includes(term) ||
+          item.type.toLowerCase().includes(term)
+        );
+      }
+
+      return filteredData;
     },
     enabled: !!activeSession?.id,
   });
@@ -218,7 +235,7 @@ export function SurveillantUnifiedManager() {
       queryClient.invalidateQueries();
       toast({
         title: "Quota modifié",
-        description: "Le quota a été mis à jour avec succès.",
+        description: "Le quota théorique a été mis à jour avec succès.",
       });
     },
     onError: (err: any) => {
@@ -269,8 +286,8 @@ export function SurveillantUnifiedManager() {
     onSuccess: () => {
       queryClient.invalidateQueries();
       toast({
-        title: "Obligations modifiées",
-        description: "Le statut des obligations a été mis à jour.",
+        title: "Attribution auto modifiée",
+        description: "Le statut d'attribution automatique a été mis à jour.",
       });
     },
     onError: (err: any) => {
@@ -291,14 +308,18 @@ export function SurveillantUnifiedManager() {
         const theoreticalQuota = calculateTheoreticalQuota(surveillant.type, surveillant.eft);
         return {
           id: surveillant.session_entry_id!,
-          quota: theoreticalQuota
+          quota: theoreticalQuota,
+          a_obligations: theoreticalQuota > 0 // Auto-décocher si quota = 0
         };
       }).filter(update => update.id);
 
       for (const update of updates) {
         await supabase
           .from("surveillant_sessions")
-          .update({ quota: update.quota })
+          .update({ 
+            quota: update.quota,
+            a_obligations: update.a_obligations 
+          })
           .eq("id", update.id);
       }
     },
@@ -324,19 +345,20 @@ export function SurveillantUnifiedManager() {
   const currentRows = activeTab === "actifs" ? surveillantsActifs : surveillantsDesactives;
 
   const handleEdit = (row: SurveillantJoinWithArray) => {
+    const theoreticalQuota = calculateTheoreticalQuota(row.type, row.eft);
     setEditRow(row.id);
     setEditValues({
       etp: row.eft ?? 0,
-      quota: row.quota ?? 0,
+      quota_theorique: theoreticalQuota,
       a_obligations: row.a_obligations ?? true,
     });
   };
 
   const handleSave = async (row: SurveillantJoinWithArray) => {
-    if (editValues.quota !== row.quota && row.session_entry_id) {
+    if (editValues.quota_theorique !== undefined && row.session_entry_id) {
       await updateQuotaSessionMutation.mutateAsync({
         sessionEntryId: row.session_entry_id,
-        quota: editValues.quota ?? 0,
+        quota: editValues.quota_theorique,
       });
     }
     
@@ -393,7 +415,7 @@ export function SurveillantUnifiedManager() {
           <div>
             <CardTitle className="text-2xl font-bold text-uclouvain-blue mb-1">Gestion des surveillants</CardTitle>
             <CardDescription className="text-base text-gray-600">
-              Gérez les surveillants, quotas, activation/désactivation et obligations d'attribution.
+              Gérez les surveillants, quotas théoriques, activation/désactivation et attribution automatique.
             </CardDescription>
           </div>
           <div className="flex gap-2">
@@ -418,6 +440,19 @@ export function SurveillantUnifiedManager() {
             </div>
           )}
 
+          {/* Barre de recherche */}
+          <div className="p-6 border-b">
+            <div className="flex items-center space-x-2 max-w-md">
+              <Search className="h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Rechercher par nom, prénom, email ou type..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1"
+              />
+            </div>
+          </div>
+
           <Tabs value={activeTab} onValueChange={v => setActiveTab(v as "actifs" | "desactives")}>
             <TabsList className="mb-3 ml-4">
               <TabsTrigger value="actifs">Actifs ({surveillantsActifs.length})</TabsTrigger>
@@ -433,7 +468,6 @@ export function SurveillantUnifiedManager() {
                       <TableHead>Email</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>ETP</TableHead>
-                      <TableHead>Quota</TableHead>
                       <TableHead>Quota théorique</TableHead>
                       <TableHead>Attribution auto</TableHead>
                       <TableHead>Actions</TableHead>
@@ -462,21 +496,16 @@ export function SurveillantUnifiedManager() {
                               <Input
                                 type="number"
                                 min="0"
-                                value={editValues.quota || 0}
+                                value={editValues.quota_theorique || 0}
                                 onChange={(e) => setEditValues(prev => ({
                                   ...prev,
-                                  quota: parseInt(e.target.value) || 0
+                                  quota_theorique: parseInt(e.target.value) || 0
                                 }))}
                                 className="w-20"
                               />
                             ) : (
-                              <span className={row.quota !== theoreticalQuota ? "text-orange-600 font-medium" : ""}>
-                                {row.quota || 0}
-                              </span>
+                              <span>{row.quota || theoreticalQuota}</span>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-gray-500">{theoreticalQuota}</span>
                           </TableCell>
                           <TableCell>
                             {isEditing ? (
@@ -574,47 +603,51 @@ export function SurveillantUnifiedManager() {
                       <TableHead>Email</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>ETP</TableHead>
-                      <TableHead>Quota</TableHead>
+                      <TableHead>Quota théorique</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentRows.map((row) => (
-                      <TableRow key={row.id} className="opacity-60">
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{row.nom} {row.prenom}</div>
-                            <div className="text-sm text-gray-500">{row.type}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">{row.email}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{row.type}</Badge>
-                        </TableCell>
-                        <TableCell>{row.eft || '-'}</TableCell>
-                        <TableCell>{row.quota || 0}</TableCell>
-                        <TableCell>
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => row.session_entry_id && toggleActiveMutation.mutate({
-                                    sessionEntryId: row.session_entry_id,
-                                    is_active: true
-                                  })}
-                                  disabled={toggleActiveMutation.isPending}
-                                >
-                                  <Power className="h-3 w-3" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Réactiver</TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {currentRows.map((row) => {
+                      const theoreticalQuota = calculateTheoreticalQuota(row.type, row.eft);
+                      
+                      return (
+                        <TableRow key={row.id} className="opacity-60">
+                          <TableCell>
+                            <div>
+                              <div className="font-medium">{row.nom} {row.prenom}</div>
+                              <div className="text-sm text-gray-500">{row.type}</div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">{row.email}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{row.type}</Badge>
+                          </TableCell>
+                          <TableCell>{row.eft || '-'}</TableCell>
+                          <TableCell>{row.quota || theoreticalQuota}</TableCell>
+                          <TableCell>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => row.session_entry_id && toggleActiveMutation.mutate({
+                                      sessionEntryId: row.session_entry_id,
+                                      is_active: true
+                                    })}
+                                    disabled={toggleActiveMutation.isPending}
+                                  >
+                                    <Power className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Réactiver</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -623,7 +656,7 @@ export function SurveillantUnifiedManager() {
 
           {currentRows.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              Aucun surveillant trouvé dans cette catégorie.
+              {searchTerm ? "Aucun surveillant trouvé correspondant à votre recherche." : "Aucun surveillant trouvé dans cette catégorie."}
             </div>
           )}
         </CardContent>
