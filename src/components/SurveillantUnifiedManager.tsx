@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, RotateCcw, Edit, Save, Power, PowerOff, Search } from "lucide-react";
+import { Plus, X, RotateCcw, Edit, Save, Power, PowerOff, Search, Users, Target, Calculator } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CustomStatusModal } from "./CustomStatusModal";
 import { FacultesMultiSelect, FACULTES_FILTERED } from "./FacultesMultiSelect";
@@ -205,7 +204,8 @@ export function SurveillantUnifiedManager() {
     
     switch (type) {
       case 'PAT':
-        return 0; // PAT = 0
+      case 'Doctorant':
+        return 0; // PAT et Doctorant = 0
       case 'PAT FASB':
         return Math.round(eft * 12); // PAT FASB = 12 * ETP
       case 'Assistant':
@@ -344,6 +344,115 @@ export function SurveillantUnifiedManager() {
   const surveillantsDesactives = allRows.filter(r => !r.is_active);
   const currentRows = activeTab === "actifs" ? surveillantsActifs : surveillantsDesactives;
 
+  // Calculs pour les cartes récapitulatives
+  const total = allRows.length;
+  const actifs = surveillantsActifs.length;
+  const inactifs = surveillantsDesactives.length;
+  const typeMap = allRows.reduce((acc: Record<string, number>, r) => {
+    acc[r.type || "Inconnu"] = (acc[r.type || "Inconnu"] || 0) + 1;
+    return acc;
+  }, {});
+  
+  const totalQuotaTheorique = allRows.reduce((sum, s) => {
+    const quota = calculateTheoreticalQuota(s.type, s.eft);
+    return sum + quota;
+  }, 0);
+
+  // Gestion de la sélection en masse
+  const handleSelectAll = (checked: boolean) => {
+    setSelectAll(checked);
+    if (checked) {
+      const newSelected = currentRows.map(r => r.session_entry_id!).filter(Boolean);
+      setSelectedRows(newSelected);
+    } else {
+      setSelectedRows([]);
+    }
+  };
+
+  const handleRowSelect = (sessionEntryId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedRows(prev => [...prev, sessionEntryId]);
+    } else {
+      setSelectedRows(prev => prev.filter(id => id !== sessionEntryId));
+      setSelectAll(false);
+    }
+  };
+
+  // Actions en masse
+  const handleBulkActivation = async (activate: boolean) => {
+    if (selectedRows.length === 0) {
+      toast({
+        title: "Aucune sélection",
+        description: "Veuillez sélectionner au moins un surveillant.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const updates = selectedRows.map(sessionEntryId => 
+        supabase
+          .from("surveillant_sessions")
+          .update({ is_active: activate })
+          .eq("id", sessionEntryId)
+      );
+
+      await Promise.all(updates);
+      
+      queryClient.invalidateQueries();
+      setSelectedRows([]);
+      setSelectAll(false);
+      
+      toast({
+        title: "Mise à jour réussie",
+        description: `${selectedRows.length} surveillant(s) ${activate ? 'activé(s)' : 'désactivé(s)'}.`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleBulkObligations = async (aObligations: boolean) => {
+    if (selectedRows.length === 0) {
+      toast({
+        title: "Aucune sélection",
+        description: "Veuillez sélectionner au moins un surveillant.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const updates = selectedRows.map(sessionEntryId => 
+        supabase
+          .from("surveillant_sessions")
+          .update({ a_obligations: aObligations })
+          .eq("id", sessionEntryId)
+      );
+
+      await Promise.all(updates);
+      
+      queryClient.invalidateQueries();
+      setSelectedRows([]);
+      setSelectAll(false);
+      
+      toast({
+        title: "Mise à jour réussie",
+        description: `Attribution automatique ${aObligations ? 'activée' : 'désactivée'} pour ${selectedRows.length} surveillant(s).`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleEdit = (row: SurveillantJoinWithArray) => {
     const theoreticalQuota = calculateTheoreticalQuota(row.type, row.eft);
     setEditRow(row.id);
@@ -400,16 +509,65 @@ export function SurveillantUnifiedManager() {
     );
   }
 
-  const total = allRows.length;
-  const actifs = allRows.filter(r => r.is_active).length;
-  const inactifs = allRows.filter(r => !r.is_active).length;
-  const typeMap = allRows.reduce((acc: Record<string, number>, r) => {
-    acc[r.type || "Inconnu"] = (acc[r.type || "Inconnu"] || 0) + 1;
-    return acc;
-  }, {});
-
   return (
     <div className="space-y-4 px-0 md:px-8 max-w-screen-2xl w-full mx-auto">
+      {/* Cartes récapitulatives */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-6">
+            <div className="flex items-center space-x-2 mb-2">
+              <Users className="h-6 w-6 text-blue-600" />
+              <span className="text-sm font-medium text-gray-600">Total surveillants</span>
+            </div>
+            <div className="text-3xl font-bold text-blue-600">{total}</div>
+            <div className="text-sm text-gray-500">
+              {actifs} actifs • {inactifs} inactifs
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-6">
+            <div className="flex items-center space-x-2 mb-2">
+              <Target className="h-6 w-6 text-green-600" />
+              <span className="text-sm font-medium text-gray-600">Quota théorique total</span>
+            </div>
+            <div className="text-3xl font-bold text-green-600">{totalQuotaTheorique}</div>
+            <div className="text-sm text-gray-500">surveillances requises</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2 mb-3">
+              <Calculator className="h-5 w-5 text-purple-600" />
+              <span className="text-sm font-medium text-gray-600">Par type</span>
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {Object.entries(typeMap).map(([type, count]) => (
+                <div key={type} className="flex justify-between text-xs">
+                  <span className="text-gray-600">{type}:</span>
+                  <span className="font-medium">{count}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-6">
+            <div className="flex items-center space-x-2 mb-2">
+              <Badge className="h-6 w-6 text-orange-600" />
+              <span className="text-sm font-medium text-gray-600">Actifs avec quota > 0</span>
+            </div>
+            <div className="text-3xl font-bold text-orange-600">
+              {surveillantsActifs.filter(s => calculateTheoreticalQuota(s.type, s.eft) > 0).length}
+            </div>
+            <div className="text-sm text-gray-500">disponibles attribution</div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className="w-full max-w-none">
         <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div>
@@ -453,6 +611,59 @@ export function SurveillantUnifiedManager() {
             </div>
           </div>
 
+          {/* Actions en masse */}
+          {selectedRows.length > 0 && (
+            <div className="p-4 bg-blue-50 border-b">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-blue-800">
+                    {selectedRows.length} surveillant(s) sélectionné(s)
+                  </span>
+                </div>
+                <div className="flex space-x-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleBulkActivation(true)}
+                  >
+                    Activer
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleBulkActivation(false)}
+                  >
+                    Désactiver
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleBulkObligations(true)}
+                  >
+                    Inclure attribution
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleBulkObligations(false)}
+                  >
+                    Exclure attribution
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setSelectedRows([]);
+                      setSelectAll(false);
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <Tabs value={activeTab} onValueChange={v => setActiveTab(v as "actifs" | "desactives")}>
             <TabsList className="mb-3 ml-4">
               <TabsTrigger value="actifs">Actifs ({surveillantsActifs.length})</TabsTrigger>
@@ -464,6 +675,12 @@ export function SurveillantUnifiedManager() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[50px]">
+                        <Checkbox
+                          checked={selectAll}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </TableHead>
                       <TableHead>Nom</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Type</TableHead>
@@ -477,9 +694,18 @@ export function SurveillantUnifiedManager() {
                     {currentRows.map((row) => {
                       const isEditing = editRow === row.id;
                       const theoreticalQuota = calculateTheoreticalQuota(row.type, row.eft);
+                      const isSelected = selectedRows.includes(row.session_entry_id!);
                       
                       return (
                         <TableRow key={row.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => 
+                                handleRowSelect(row.session_entry_id!, checked as boolean)
+                              }
+                            />
+                          </TableCell>
                           <TableCell>
                             <div>
                               <div className="font-medium">{row.nom} {row.prenom}</div>
@@ -504,7 +730,7 @@ export function SurveillantUnifiedManager() {
                                 className="w-20"
                               />
                             ) : (
-                              <span>{row.quota || theoreticalQuota}</span>
+                              <span className="font-medium text-blue-600">{row.quota || theoreticalQuota}</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -599,6 +825,12 @@ export function SurveillantUnifiedManager() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[50px]">
+                        <Checkbox
+                          checked={selectAll}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </TableHead>
                       <TableHead>Nom</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Type</TableHead>
@@ -610,9 +842,18 @@ export function SurveillantUnifiedManager() {
                   <TableBody>
                     {currentRows.map((row) => {
                       const theoreticalQuota = calculateTheoreticalQuota(row.type, row.eft);
+                      const isSelected = selectedRows.includes(row.session_entry_id!);
                       
                       return (
                         <TableRow key={row.id} className="opacity-60">
+                          <TableCell>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => 
+                                handleRowSelect(row.session_entry_id!, checked as boolean)
+                              }
+                            />
+                          </TableCell>
                           <TableCell>
                             <div>
                               <div className="font-medium">{row.nom} {row.prenom}</div>
@@ -624,7 +865,9 @@ export function SurveillantUnifiedManager() {
                             <Badge variant="secondary">{row.type}</Badge>
                           </TableCell>
                           <TableCell>{row.eft || '-'}</TableCell>
-                          <TableCell>{row.quota || theoreticalQuota}</TableCell>
+                          <TableCell>
+                            <span className="font-medium text-blue-600">{row.quota || theoreticalQuota}</span>
+                          </TableCell>
                           <TableCell>
                             <TooltipProvider>
                               <Tooltip>
