@@ -93,11 +93,11 @@ const calculateTheoreticalQuota = (type: string, eft: number | null): number => 
   if (!eft || eft === 0) return 0;
   
   switch (type) {
-    case 'PAT':
-    case 'Doctorant':
-      return 0; // PAT et Doctorant = 0
     case 'PAT FASB':
       return Math.round(eft * 12); // PAT FASB = 12 * ETP
+    case 'PAT':
+    case 'Doctorant':
+      return 0; // Autres PAT et Doctorant = 0
     case 'Assistant':
       return Math.round(eft * 6); // Assistant = 6 * ETP
     default:
