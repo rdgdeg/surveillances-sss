@@ -104,11 +104,10 @@ export const OptimizedAvailabilityForm = ({
     }
     
     if (surveillantType === 'PAT FASB') {
-      const minRequired = Math.ceil(creneauxSurveillance.length * 0.30) + 12;
-      if (selectedCount < minRequired) {
+      if (selectedCount < 15) {
         return {
           isValid: false,
-          message: "Merci d'indiquer plus de disponibilités pour permettre l'attribution des surveillances.",
+          message: `Vous devez sélectionner au minimum 15 créneaux de surveillance. Actuellement sélectionnés : ${selectedCount}/15`,
           type: 'error' as const
         };
       }
@@ -256,6 +255,16 @@ export const OptimizedAvailabilityForm = ({
       return;
     }
 
+    const validation = validateAvailabilities();
+    if (!validation.isValid && validation.type === 'error') {
+      toast({
+        title: "Validation échouée",
+        description: validation.message,
+        variant: "destructive"
+      });
+      return;
+    }
+
     saveMutation.mutate();
   };
 
@@ -287,6 +296,11 @@ export const OptimizedAvailabilityForm = ({
             {surveillantType && (
               <span className="block mt-1 font-medium text-blue-600">
                 Profil : {surveillantType}
+                {surveillantType === 'PAT FASB' && (
+                  <span className="block text-orange-600">
+                    Minimum requis : 15 créneaux
+                  </span>
+                )}
               </span>
             )}
           </p>
@@ -301,6 +315,24 @@ export const OptimizedAvailabilityForm = ({
             {validation.message}
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Compteur de sélection pour PAT FASB */}
+      {surveillantType === 'PAT FASB' && (
+        <div className={`bg-${selectedCount >= 15 ? 'green' : 'orange'}-50 border border-${selectedCount >= 15 ? 'green' : 'orange'}-200 rounded-lg p-4`}>
+          <div className={`flex items-center space-x-2 text-${selectedCount >= 15 ? 'green' : 'orange'}-800`}>
+            <Users className="h-5 w-5" />
+            <span className="font-medium">
+              Créneaux sélectionnés : {selectedCount}/15 minimum
+            </span>
+          </div>
+          <p className={`text-sm text-${selectedCount >= 15 ? 'green' : 'orange'}-700 mt-1`}>
+            {selectedCount >= 15 
+              ? "✓ Nombre minimum de créneaux atteint"
+              : `Il vous manque ${15 - selectedCount} créneau${15 - selectedCount > 1 ? 'x' : ''} pour atteindre le minimum requis.`
+            }
+          </p>
+        </div>
       )}
 
       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
