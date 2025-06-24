@@ -198,23 +198,6 @@ export function SurveillantUnifiedManager() {
     enabled: !!activeSession?.id,
   });
 
-  // Fonction pour calculer le quota théorique selon le type et ETP
-  const calculateTheoreticalQuota = (type: string, eft: number | null): number => {
-    if (!eft || eft === 0) return 0;
-    
-    switch (type) {
-      case 'PAT':
-      case 'Doctorant':
-        return 0; // PAT et Doctorant = 0
-      case 'PAT FASB':
-        return Math.round(eft * 12); // PAT FASB = 12 * ETP
-      case 'Assistant':
-        return Math.round(eft * 6); // Assistant = 6 * ETP
-      default:
-        return 6; // Valeur par défaut pour les autres types
-    }
-  };
-
   // Mutation pour mettre à jour le quota de session
   const updateQuotaSessionMutation = useMutation({
     mutationFn: async ({
@@ -558,7 +541,7 @@ export function SurveillantUnifiedManager() {
           <CardContent className="flex flex-col items-center justify-center p-6">
             <div className="flex items-center space-x-2 mb-2">
               <Badge className="h-6 w-6 text-orange-600" />
-              <span className="text-sm font-medium text-gray-600">Actifs avec quota > 0</span>
+              <span className="text-sm font-medium text-gray-600">Actifs avec quota &gt; 0</span>
             </div>
             <div className="text-3xl font-bold text-orange-600">
               {surveillantsActifs.filter(s => calculateTheoreticalQuota(s.type, s.eft) > 0).length}
