@@ -18,9 +18,7 @@ interface UserRole {
   user_id: string;
   role: 'admin' | 'user';
   created_at: string;
-  auth_users: {
-    email: string;
-  } | null;
+  user_email?: string; // Made optional since we'll handle missing emails
 }
 
 interface NewAdminForm {
@@ -42,20 +40,36 @@ export function AdminUserManager() {
   const { data: admins, isLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // First get the user roles
+      const { data: userRoles, error: rolesError } = await supabase
         .from("user_roles")
-        .select(`
-          id,
-          user_id,
-          role,
-          created_at,
-          auth_users:user_id (email)
-        `)
+        .select("id, user_id, role, created_at")
         .eq("role", "admin")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      return data as UserRole[];
+      if (rolesError) throw rolesError;
+      
+      // Then get the user emails from auth.users via RPC or admin API
+      const adminsWithEmails = await Promise.all(
+        (userRoles || []).map(async (role) => {
+          try {
+            // Try to get user data from Supabase auth admin
+            const { data: userData, error: userError } = await supabase.auth.admin.getUserById(role.user_id);
+            return {
+              ...role,
+              user_email: userData?.user?.email || "Email non disponible"
+            };
+          } catch (error) {
+            console.warn("Could not fetch user email for:", role.user_id);
+            return {
+              ...role,
+              user_email: "Email non disponible"
+            };
+          }
+        })
+      );
+
+      return adminsWithEmails as UserRole[];
     },
   });
 
@@ -262,7 +276,7 @@ export function AdminUserManager() {
                 {admins?.map((admin) => (
                   <TableRow key={admin.id}>
                     <TableCell className="font-medium">
-                      {admin.auth_users?.email || "Email non disponible"}
+                      {admin.user_email}
                     </TableCell>
                     <TableCell>
                       <Badge variant="default" className="bg-blue-100 text-blue-800">
@@ -293,7 +307,7 @@ export function AdminUserManager() {
                               </AlertDialogTitle>
                               <AlertDialogDescription>
                                 Êtes-vous sûr de vouloir supprimer les droits administrateur de{" "}
-                                <strong>{admin.auth_users?.email}</strong> ?
+                                <strong>{admin.user_email}</strong> ?
                                 Cette action est irréversible.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
