@@ -11,6 +11,7 @@ import { PreAssignmentManager } from "@/components/PreAssignmentManager";
 import { FeatureLockManager } from "@/components/FeatureLockManager";
 import { SuiviConfirmationEnseignants } from "@/components/SuiviConfirmationEnseignants";
 import { ControlesVerificationsManager } from "@/components/ControlesVerificationsManager";
+import { AdminUserManager } from "@/components/AdminUserManager";
 
 // Dashboard d'accueil avec les statistiques principales
 function DashboardAdmin() {
@@ -41,6 +42,8 @@ function getAdminContent(tab: string | null) {
       return <ContraintesAuditoires />;
     case "feature-locks":
       return <FeatureLockManager />;
+    case "gestion-utilisateurs":
+      return <AdminUserManager />;
     case "historique":
       return <div className="text-gray-700">Historique des actions administratives (module à intégrer).</div>;
     case "donnees-sensibles":
