@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertCircle, Calendar, CheckCircle2, Clock } from "lucide-react";
 import { Session } from "@/hooks/useSessions";
+import { formatSession } from "@/utils/sessionUtils";
 
 interface SessionSelectionScreenProps {
   sessions: Session[];
@@ -72,7 +73,7 @@ export const SessionSelectionScreen = ({
                 {availableSessions.map((session) => (
                   <SelectItem key={session.id} value={session.id}>
                     <div className="flex items-center space-x-2">
-                      <span>{session.name}</span>
+                      <span>{formatSession(session.name)}</span>
                       {session.id === activeSessionId && (
                         <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                           Active
@@ -107,7 +108,7 @@ export const SessionSelectionScreen = ({
               <p className="text-sm text-blue-700">
                 Vous allez déclarer vos disponibilités pour la session :{" "}
                 <strong>
-                  {availableSessions.find(s => s.id === selectedSessionId)?.name}
+                  {formatSession(availableSessions.find(s => s.id === selectedSessionId)?.name || '')}
                 </strong>
               </p>
             </div>

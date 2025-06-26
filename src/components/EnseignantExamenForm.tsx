@@ -14,6 +14,7 @@ import { ExamenAutocomplete } from "./ExamenAutocomplete";
 import { useExamenMutations } from "@/hooks/useExamenMutations";
 import { useExamenCalculations } from "@/hooks/useExamenCalculations";
 import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
+import { formatSession } from "@/utils/sessionUtils";
 
 export const EnseignantExamenForm = () => {
   const { data: activeSession } = useActiveSession();
@@ -24,6 +25,7 @@ export const EnseignantExamenForm = () => {
     queryKey: ['examens-enseignant', activeSession?.id],
     queryFn: async () => {
       if (!activeSession?.id) return [];
+      // Supprimer toute limite et récupérer tous les examens
       const { data, error } = await supabase
         .from('examens')
         .select(`*, personnes_aidantes (*), enseignant_nom, enseignant_email`)
@@ -104,9 +106,17 @@ export const EnseignantExamenForm = () => {
           <CardTitle className="flex items-center space-x-2">
             <Search className="h-5 w-5" />
             <span>Rechercher votre examen</span>
+            <span className="text-sm text-gray-500">
+              • Session: {formatSession(activeSession.name)}
+            </span>
           </CardTitle>
           <CardDescription>
             Utilisez la recherche pour trouver votre examen et renseigner vos besoins de surveillance
+            {examensValides && (
+              <span className="block mt-1 text-sm text-blue-600">
+                {examensValides.length} examen{examensValides.length > 1 ? 's' : ''} disponible{examensValides.length > 1 ? 's' : ''}
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { formatSession } from "@/utils/sessionUtils";
 
 export interface Session {
   id: string;
@@ -56,7 +57,7 @@ export const useCreateSession = () => {
         6: 'Juin', 
         9: 'Septembre' 
       };
-      const name = `${periodNames[period as keyof typeof periodNames]} ${year}`;
+      const name = `${year}_${period.toString().padStart(2, '0')}`;
       
       const { data, error } = await supabase
         .from('sessions')
