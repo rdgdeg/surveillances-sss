@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,11 +20,12 @@ export const EnseignantExamenForm = () => {
   const [selectedExamen, setSelectedExamen] = useState<any>(null);
   const [informationsMisesAJour, setInformationsMisesAJour] = useState(false);
 
-  const { data: examensValides } = useQuery({
+  const { data: examensValides, isLoading: examensLoading } = useQuery({
     queryKey: ['examens-enseignant', activeSession?.id],
     queryFn: async () => {
       if (!activeSession?.id) return [];
-      // Supprimer toute limite et récupérer tous les examens
+      console.log('Fetching all exams for session:', activeSession.id);
+      
       const { data, error } = await supabase
         .from('examens')
         .select(`*, personnes_aidantes (*), enseignant_nom, enseignant_email`)
@@ -34,10 +34,17 @@ export const EnseignantExamenForm = () => {
         .eq('is_active', true)
         .order('date_examen')
         .order('heure_debut');
-      if (error) throw error;
+      
+      if (error) {
+        console.error('Error fetching exams:', error);
+        throw error;
+      }
+      
+      console.log('Fetched exams count:', data?.length || 0);
       return data || [];
     },
-    enabled: !!activeSession?.id
+    enabled: !!activeSession?.id,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
   const { 
@@ -89,6 +96,7 @@ export const EnseignantExamenForm = () => {
   };
 
   const handleSelectExamen = (examen: any) => {
+    console.log('Selected exam:', examen);
     setSelectedExamen(examen);
     // Vérifier si les informations ont été mises à jour
     setInformationsMisesAJour(examen.surveillants_enseignant !== null || examen.surveillants_amenes > 0);
@@ -98,6 +106,16 @@ export const EnseignantExamenForm = () => {
     setInformationsMisesAJour(true);
     refreshSelectedExamen(selectedExamen.id);
   };
+
+  if (examensLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-center">Chargement des examens...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -114,7 +132,7 @@ export const EnseignantExamenForm = () => {
             Utilisez la recherche pour trouver votre examen et renseigner vos besoins de surveillance
             {examensValides && (
               <span className="block mt-1 text-sm text-blue-600">
-                {examensValides.length} examen{examensValides.length > 1 ? 's' : ''} disponible{examensValides.length > 1 ? 's' : ''}
+                {examensValides.length} examen{examensValides.length > 1 ? 's' : ''} disponible{examensValides.length > 1 ? 's' : ''} dans cette session
               </span>
             )}
           </CardDescription>
@@ -126,6 +144,14 @@ export const EnseignantExamenForm = () => {
             onSelectExamen={handleSelectExamen}
             placeholder="Recherchez par code, matière, salle ou nom d'enseignant..."
           />
+          {examensValides && examensValides.length === 0 && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-yellow-800">
+                Aucun examen validé trouvé pour cette session. 
+                Veuillez contacter l'administration si vous pensez qu'il s'agit d'une erreur.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
