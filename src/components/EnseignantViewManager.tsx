@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -84,7 +85,7 @@ export const EnseignantViewManager = () => {
     },
     enabled: !!activeSession?.id,
     staleTime: 5 * 60 * 1000, // Cache pendant 5 minutes
-    cacheTime: 10 * 60 * 1000, // Garde en cache pendant 10 minutes
+    gcTime: 10 * 60 * 1000, // Garde en cache pendant 10 minutes (remplace cacheTime)
   });
 
   const { data: contraintesAuditoires } = useQuery({
@@ -203,7 +204,7 @@ export const EnseignantViewManager = () => {
             <Eye className="h-5 w-5" />
             <span>Vue Enseignant - Examens & Équipes</span>
             <Badge variant="outline" className="ml-2">
-              Session: {formatSession(activeSession.nom)}
+              Session: {formatSession(activeSession.name)}
             </Badge>
           </CardTitle>
           <CardDescription>
