@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Save, Search, MapPin } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Save, Search, MapPin, Filter, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useActiveSession } from "@/hooks/useSessions";
 
@@ -19,6 +21,12 @@ export const EnseignantExamenForm = () => {
   const { data: activeSession } = useActiveSession();
   const [selectedExamen, setSelectedExamen] = useState<any>(null);
   const [informationsMisesAJour, setInformationsMisesAJour] = useState(false);
+  
+  // Filter states
+  const [dateFilter, setDateFilter] = useState('');
+  const [heureDebutFilter, setHeureDebutFilter] = useState('');
+  const [heureFinFilter, setHeureFinFilter] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
 
   const { data: examensValides, isLoading: examensLoading } = useQuery({
     queryKey: ['examens-enseignant', activeSession?.id],
@@ -47,6 +55,20 @@ export const EnseignantExamenForm = () => {
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
+  // Filter examens based on date and time filters
+  const examensFiltered = examensValides?.filter(examen => {
+    if (dateFilter && examen.date_examen !== dateFilter) {
+      return false;
+    }
+    if (heureDebutFilter && examen.heure_debut < heureDebutFilter) {
+      return false;
+    }
+    if (heureFinFilter && examen.heure_fin > heureFinFilter) {
+      return false;
+    }
+    return true;
+  }) || [];
+
   const { 
     confirmerExamenMutation,
     updateEnseignantPresenceMutation
@@ -68,6 +90,14 @@ export const EnseignantExamenForm = () => {
       day: 'numeric'
     });
   };
+
+  const clearFilters = () => {
+    setDateFilter('');
+    setHeureDebutFilter('');
+    setHeureFinFilter('');
+  };
+
+  const hasActiveFilters = dateFilter || heureDebutFilter || heureFinFilter;
 
   if (!activeSession) {
     return (
@@ -132,18 +162,94 @@ export const EnseignantExamenForm = () => {
             Utilisez la recherche pour trouver votre examen et renseigner vos besoins de surveillance
             {examensValides && (
               <span className="block mt-1 text-sm text-blue-600">
-                {examensValides.length} examen{examensValides.length > 1 ? 's' : ''} disponible{examensValides.length > 1 ? 's' : ''} dans cette session
+                {examensFiltered.length} examen{examensFiltered.length > 1 ? 's' : ''} affiché{examensFiltered.length > 1 ? 's' : ''} 
+                {hasActiveFilters && ` (${examensValides.length} au total)`}
               </span>
             )}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* Filter toggle button */}
+          <div className="flex items-center justify-between">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center space-x-2"
+            >
+              <Filter className="h-4 w-4" />
+              <span>Filtres</span>
+              {hasActiveFilters && (
+                <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                  {[dateFilter, heureDebutFilter, heureFinFilter].filter(Boolean).length}
+                </span>
+              )}
+            </Button>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="flex items-center space-x-1 text-gray-600"
+              >
+                <X className="h-4 w-4" />
+                <span>Effacer les filtres</span>
+              </Button>
+            )}
+          </div>
+
+          {/* Filters panel */}
+          {showFilters && (
+            <div className="p-4 bg-gray-50 rounded-lg border space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="date-filter">Date d'examen</Label>
+                  <Input
+                    id="date-filter"
+                    type="date"
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value)}
+                    placeholder="Filtrer par date"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="heure-debut-filter">Heure de début (après)</Label>
+                  <Input
+                    id="heure-debut-filter"
+                    type="time"
+                    value={heureDebutFilter}
+                    onChange={(e) => setHeureDebutFilter(e.target.value)}
+                    placeholder="HH:MM"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="heure-fin-filter">Heure de fin (avant)</Label>
+                  <Input
+                    id="heure-fin-filter"
+                    type="time"
+                    value={heureFinFilter}
+                    onChange={(e) => setHeureFinFilter(e.target.value)}
+                    placeholder="HH:MM"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           <ExamenAutocomplete
-            examens={examensValides || []}
+            examens={examensFiltered}
             selectedExamen={selectedExamen}
             onSelectExamen={handleSelectExamen}
             placeholder="Recherchez par code, matière, salle ou nom d'enseignant..."
           />
+          {examensFiltered.length === 0 && examensValides && examensValides.length > 0 && (
+            <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-orange-800">
+                Aucun examen ne correspond aux filtres sélectionnés. 
+                {hasActiveFilters && "Essayez d'ajuster ou de supprimer les filtres."}
+              </p>
+            </div>
+          )}
           {examensValides && examensValides.length === 0 && (
             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-yellow-800">
