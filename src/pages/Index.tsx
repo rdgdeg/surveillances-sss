@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Users, Calendar, FileText, Settings, ClipboardList, GraduationCap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Footer } from "@/components/Footer";
+import { formatSession } from "@/utils/sessionUtils";
 
 const Index = () => {
   return (

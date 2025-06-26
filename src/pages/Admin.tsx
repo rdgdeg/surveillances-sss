@@ -12,6 +12,7 @@ import { FeatureLockManager } from "@/components/FeatureLockManager";
 import { SuiviConfirmationEnseignants } from "@/components/SuiviConfirmationEnseignants";
 import { ControlesVerificationsManager } from "@/components/ControlesVerificationsManager";
 import { AdminUserManager } from "@/components/AdminUserManager";
+import { EnseignantViewManager } from "@/components/EnseignantViewManager";
 
 // Dashboard d'accueil avec les statistiques principales
 function DashboardAdmin() {
@@ -30,9 +31,11 @@ function getAdminContent(tab: string | null) {
       return <ExamenAdvancedManager />;
     case "import-codes":
     case "planning":
-    case "enseignant-view":
-    case "tokens-enseignants":
     case "validations":
+      return <ExamenReviewManager />;
+    case "enseignant-view":
+      return <EnseignantViewManager />;
+    case "tokens-enseignants":
       return <ExamenReviewManager />;
     case "surveillants":
       return <SurveillantUnifiedManager />;

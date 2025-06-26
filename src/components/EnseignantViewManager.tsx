@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,6 +11,7 @@ import { Search, Eye, Users, Calendar, Clock, MapPin, UserCheck, ChevronDown, Ch
 import { groupExamens, ExamenGroupe } from "@/utils/examenReviewUtils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { formatSession } from "@/utils/sessionUtils";
 
 interface PersonneAidante {
   id: string;
@@ -48,12 +48,15 @@ export const EnseignantViewManager = () => {
   const [faculteFilter, setFaculteFilter] = useState('');
   const [codeFilter, setCodeFilter] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50); // Augmentation du nombre d'éléments par page
 
   const { data: allExamens, isLoading } = useQuery({
     queryKey: ['examens-tous-avec-equipe', activeSession?.id],
     queryFn: async (): Promise<ExamenWithTeam[]> => {
       if (!activeSession?.id) return [];
       
+      // Supprimer la limite pour récupérer tous les examens
       const { data, error } = await supabase
         .from('examens')
         .select(`
@@ -79,7 +82,9 @@ export const EnseignantViewManager = () => {
         equipe_confirmee: examen.personnes_aidantes?.length > 0
       }));
     },
-    enabled: !!activeSession?.id
+    enabled: !!activeSession?.id,
+    staleTime: 5 * 60 * 1000, // Cache pendant 5 minutes
+    cacheTime: 10 * 60 * 1000, // Garde en cache pendant 10 minutes
   });
 
   const { data: contraintesAuditoires } = useQuery({
@@ -99,9 +104,17 @@ export const EnseignantViewManager = () => {
     let res = allExamens || [];
     if (statutFilter === 'VALIDE') res = res.filter(e => e.statut_validation === 'VALIDE');
     if (faculteFilter) res = res.filter(e => e.faculte === faculteFilter);
-    if (codeFilter) res = res.filter(e => (e.code_examen || "").includes(codeFilter));
+    if (codeFilter) res = res.filter(e => (e.code_examen || "").toLowerCase().includes(codeFilter.toLowerCase()));
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      res = res.filter(e => 
+        e.matiere.toLowerCase().includes(searchLower) ||
+        (e.code_examen || "").toLowerCase().includes(searchLower) ||
+        e.salle.toLowerCase().includes(searchLower)
+      );
+    }
     return res;
-  }, [allExamens, statutFilter, faculteFilter, codeFilter]);
+  }, [allExamens, statutFilter, faculteFilter, codeFilter, searchTerm]);
 
   const totalExamens = allExamens?.length || 0;
   const totalValidés = allExamens?.filter(e => e.statut_validation === 'VALIDE').length || 0;
@@ -110,7 +123,7 @@ export const EnseignantViewManager = () => {
   const examensForGrouping = useMemo(() => {
     return examensFiltres.map(examen => ({
       ...examen,
-      nombre_surveillants: 1, // Default value if missing
+      nombre_surveillants: 1,
       session_id: activeSession?.id || '',
       auditoire_original: examen.salle,
       besoins_confirmes_par_enseignant: false,
@@ -134,15 +147,11 @@ export const EnseignantViewManager = () => {
     return groupExamens(examensForGrouping, contraintesAuditoires);
   }, [examensForGrouping, contraintesAuditoires]);
 
-  const filteredExamens = useMemo(() => {
-    if (!searchTerm.trim()) return examensGroupes;
-    const searchLower = searchTerm.toLowerCase();
-    return examensGroupes.filter(groupe =>
-      groupe.code_examen?.toLowerCase().includes(searchLower) ||
-      groupe.matiere.toLowerCase().includes(searchLower) ||
-      groupe.auditoire_unifie.toLowerCase().includes(searchLower)
-    );
-  }, [examensGroupes, searchTerm]);
+  // Pagination
+  const totalPages = Math.ceil(examensGroupes.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentExamens = examensGroupes.slice(startIndex, endIndex);
 
   const toggleRowExpansion = (groupeKey: string) => {
     const newExpanded = new Set(expandedRows);
@@ -193,20 +202,26 @@ export const EnseignantViewManager = () => {
           <CardTitle className="flex items-center space-x-2">
             <Eye className="h-5 w-5" />
             <span>Vue Enseignant - Examens & Équipes</span>
+            <Badge variant="outline" className="ml-2">
+              Session: {formatSession(activeSession.nom)}
+            </Badge>
           </CardTitle>
           <CardDescription>
             Consultez tous les examens de la session avec les détails des équipes pédagogiques
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Filtres */}
+          {/* Filtres améliorés */}
           <div className="flex flex-wrap gap-4 items-center">
             <div className="flex items-center space-x-2 flex-1 min-w-[220px]">
               <Search className="h-4 w-4 text-gray-500" />
               <Input
-                placeholder="Rechercher matière ou auditoire..."
+                placeholder="Rechercher matière, code ou auditoire..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1); // Reset pagination
+                }}
                 className="flex-1"
               />
             </div>
@@ -214,12 +229,18 @@ export const EnseignantViewManager = () => {
               <Input
                 placeholder="Filtrer par code examen..."
                 value={codeFilter}
-                onChange={e => setCodeFilter(e.target.value)}
+                onChange={e => {
+                  setCodeFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-44"
               />
             </div>
             <div>
-              <Select value={faculteFilter} onValueChange={setFaculteFilter}>
+              <Select value={faculteFilter} onValueChange={(val) => {
+                setFaculteFilter(val);
+                setCurrentPage(1);
+              }}>
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Filtrer par faculté..." />
                 </SelectTrigger>
@@ -232,7 +253,10 @@ export const EnseignantViewManager = () => {
               </Select>
             </div>
             <div>
-              <Select value={statutFilter} onValueChange={(val) => setStatutFilter(val as 'ALL' | 'VALIDE')}>
+              <Select value={statutFilter} onValueChange={(val) => {
+                setStatutFilter(val as 'ALL' | 'VALIDE');
+                setCurrentPage(1);
+              }}>
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Afficher..." />
                 </SelectTrigger>
@@ -245,23 +269,32 @@ export const EnseignantViewManager = () => {
           </div>
 
           {/* Statistiques */}
-          <div className="flex flex-wrap gap-4 items-center">
-            <span className="text-sm text-gray-600">
-              {totalValidés} examen{totalValidés > 1 ? 's' : ''} validé{totalValidés > 1 ? 's' : ''}
-              {' / '}
-              {totalExamens} au total dans la session
-            </span>
-            {statutFilter === "VALIDE" && (
-              <span className="text-xs text-orange-600">
-                Seuls les examens validés sont affichés.
+          <div className="flex flex-wrap gap-4 items-center justify-between">
+            <div className="flex flex-wrap gap-4 items-center">
+              <span className="text-sm text-gray-600">
+                {totalValidés} examen{totalValidés > 1 ? 's' : ''} validé{totalValidés > 1 ? 's' : ''}
+                {' / '}
+                {totalExamens} au total dans la session
               </span>
+              {statutFilter === "VALIDE" && (
+                <span className="text-xs text-orange-600">
+                  Seuls les examens validés sont affichés.
+                </span>
+              )}
+            </div>
+            
+            {/* Pagination info */}
+            {examensGroupes.length > itemsPerPage && (
+              <div className="text-sm text-gray-600">
+                Affichage de {startIndex + 1} à {Math.min(endIndex, examensGroupes.length)} sur {examensGroupes.length} résultats
+              </div>
             )}
           </div>
 
           {/* Table */}
-          {filteredExamens.length === 0 ? (
+          {currentExamens.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              {searchTerm
+              {searchTerm || codeFilter || faculteFilter
                 ? 'Aucun examen trouvé pour cette recherche.'
                 : statutFilter === 'VALIDE'
                   ? 'Aucun examen validé trouvé.'
@@ -284,7 +317,7 @@ export const EnseignantViewManager = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredExamens.map((groupe) => {
+                  {currentExamens.map((groupe) => {
                     const groupeKey = `${groupe.code_examen}-${groupe.date_examen}-${groupe.heure_debut}-${groupe.auditoire_unifie}`;
                     const isExpanded = expandedRows.has(groupeKey);
                     const hasTeam = groupe.examens.some((e: any) => e.equipe_confirmee);
@@ -445,14 +478,41 @@ export const EnseignantViewManager = () => {
             </div>
           )}
 
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex justify-center items-center space-x-2 mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Précédent
+              </Button>
+              
+              <span className="text-sm text-gray-600">
+                Page {currentPage} sur {totalPages}
+              </span>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Suivant
+              </Button>
+            </div>
+          )}
+
           {/* Résumé */}
-          {filteredExamens.length > 0 && (
+          {currentExamens.length > 0 && (
             <div className="flex justify-between items-center text-sm text-gray-600">
               <span>
-                {filteredExamens.length} groupe{filteredExamens.length > 1 ? 's' : ''} d'examens affiché{filteredExamens.length > 1 ? 's' : ''}
+                {examensGroupes.length} groupe{examensGroupes.length > 1 ? 's' : ''} d'examens trouvé{examensGroupes.length > 1 ? 's' : ''}
               </span>
               <span>
-                Total: {filteredExamens.reduce((sum, g) => sum + g.surveillants_a_attribuer_total, 0)} surveillants à attribuer
+                Total: {examensGroupes.reduce((sum, g) => sum + g.surveillants_a_attribuer_total, 0)} surveillants à attribuer
               </span>
             </div>
           )}
