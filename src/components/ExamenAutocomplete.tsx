@@ -20,12 +20,16 @@ export const ExamenAutocomplete = ({
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
 
+  // Filtrer d'abord tous les examens selon la recherche
   const filteredExamens = examens.filter(examen =>
     examen.matiere?.toLowerCase().includes(value.toLowerCase()) ||
     examen.code_examen?.toLowerCase().includes(value.toLowerCase()) ||
     examen.salle?.toLowerCase().includes(value.toLowerCase()) ||
     examen.enseignant_nom?.toLowerCase().includes(value.toLowerCase())
   );
+
+  // Puis limiter l'affichage à 20 pour les performances
+  const displayedExamens = filteredExamens.slice(0, 20);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('fr-FR', {
@@ -45,7 +49,7 @@ export const ExamenAutocomplete = ({
       <CommandList className="max-h-[500px]">
         <CommandEmpty>Aucun examen trouvé.</CommandEmpty>
         <CommandGroup>
-          {filteredExamens.slice(0, 20).map((examen) => (
+          {displayedExamens.map((examen) => (
             <CommandItem
               key={examen.id}
               onSelect={() => {
@@ -89,18 +93,12 @@ export const ExamenAutocomplete = ({
                   </div>
                 )}
               </div>
-              
-              {filteredExamens.length > 15 && (
-                <div className="text-xs text-gray-500 mt-1 italic">
-                  {filteredExamens.length - 15} autres résultats disponibles
-                </div>
-              )}
             </CommandItem>
           ))}
           
           {filteredExamens.length > 20 && (
             <div className="p-4 text-center text-sm text-gray-500 bg-gray-50">
-              Affichage de 20 résultats sur {filteredExamens.length}. 
+              Affichage de 20 résultats sur {filteredExamens.length} trouvés. 
               Affinez votre recherche pour voir plus de résultats.
             </div>
           )}
