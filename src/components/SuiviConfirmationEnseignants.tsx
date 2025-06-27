@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,12 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { SuiviConfirmationStats } from "./SuiviConfirmationStats";
 import { SuiviConfirmationFilters } from "./SuiviConfirmationFilters";
 import { formatDateWithDayBelgian } from "@/lib/dateUtils";
-import { useContraintesAuditoires } from "@/hooks/useContraintesAuditoires";
+import { useCalculSurveillants } from "@/hooks/useCalculSurveillants";
 import { EnseignantInfosEditModal } from "./EnseignantInfosEditModal";
 import { Button } from "@/components/ui/button";
 
 export function SuiviConfirmationEnseignants() {
-  const { data: contraintesAuditoires } = useContraintesAuditoires();
+  // Utiliser le hook centralisé pour les calculs harmonisés
+  const { 
+    calculerSurveillantsTheorique, 
+    calculerSurveillantsNecessaires 
+  } = useCalculSurveillants();
+  
   const [filters, setFilters] = useState({
     searchTerm: "",
     sortBy: "date",
@@ -26,7 +32,10 @@ export function SuiviConfirmationEnseignants() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("examens")
-        .select("*")
+        .select(`
+          *,
+          personnes_aidantes (*)
+        `)
         .order("date_examen")
         .order("heure_debut");
       if (error) throw error;
@@ -41,38 +50,6 @@ export function SuiviConfirmationEnseignants() {
       return data || [];
     }
   });
-
-  // Fonction pour calculer les surveillants nécessaires selon contraintes
-  const calculerSurveillantsNecessaires = (examen: any) => {
-    if (!contraintesAuditoires || !examen.salle) return examen.nombre_surveillants || 1;
-    
-    const auditoireList = examen.salle
-      .split(",")
-      .map((a: string) => a.trim().toLowerCase())
-      .filter((a: string) => !!a);
-
-    let total = 0;
-    let fallback = 0;
-
-    auditoireList.forEach((auditoire: string) => {
-      const individual = contraintesAuditoires[auditoire];
-      if (individual !== undefined) {
-        total += individual;
-      } else {
-        fallback += 1;
-      }
-    });
-
-    return total === 0 ? examen.nombre_surveillants || 1 : total + fallback;
-  };
-
-  // Fonction pour calculer les surveillants adaptés
-  const calculerSurveillantsAdaptes = (examen: any) => {
-    const theoriques = calculerSurveillantsNecessaires(examen);
-    const enseignantPresent = examen.surveillants_enseignant || 0;
-    const personnesAmenees = examen.surveillants_amenes || 0;
-    return Math.max(0, theoriques - enseignantPresent - personnesAmenees);
-  };
 
   // Fonction pour extraire le nom d'enseignant depuis le champ enseignants importé
   const getEnseignantsDuCours = (examen: any) => {
@@ -186,8 +163,9 @@ export function SuiviConfirmationEnseignants() {
             </TableHeader>
             <TableBody>
               {!isLoading && filteredExamens.map((ex: any) => {
+                // Utiliser les calculs harmonisés centralisés
+                const surveillantsTheorique = calculerSurveillantsTheorique(ex);
                 const surveillantsNecessaires = calculerSurveillantsNecessaires(ex);
-                const surveillantsAdaptes = calculerSurveillantsAdaptes(ex);
                 const enseignantsDuCours = getEnseignantsDuCours(ex);
                 
                 return (
@@ -238,10 +216,13 @@ export function SuiviConfirmationEnseignants() {
                     <TableCell>
                       <div className="text-sm">
                         <div className="font-medium">
-                          {surveillantsNecessaires} → {surveillantsAdaptes}
+                          {surveillantsTheorique} → {surveillantsNecessaires}
                         </div>
                         <div className="text-xs text-gray-500">
-                          Nécessaires → Adaptés
+                          Théoriques → Adaptés
+                        </div>
+                        <div className="text-xs text-blue-600 mt-1">
+                          {surveillantsTheorique} - {ex.surveillants_enseignant || 0} - {ex.surveillants_amenes || 0} - {ex.surveillants_pre_assignes || 0} = {surveillantsNecessaires}
                         </div>
                       </div>
                     </TableCell>

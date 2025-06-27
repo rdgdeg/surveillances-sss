@@ -9,6 +9,7 @@ import { Save, Users, User } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { AmenesSurveillantsFields } from "./AmenesSurveillantsFields";
+import { useCalculSurveillants } from "@/hooks/useCalculSurveillants";
 
 interface PersonneAmenee {
   nom: string;
@@ -37,6 +38,9 @@ export const EnseignantPresenceForm = ({
   const [detailsPersonnesAmenees, setDetailsPersonnesAmenees] = useState<PersonneAmenee[]>([]);
   const [informationsMisesAJour, setInformationsMisesAJour] = useState(false);
   const queryClient = useQueryClient();
+  
+  // Utiliser les calculs harmonisés centralisés
+  const { calculerSurveillantsTheorique, calculerSurveillantsNecessaires } = useCalculSurveillants();
 
   useEffect(() => {
     if (selectedExamen) {
@@ -66,12 +70,17 @@ export const EnseignantPresenceForm = ({
     }
   }, [selectedExamen]);
 
-  // Calculer les surveillants restants à attribuer
+  // Calculer les surveillants restants à attribuer avec les calculs harmonisés
   const calculerSurveillantsRestants = () => {
-    const theoriques = surveillantsTheoriques || 0;
+    if (!selectedExamen) return 0;
+    
+    // Utiliser les calculs harmonisés
+    const theoriques = calculerSurveillantsTheorique(selectedExamen);
     const enseignant = enseignantPresent ? 1 : 0;
     const amenes = personnesAmenees || 0;
-    return Math.max(0, theoriques - enseignant - amenes);
+    const preAssignes = selectedExamen.surveillants_pre_assignes || 0;
+    
+    return Math.max(0, theoriques - enseignant - amenes - preAssignes);
   };
 
   // Gérer le changement du nombre de personnes amenées
@@ -155,6 +164,11 @@ export const EnseignantPresenceForm = ({
             <span className="font-medium text-orange-700">
               Surveillants restants à attribuer : <span className="font-bold">{calculerSurveillantsRestants()}</span>
             </span>
+            {selectedExamen && (
+              <div className="text-sm text-orange-600 mt-1">
+                Calcul : {calculerSurveillantsTheorique(selectedExamen)} (théoriques) - {enseignantPresent ? 1 : 0} (enseignant) - {personnesAmenees} (amenés) - {selectedExamen.surveillants_pre_assignes || 0} (pré-assignés)
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
