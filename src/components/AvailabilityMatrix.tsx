@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +9,7 @@ import { useActiveSession } from "@/hooks/useSessions";
 import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
 import { toast } from "@/hooks/use-toast";
 import { formatDateBelgian } from "@/lib/dateUtils";
-import { getTheoreticalSurveillants, calculerSurveillantsNecessaires } from "@/hooks/useExamenManagement";
+import { useCalculSurveillants } from "@/hooks/useCalculSurveillants";
 import { useContraintesAuditoiresMap } from "@/hooks/useContraintesAuditoires";
 import * as XLSX from 'xlsx';
 
@@ -56,6 +55,9 @@ export const AvailabilityMatrix = () => {
   const { data: activeSession } = useActiveSession();
   const queryClient = useQueryClient();
   const { data: contraintesMap } = useContraintesAuditoiresMap();
+  
+  // Utiliser le hook centralisé pour les calculs
+  const { calculerSurveillantsTheorique, calculerSurveillantsNecessaires } = useCalculSurveillants();
 
   // Utiliser les créneaux optimisés comme base pour la matrice
   const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(activeSession?.id || null);
@@ -169,10 +171,10 @@ export const AvailabilityMatrix = () => {
       // Enrichir avec les calculs harmonisés corrigés
       return data.map(examen => ({
         ...examen,
-        surveillants_necessaires: calculerSurveillantsNecessaires(examen, contraintesMap)
+        surveillants_necessaires: calculerSurveillantsNecessaires(examen)
       }));
     },
-    enabled: !!activeSession && !!contraintesMap
+    enabled: !!activeSession
   });
 
   // Fonction de normalisation des heures
@@ -266,7 +268,7 @@ export const AvailabilityMatrix = () => {
       
       // Utiliser les nouveaux calculs harmonisés corrigés
       const surveillantsNecessaires = examensInSlot.reduce((sum, examen) => {
-        const besoinReel = calculerSurveillantsNecessaires(examen, contraintesMap);
+        const besoinReel = calculerSurveillantsNecessaires(examen);
         console.log(`[DEBUG] Exam ${examen.id} - Real need (corrected): ${besoinReel}`);
         return sum + besoinReel;
       }, 0);

@@ -7,12 +7,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { getTheoreticalSurveillants, calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires } from "@/hooks/useExamenManagement";
+import { useCalculSurveillants } from "@/hooks/useCalculSurveillants";
 import { useContraintesAuditoiresMap } from "@/hooks/useContraintesAuditoires";
 
 export function ExamenValidationFinalView() {
   const { data: activeSession } = useActiveSession();
   const { data: contraintesMap } = useContraintesAuditoiresMap();
+  
+  // Utiliser le hook centralisé pour les calculs
+  const { 
+    calculerSurveillantsTheorique,
+    calculerSurveillantsNecessaires,
+    calculerSurveillantsPedagogiques
+  } = useCalculSurveillants();
 
   // Récupérer les examens validés avec leurs équipes pédagogiques
   const { data: examensValides = [], isLoading: isLoadingExamens } = useQuery({
@@ -33,16 +40,9 @@ export function ExamenValidationFinalView() {
       
       // Enrichir avec les calculs harmonisés SIMPLIFIÉS
       return (data || []).map(examen => {
-        const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
+        const surveillantsTheorique = calculerSurveillantsTheorique(examen);
         const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
-        
-        // FORMULE SIMPLIFIÉE : Théoriques - Enseignant - Amenés - Pré-assignés
-        const surveillantsNecessaires = Math.max(0, 
-          surveillantsTheorique - 
-          (examen.surveillants_enseignant || 0) - 
-          (examen.surveillants_amenes || 0) - 
-          (examen.surveillants_pre_assignes || 0)
-        );
+        const surveillantsNecessaires = calculerSurveillantsNecessaires(examen);
         
         return {
           ...examen,
