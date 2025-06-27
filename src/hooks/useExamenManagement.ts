@@ -1,9 +1,10 @@
+
 import { useState, useMemo, useEffect } from "react";
 import { useActiveSession } from "@/hooks/useSessions";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
-import { useContraintesAuditoiresMap } from "./useContraintesAuditoires";
+import { useCalculSurveillants } from "./useCalculSurveillants";
 
 export function useExamenManagement() {
   const { data: activeSession } = useActiveSession();
@@ -11,7 +12,13 @@ export function useExamenManagement() {
   const [selectedExamen, setSelectedExamen] = useState<any>(null);
   const [faculteFilter, setFaculteFilter] = useState<string>("");
   const [dateFilter, setDateFilter] = useState<Date | null>(null);
-  const { data: contraintesMap } = useContraintesAuditoiresMap();
+  
+  // Utiliser la logique centralisée
+  const { 
+    calculerSurveillantsTheorique,
+    calculerSurveillantsNecessaires,
+    calculerSurveillantsPedagogiques
+  } = useCalculSurveillants();
 
   const { data: examensValides } = useQuery({
     queryKey: ['examens-enseignant', activeSession?.id],
@@ -47,16 +54,16 @@ export function useExamenManagement() {
     });
   }, [examensValides, faculteFilter, dateFilter]);
 
-  // Calculs enrichis pour chaque examen utilisant les nouveaux calculs harmonisés
+  // Calculs enrichis pour chaque examen utilisant la logique centralisée
   const examensAvecCalculs = useMemo(() => {
     if (!filteredExamens) return [];
     
     return filteredExamens.map(examen => {
       try {
-        // Utiliser les fonctions utilitaires harmonisées
-        const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
+        // Utiliser les fonctions centralisées
+        const surveillantsTheorique = calculerSurveillantsTheorique(examen);
         const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
-        const surveillantsNecessaires = calculerSurveillantsNecessaires(examen, contraintesMap);
+        const surveillantsNecessaires = calculerSurveillantsNecessaires(examen);
         
         return {
           ...examen,
@@ -75,7 +82,7 @@ export function useExamenManagement() {
         };
       }
     });
-  }, [filteredExamens, contraintesMap]);
+  }, [filteredExamens, calculerSurveillantsTheorique, calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires]);
 
   // Trouver un examen selon le code
   const examenTrouve = useMemo(() => (
@@ -104,83 +111,3 @@ export function useExamenManagement() {
     examenTrouve,
   };
 }
-
-// Fonctions utilitaires pour les calculs harmonisés (FORMULE SIMPLIFIÉE)
-function getTheoreticalSurveillants(examen: any, contraintesMap?: Record<string, number>) {
-  if (!examen?.salle) return examen?.nombre_surveillants || 1;
-  
-  if (!contraintesMap) {
-    return examen.nombre_surveillants || 1;
-  }
-  
-  const auditoireList = examen.salle
-    .split(",")
-    .map((a: string) => a.trim())
-    .filter((a: string) => !!a);
-
-  let total = 0;
-  let hasConstraints = false;
-
-  auditoireList.forEach((auditoire: string) => {
-    const auditoireNormalized = auditoire.toLowerCase().trim();
-    
-    let constraint = contraintesMap[auditoireNormalized];
-    
-    if (!constraint) {
-      const variations = [
-        auditoireNormalized.replace(/\s+/g, ''),
-        auditoireNormalized.replace(/\s+/g, ' '),
-        auditoire.trim(),
-        auditoire.trim().toLowerCase()
-      ];
-      
-      for (const variation of variations) {
-        if (contraintesMap[variation]) {
-          constraint = contraintesMap[variation];
-          break;
-        }
-      }
-    }
-    
-    if (constraint !== undefined) {
-      total += constraint;
-      hasConstraints = true;
-    } else {
-      total += 1;
-    }
-  });
-
-  if (!hasConstraints && total === auditoireList.length) {
-    return examen.nombre_surveillants || 1;
-  }
-  
-  return total;
-}
-
-function calculerSurveillantsPedagogiques(examen: any) {
-  if (!examen?.personnes_aidantes) return 0;
-  
-  // Compter seulement les personnes aidantes qui ne sont pas des enseignants
-  // et qui comptent dans le quota et sont présentes sur place
-  return examen.personnes_aidantes.filter((p: any) =>
-    p.compte_dans_quota && 
-    p.present_sur_place && 
-    !p.est_enseignant // Exclure les enseignants pour éviter le double comptage
-  ).length;
-}
-
-// FONCTION SIMPLIFIÉE selon les instructions de l'utilisateur
-function calculerSurveillantsNecessaires(examen: any, contraintesMap?: Record<string, number>) {
-  const enseignantPresent = examen?.surveillants_enseignant || 0;
-  const personnesAmenees = examen?.surveillants_amenes || 0;
-  const preAssignes = examen?.surveillants_pre_assignes || 0;
-  const theoriques = getTheoreticalSurveillants(examen, contraintesMap);
-  
-  // FORMULE SIMPLIFIÉE : Théoriques - Enseignant (si présent) - Personnes apportées - Pré-assignés
-  return Math.max(
-    0,
-    theoriques - enseignantPresent - personnesAmenees - preAssignes
-  );
-}
-
-export { getTheoreticalSurveillants, calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires };

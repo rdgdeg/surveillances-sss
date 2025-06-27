@@ -1,6 +1,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCalculSurveillants } from "./useCalculSurveillants";
 
 export interface PlanningGeneralItem {
   id: string;
@@ -30,6 +31,8 @@ export interface PlanningGeneralItem {
 }
 
 export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
+  const { calculerSurveillantsTheorique, calculerSurveillantsNecessaires } = useCalculSurveillants();
+
   return useQuery({
     queryKey: ['planning-general', sessionId, searchTerm],
     queryFn: async () => {
@@ -115,24 +118,19 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
           return [];
         }
 
-        // Traitement des données pour split des auditoires multiples avec calculs harmonisés
+        // Traitement des données pour split des auditoires multiples avec calculs centralisés
         const planningItems: PlanningGeneralItem[] = [];
         
         examens.forEach((examen: any) => {
           console.log('Processing examen:', examen.id, examen.matiere, 'Enseignant:', examen.enseignant_nom);
           
-          // Calculer les totaux de l'examen avec la FORMULE SIMPLIFIÉE
-          const surveillantsTheoriqueTotal = getTheoreticalSurveillants(examen, contraintesMap);
+          // Calculer les totaux de l'examen avec la logique centralisée
+          const surveillantsTheoriqueTotal = calculerSurveillantsTheorique(examen);
           const profApportesTotal = (examen.surveillants_enseignant || 0) + (examen.surveillants_amenes || 0);
           const preAssignesTotal = examen.surveillants_pre_assignes || 0;
           
-          // FORMULE SIMPLIFIÉE : Théoriques - Enseignant - Amenés - Pré-assignés
-          const besoinReelTotal = Math.max(0, 
-            surveillantsTheoriqueTotal - 
-            (examen.surveillants_enseignant || 0) - 
-            (examen.surveillants_amenes || 0) - 
-            preAssignesTotal
-          );
+          // Utiliser la fonction centralisée pour le besoin réel
+          const besoinReelTotal = calculerSurveillantsNecessaires(examen);
           
           // Split des auditoires
           const auditoires = examen.salle
@@ -219,65 +217,3 @@ export const usePlanningGeneral = (sessionId?: string, searchTerm?: string) => {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000)
   });
 };
-
-// Fonctions utilitaires importées pour cohérence avec FORMULE SIMPLIFIÉE
-function getTheoreticalSurveillants(examen: any, contraintesMap: Record<string, number>) {
-  if (!examen?.salle) return examen?.nombre_surveillants || 1;
-  
-  if (!contraintesMap) {
-    return examen.nombre_surveillants || 1;
-  }
-  
-  const auditoireList = examen.salle
-    .split(",")
-    .map((a: string) => a.trim())
-    .filter((a: string) => !!a);
-
-  let total = 0;
-  let hasConstraints = false;
-
-  auditoireList.forEach((auditoire: string) => {
-    const auditoireNormalized = auditoire.toLowerCase().trim();
-    
-    let constraint = contraintesMap[auditoireNormalized];
-    
-    if (!constraint) {
-      const variations = [
-        auditoireNormalized.replace(/\s+/g, ''),
-        auditoireNormalized.replace(/\s+/g, ' '),
-        auditoire.trim(),
-        auditoire.trim().toLowerCase()
-      ];
-      
-      for (const variation of variations) {
-        if (contraintesMap[variation]) {
-          constraint = contraintesMap[variation];
-          break;
-        }
-      }
-    }
-    
-    if (constraint !== undefined) {
-      total += constraint;
-      hasConstraints = true;
-    } else {
-      total += 1;
-    }
-  });
-
-  if (!hasConstraints && total === auditoireList.length) {
-    return examen.nombre_surveillants || 1;
-  }
-  
-  return total;
-}
-
-function calculerSurveillantsPedagogiques(examen: any) {
-  if (!examen?.personnes_aidantes) return 0;
-  
-  return examen.personnes_aidantes.filter((p: any) =>
-    p.compte_dans_quota && 
-    p.present_sur_place && 
-    !p.est_enseignant
-  ).length;
-}

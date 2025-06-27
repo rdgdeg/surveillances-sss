@@ -1,4 +1,3 @@
-
 import { Tables } from "@/integrations/supabase/types";
 
 export interface ExamenReview extends Tables<'examens'> {
@@ -30,11 +29,101 @@ export interface ExamenGroupe {
   personnes_aidantes_total: number;
 }
 
+/**
+ * Fonction centralisée pour calculer les surveillants théoriques
+ * Utilise la même logique que le hook useCalculSurveillants
+ */
+export const calculerSurveillantsTheoriques = (
+  examen: ExamenReview,
+  contraintesMap?: Record<string, number>
+): number => {
+  if (!examen?.salle) return examen?.nombre_surveillants || 1;
+  
+  if (!contraintesMap) {
+    return examen.nombre_surveillants || 1;
+  }
+  
+  const auditoireList = examen.salle
+    .split(",")
+    .map((a: string) => a.trim())
+    .filter((a: string) => !!a);
+
+  let total = 0;
+  let hasConstraints = false;
+
+  auditoireList.forEach((auditoire: string) => {
+    const auditoireNormalized = auditoire.toLowerCase().trim();
+    
+    let constraint = contraintesMap[auditoireNormalized];
+    
+    if (!constraint) {
+      const variations = [
+        auditoireNormalized.replace(/\s+/g, ''),
+        auditoireNormalized.replace(/\s+/g, ' '),
+        auditoire.trim(),
+        auditoire.trim().toLowerCase()
+      ];
+      
+      for (const variation of variations) {
+        if (contraintesMap[variation]) {
+          constraint = contraintesMap[variation];
+          break;
+        }
+      }
+    }
+    
+    if (constraint !== undefined) {
+      total += constraint;
+      hasConstraints = true;
+    } else {
+      total += 1;
+    }
+  });
+
+  if (!hasConstraints && total === auditoireList.length) {
+    return examen.nombre_surveillants || 1;
+  }
+  
+  return total;
+};
+
+/**
+ * Fonction centralisée pour calculer le besoin réel
+ * FORMULE STANDARDISÉE : Théorique - Enseignant - Amenés - Pré-assignés
+ */
+export const calculerBesoinReel = (
+  examen: ExamenReview,
+  contraintesMap?: Record<string, number>
+): number => {
+  const theorique = calculerSurveillantsTheoriques(examen, contraintesMap);
+  const enseignantPresent = examen?.surveillants_enseignant || 0;
+  const personnesAmenees = examen?.surveillants_amenes || 0;
+  const preAssignes = examen?.surveillants_pre_assignes || 0;
+  
+  return Math.max(0, theorique - enseignantPresent - personnesAmenees - preAssignes);
+};
+
 export const groupExamens = (
   examens: ExamenReview[], 
   contraintesAuditoires: ContrainteAuditoire[]
 ): ExamenGroupe[] => {
   const grouped: { [key: string]: any } = {};
+
+  // Créer une map des contraintes pour utilisation optimisée
+  const contraintesMap: Record<string, number> = {};
+  contraintesAuditoires.forEach((item) => {
+    const auditoire = item.auditoire.trim();
+    const variations = [
+      auditoire.toLowerCase(),
+      auditoire,
+      auditoire.toLowerCase().replace(/\s+/g, ''),
+      auditoire.toLowerCase().replace(/\s+/g, ' '),
+    ];
+    
+    variations.forEach(variation => {
+      contraintesMap[variation] = item.nombre_surveillants_requis;
+    });
+  });
 
   examens.forEach(examen => {
     const auditoire_unifie = examen.salle.trim().match(/^Neerveld\s+[A-Z]$/i) ? "Neerveld" : examen.salle.trim();
@@ -66,19 +155,16 @@ export const groupExamens = (
       return sum + aidantesComptant;
     }, 0);
 
-    const nombre_surveillants_total = groupe.examens.reduce((sum, e) => sum + e.nombre_surveillants, 0);
+    // Utiliser les fonctions centralisées pour les calculs
+    const nombre_surveillants_total = groupe.examens.reduce((sum, e) => 
+      sum + calculerSurveillantsTheoriques(e, contraintesMap), 0);
     const surveillants_enseignant_total = groupe.examens.reduce((sum, e) => sum + (e.surveillants_enseignant || 0), 0);
     const surveillants_amenes_total = groupe.examens.reduce((sum, e) => sum + (e.surveillants_amenes || 0), 0);
     const surveillants_pre_assignes_total = groupe.examens.reduce((sum, e) => sum + (e.surveillants_pre_assignes || 0), 0);
     
-    // Calculer le nombre de surveillants à attribuer en tenant compte des personnes aidantes
-    const surveillants_a_attribuer_total = Math.max(0, 
-      nombre_surveillants_total - 
-      surveillants_enseignant_total - 
-      surveillants_amenes_total - 
-      surveillants_pre_assignes_total -
-      personnesAidantesQuotaTotal
-    );
+    // Calculer le besoin réel avec la formule centralisée
+    const surveillants_a_attribuer_total = groupe.examens.reduce((sum, e) => 
+      sum + calculerBesoinReel(e, contraintesMap), 0);
 
     return {
       ...groupe,

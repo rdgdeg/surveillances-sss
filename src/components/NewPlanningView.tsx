@@ -10,8 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useActiveSession } from "@/hooks/useSessions";
 import { DeleteAllExamensButton } from "@/components/DeleteAllExamensButton";
 import { formatDateWithDayBelgian } from "@/lib/dateUtils";
-import { getTheoreticalSurveillants, calculerSurveillantsPedagogiques, calculerSurveillantsNecessaires } from "@/hooks/useExamenManagement";
-import { useContraintesAuditoiresMap } from "@/hooks/useContraintesAuditoires";
+import { useCalculSurveillants } from "@/hooks/useCalculSurveillants";
 
 export const NewPlanningView = () => {
   const [selectedDate, setSelectedDate] = useState("");
@@ -19,7 +18,11 @@ export const NewPlanningView = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const { data: activeSession } = useActiveSession();
-  const { data: contraintesMap } = useContraintesAuditoiresMap();
+  const { 
+    calculerSurveillantsTheorique,
+    calculerSurveillantsNecessaires,
+    calculerSurveillantsPedagogiques
+  } = useCalculSurveillants();
 
   const { data: examens = [], isLoading } = useQuery({
     queryKey: ['examens', activeSession?.id],
@@ -48,18 +51,11 @@ export const NewPlanningView = () => {
     enabled: !!activeSession
   });
 
-  // Enrichir les examens avec les calculs harmonisés SIMPLIFIÉS
+  // Enrichir les examens avec les calculs centralisés
   const examensEnrichis = examens.map(examen => {
-    const surveillantsTheorique = getTheoreticalSurveillants(examen, contraintesMap);
+    const surveillantsTheorique = calculerSurveillantsTheorique(examen);
     const surveillantsPedagogiques = calculerSurveillantsPedagogiques(examen);
-    
-    // FORMULE SIMPLIFIÉE : Théoriques - Enseignant - Amenés - Pré-assignés
-    const surveillantsNecessaires = Math.max(0, 
-      surveillantsTheorique - 
-      (examen.surveillants_enseignant || 0) - 
-      (examen.surveillants_amenes || 0) - 
-      (examen.surveillants_pre_assignes || 0)
-    );
+    const surveillantsNecessaires = calculerSurveillantsNecessaires(examen);
     
     return {
       ...examen,
@@ -199,7 +195,7 @@ export const NewPlanningView = () => {
         </Card>
       </div>
 
-      {/* Filtres et recherche */}
+      {/* Filtres et recherche + Liste des examens */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -209,7 +205,7 @@ export const NewPlanningView = () => {
                 <span>Planning des Examens - {activeSession.name}</span>
               </CardTitle>
               <CardDescription>
-                Vue d'ensemble et gestion des attributions de surveillances (calculs harmonisés)
+                Vue d'ensemble et gestion des attributions de surveillances (calculs centralisés)
               </CardDescription>
             </div>
             <DeleteAllExamensButton />
@@ -244,7 +240,7 @@ export const NewPlanningView = () => {
             />
           </div>
 
-          {/* Liste des examens triés avec calculs harmonisés SIMPLIFIÉS */}
+          {/* Liste des examens avec calculs centralisés */}
           <div className="space-y-4">
             {sortedExamens.map((examen) => {
               const profApportes = (examen.surveillants_enseignant || 0) + (examen.surveillants_amenes || 0);
@@ -282,10 +278,11 @@ export const NewPlanningView = () => {
                           <strong>À attribuer (besoin réel) : {examen.surveillants_necessaires} ({examen.type_requis} obligatoire)</strong>
                         </p>
                         <p className="text-xs text-gray-400">
-                          Calcul: {examen.nombre_surveillants_calcule} - {examen.surveillants_enseignant || 0} - {examen.surveillants_amenes || 0} - {examen.surveillants_pre_assignes || 0} = {examen.surveillants_necessaires}
+                          Calcul centralisé: {examen.nombre_surveillants_calcule} - {examen.surveillants_enseignant || 0} - {examen.surveillants_amenes || 0} - {examen.surveillants_pre_assignes || 0} = {examen.surveillants_necessaires}
                         </p>
                       </div>
 
+                      {/* Liste des surveillants assignés */}
                       <div>
                         <h4 className="font-medium text-sm text-gray-700 mb-2">Surveillants assignés :</h4>
                         {examen.attributions && examen.attributions.length > 0 ? (
