@@ -49,35 +49,35 @@ const Index = () => {
       </header>
 
       {/* Main Content optimisé */}
-      <main className="w-full px-4 py-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+      <main className="w-full px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
               Bienvenue dans le système de surveillance
             </h2>
-            <p className="text-base text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               Plateforme unique pour l'organisation des examens : confirmations, assistants, attributions et disponibilités.
             </p>
           </div>
 
-          {/* Cards Grid optimisées pour desktop */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 max-w-6xl mx-auto">
-            {/* Planning Général - Nouvelle carte */}
-            <Card className="flex flex-col justify-between h-64 p-4 shadow-sm border text-center hover:shadow-md transition-shadow">
-              <div className="flex flex-col items-center flex-1">
-                <div className="bg-purple-100 w-12 h-12 rounded-full flex items-center justify-center mb-3">
-                  <Calendar className="h-6 w-6 text-purple-600" />
+          {/* Cards Grid avec 2 colonnes pour plus d'espace */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+            {/* Planning Général */}
+            <Card className="flex flex-col justify-between h-80 p-6 shadow-lg border hover:shadow-xl transition-shadow">
+              <div className="flex flex-col items-center flex-1 text-center">
+                <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                  <Calendar className="h-8 w-8 text-purple-600" />
                 </div>
-                <CardTitle className="text-lg font-bold text-uclouvain-blue mb-2">
+                <CardTitle className="text-xl font-bold text-uclouvain-blue mb-3">
                   Planning Général
                 </CardTitle>
-                <CardDescription className="text-sm text-gray-700 mb-4">
+                <CardDescription className="text-base text-gray-700 mb-6">
                   Consultez l'horaire complet des examens avec les surveillants attribués par auditoire.
                 </CardDescription>
               </div>
               <div className="flex justify-center">
                 <Link to="/planning-general" className="w-full">
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700 text-sm font-medium rounded-lg h-9">
+                  <Button className="w-full bg-purple-600 hover:bg-purple-700 text-base font-medium rounded-lg h-12">
                     Voir le planning complet
                   </Button>
                 </Link>
@@ -85,21 +85,21 @@ const Index = () => {
             </Card>
 
             {/* Enseignants */}
-            <Card className="flex flex-col justify-between h-64 p-4 shadow-sm border text-center hover:shadow-md transition-shadow">
-              <div className="flex flex-col items-center flex-1">
-                <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-3">
-                  <GraduationCap className="h-6 w-6 text-green-600" />
+            <Card className="flex flex-col justify-between h-80 p-6 shadow-lg border hover:shadow-xl transition-shadow">
+              <div className="flex flex-col items-center flex-1 text-center">
+                <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                  <GraduationCap className="h-8 w-8 text-green-600" />
                 </div>
-                <CardTitle className="text-lg font-bold text-uclouvain-blue mb-2">
+                <CardTitle className="text-xl font-bold text-uclouvain-blue mb-3">
                   Enseignants
                 </CardTitle>
-                <CardDescription className="text-sm text-gray-700 mb-4">
+                <CardDescription className="text-base text-gray-700 mb-6">
                   Confirmez les examens dont vous êtes responsable et indiquez les assistants qui participeront à la surveillance.
                 </CardDescription>
               </div>
               <div className="flex justify-center">
                 <Link to="/enseignant" className="w-full">
-                  <Button className="w-full bg-green-600 hover:bg-green-700 text-sm font-medium rounded-lg h-9">
+                  <Button className="w-full bg-green-600 hover:bg-green-700 text-base font-medium rounded-lg h-12">
                     Gérer mes examens & assistants
                   </Button>
                 </Link>
@@ -107,21 +107,21 @@ const Index = () => {
             </Card>
 
             {/* Surveillants */}
-            <Card className="flex flex-col justify-between h-64 p-4 shadow-sm border text-center hover:shadow-md transition-shadow">
-              <div className="flex flex-col items-center flex-1">
-                <div className="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mb-3">
-                  <Users className="h-6 w-6 text-blue-600" />
+            <Card className="flex flex-col justify-between h-80 p-6 shadow-lg border hover:shadow-xl transition-shadow">
+              <div className="flex flex-col items-center flex-1 text-center">
+                <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                  <Users className="h-8 w-8 text-blue-600" />
                 </div>
-                <CardTitle className="text-lg font-bold text-uclouvain-blue mb-2">
+                <CardTitle className="text-xl font-bold text-uclouvain-blue mb-3">
                   Surveillants
                 </CardTitle>
-                <CardDescription className="text-sm text-gray-700 mb-4">
+                <CardDescription className="text-base text-gray-700 mb-6">
                   Consultez vos attributions de surveillance et renseignez directement vos disponibilités.
                 </CardDescription>
               </div>
               <div className="flex justify-center">
                 <Link to="/surveillant" className="w-full">
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-sm font-medium rounded-lg h-9">
+                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-base font-medium rounded-lg h-12">
                     Mes attributions & disponibilités
                   </Button>
                 </Link>
@@ -129,21 +129,21 @@ const Index = () => {
             </Card>
 
             {/* Administration */}
-            <Card className="flex flex-col justify-between h-64 p-4 shadow-sm border text-center hover:shadow-md transition-shadow">
-              <div className="flex flex-col items-center flex-1">
-                <div className="bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center mb-3">
-                  <ClipboardList className="h-6 w-6 text-gray-600" />
+            <Card className="flex flex-col justify-between h-80 p-6 shadow-lg border hover:shadow-xl transition-shadow">
+              <div className="flex flex-col items-center flex-1 text-center">
+                <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                  <ClipboardList className="h-8 w-8 text-gray-600" />
                 </div>
-                <CardTitle className="text-lg font-bold text-uclouvain-blue mb-2">
+                <CardTitle className="text-xl font-bold text-uclouvain-blue mb-3">
                   Administration
                 </CardTitle>
-                <CardDescription className="text-sm text-gray-700 mb-4">
+                <CardDescription className="text-base text-gray-700 mb-6">
                   Validez, supervisez et attribuez les surveillances, gérez les utilisateurs et assistances.
                 </CardDescription>
               </div>
               <div className="flex justify-center">
                 <Link to="/admin" className="w-full">
-                  <Button variant="outline" className="w-full text-sm font-medium rounded-lg h-9 border-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-blue-grey hover:text-uclouvain-blue transition-colors">
+                  <Button variant="outline" className="w-full text-base font-medium rounded-lg h-12 border-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-blue-grey hover:text-uclouvain-blue transition-colors">
                     Accéder à l'administration
                   </Button>
                 </Link>
@@ -152,42 +152,42 @@ const Index = () => {
           </div>
 
           {/* Features section compacte */}
-          <div className="bg-white rounded-lg shadow-sm p-4 max-w-4xl mx-auto">
-            <h3 className="text-lg font-bold text-center mb-4">Fonctionnalités principales</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow-lg p-8 max-w-5xl mx-auto">
+            <h3 className="text-2xl font-bold text-center mb-8">Fonctionnalités principales</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="flex flex-col items-center text-center">
-                <div className="bg-purple-100 w-10 h-10 rounded-full flex items-center justify-center mb-2">
-                  <Calendar className="h-5 w-5 text-purple-600" />
+                <div className="bg-purple-100 w-12 h-12 rounded-full flex items-center justify-center mb-3">
+                  <Calendar className="h-6 w-6 text-purple-600" />
                 </div>
-                <h4 className="font-medium mb-1 text-sm">Planning Centralisé</h4>
-                <p className="text-gray-600 text-xs">
+                <h4 className="font-medium mb-2 text-base">Planning Centralisé</h4>
+                <p className="text-gray-600 text-sm">
                   Accès complet à l'horaire des examens et attributions par auditoire pour tous.
                 </p>
               </div>
               <div className="flex flex-col items-center text-center">
-                <div className="bg-blue-100 w-10 h-10 rounded-full flex items-center justify-center mb-2">
-                  <Users className="h-5 w-5 text-blue-600" />
+                <div className="bg-blue-100 w-12 h-12 rounded-full flex items-center justify-center mb-3">
+                  <Users className="h-6 w-6 text-blue-600" />
                 </div>
-                <h4 className="font-medium mb-1 text-sm">Gestion des Surveillants</h4>
-                <p className="text-gray-600 text-xs">
+                <h4 className="font-medium mb-2 text-base">Gestion des Surveillants</h4>
+                <p className="text-gray-600 text-sm">
                   Saisie centralisée des disponibilités et accès aux attributions de surveillance.
                 </p>
               </div>
               <div className="flex flex-col items-center text-center">
-                <div className="bg-green-100 w-10 h-10 rounded-full flex items-center justify-center mb-2">
-                  <GraduationCap className="h-5 w-5 text-green-600" />
+                <div className="bg-green-100 w-12 h-12 rounded-full flex items-center justify-center mb-3">
+                  <GraduationCap className="h-6 w-6 text-green-600" />
                 </div>
-                <h4 className="font-medium mb-1 text-sm">Workflow Enseignant</h4>
-                <p className="text-gray-600 text-xs">
+                <h4 className="font-medium mb-2 text-base">Workflow Enseignant</h4>
+                <p className="text-gray-600 text-sm">
                   Confirmation collaborative des examens et assistants affectés à chaque surveillances.
                 </p>
               </div>
               <div className="flex flex-col items-center text-center">
-                <div className="bg-gray-100 w-10 h-10 rounded-full flex items-center justify-center mb-2">
-                  <ClipboardList className="h-5 w-5 text-gray-600" />
+                <div className="bg-gray-100 w-12 h-12 rounded-full flex items-center justify-center mb-3">
+                  <ClipboardList className="h-6 w-6 text-gray-600" />
                 </div>
-                <h4 className="font-medium mb-1 text-sm">Pilotage &amp; Statistiques</h4>
-                <p className="text-gray-600 text-xs">
+                <h4 className="font-medium mb-2 text-base">Pilotage &amp; Statistiques</h4>
+                <p className="text-gray-600 text-sm">
                   Suivi temps réel du remplissage, répartition et gestion de toutes les phases de surveillance.
                 </p>
               </div>
