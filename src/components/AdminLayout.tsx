@@ -1,6 +1,6 @@
 
 import { ReactNode } from "react";
-import AdminSidebar from "./AdminSidebar";
+import { AdminSidebar } from "./AdminSidebar";
 import { HomeButton } from "./HomeButton";
 import { AdminProtection } from "./AdminProtection";
 

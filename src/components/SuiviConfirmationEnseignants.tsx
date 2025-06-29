@@ -153,7 +153,7 @@ export function SuiviConfirmationEnseignants() {
                 <TableHead>Date</TableHead>
                 <TableHead>Auditoire</TableHead>
                 <TableHead>Enseignant(s) du cours</TableHead>
-                <TableHead>Enseignant présent confirmé</TableHead>
+                <TableHead>Enseignant présent pour l&apos;examen</TableHead>
                 <TableHead>Présent</TableHead>
                 <TableHead>Personnes présentes</TableHead>
                 <TableHead>Surveillants</TableHead>
@@ -183,10 +183,7 @@ export function SuiviConfirmationEnseignants() {
                     <TableCell>{ex.salle || ""}</TableCell>
                     <TableCell>
                       {enseignantsDuCours ? (
-                        <div>
-                          <span className="font-medium text-blue-700">{enseignantsDuCours}</span>
-                          <div className="text-xs text-gray-500">Enseignant du cours</div>
-                        </div>
+                        <span className="font-medium">{enseignantsDuCours}</span>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}
@@ -201,9 +198,6 @@ export function SuiviConfirmationEnseignants() {
                         </span>
                         {ex.enseignant_email && (
                           <div className="text-xs text-gray-400">{ex.enseignant_email}</div>
-                        )}
-                        {ex.enseignant_nom && ex.enseignant_nom.trim() && (
-                          <div className="text-xs text-gray-500">Confirmé présent</div>
                         )}
                       </div>
                     </TableCell>

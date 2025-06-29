@@ -18,7 +18,6 @@ import { NewFileUploader } from "./NewFileUploader";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useDebounce } from "@/hooks/useDebounce";
 
 // Liste FAUTES & AFFECTATIONS : inclus FSM + Autre
 const FACULTES = [
@@ -127,9 +126,6 @@ export function SurveillantUnifiedManager() {
   const [selectAll, setSelectAll] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   
-  // Utiliser useDebounce pour optimiser la recherche
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  
   // États pour l'ajout manuel
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [newSurveillant, setNewSurveillant] = useState<NewSurveillant>({
@@ -147,9 +143,9 @@ export function SurveillantUnifiedManager() {
 
   const statutsDisponibles = [...BASE_STATUTS, ...customStatuts, "Ajouter..."];
 
-  // 1. CHARGEMENT surveillants (jointure surveillant_sessions) - utiliser debouncedSearchTerm
+  // 1. CHARGEMENT surveillants (jointure surveillant_sessions)
   const { data: surveillants, isLoading } = useQuery({
-    queryKey: ["unified-surveillants", activeSession?.id, debouncedSearchTerm],
+    queryKey: ["unified-surveillants", activeSession?.id, searchTerm],
     queryFn: async () => {
       if (!activeSession?.id) return [];
       
@@ -204,8 +200,8 @@ export function SurveillantUnifiedManager() {
       })) as SurveillantJoinWithArray[];
 
       // Filtrage par terme de recherche
-      if (debouncedSearchTerm) {
-        const term = debouncedSearchTerm.toLowerCase();
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
         filteredData = filteredData.filter(item =>
           item.nom.toLowerCase().includes(term) ||
           item.prenom.toLowerCase().includes(term) ||
@@ -602,7 +598,7 @@ export function SurveillantUnifiedManager() {
             </div>
           )}
 
-          {/* Barre de recherche optimisée */}
+          {/* Barre de recherche */}
           <div className="p-6 border-b">
             <div className="flex items-center space-x-2 max-w-md">
               <Search className="h-4 w-4 text-gray-400" />
@@ -612,21 +608,7 @@ export function SurveillantUnifiedManager() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="flex-1"
               />
-              {searchTerm && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSearchTerm("")}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
             </div>
-            {searchTerm && (
-              <div className="text-xs text-gray-500 mt-1">
-                Recherche en cours...
-              </div>
-            )}
           </div>
 
           {/* Actions en masse */}
