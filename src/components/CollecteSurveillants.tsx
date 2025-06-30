@@ -1,532 +1,214 @@
-import { useState, useEffect } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { BookOpen, ExternalLink, HelpCircle, Users, Building2, Home, AlertTriangle, TrendingUp, MessageSquare } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { Link } from "react-router-dom";
-import { format, parseISO, startOfWeek, endOfWeek, isSameWeek } from "date-fns";
-import { fr } from "date-fns/locale";
-import { InformationsPersonnellesSection } from "./InformationsPersonnellesSection";
-import { JobistePreferencesSection } from "./JobistePreferencesSection";
-import { CommentaireSurveillanceSection } from "./CommentaireSurveillanceSection";
-import { CollecteHeader } from "./CollecteHeader";
-import { CollecteExplications } from "./CollecteExplications";
-import { CollecteDocumentation } from "./CollecteDocumentation";
-import { DisponibilitesSection } from "./DisponibilitesSection";
-import { SurveillantProfilePanel } from "./SurveillantProfilePanel";
-import { UnknownSurveillantForm } from "./UnknownSurveillantForm";
-import { CreneauRow } from "./CreneauRow";
-import { Input } from "@/components/ui/input";
-import { AmenesSurveillantsFields } from "./AmenesSurveillantsFields";
-import { CommentaireDisponibiliteModal } from "./CommentaireDisponibiliteModal";
-import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
-
-interface PersonnieAmenee {
-  nom: string;
-  prenom: string;
-}
-
-interface TimeSlot {
-  date: string;
-  heure_debut: string;
-  heure_fin: string;
-  label: string;
-  heure_debut_surveillance?: string;
-}
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar, Users, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import { useManualCreneaux } from "@/hooks/useManualCreneaux";
+import { useActiveSession } from "@/hooks/useSessions";
+import { formatDateWithDayBelgian, formatTimeRange } from "@/lib/dateUtils";
+import { DisponibilitesCollector } from "./DisponibilitesCollector";
+import { ExistingAvailabilitiesEditor } from "./ExistingAvailabilitiesEditor";
 
 export const CollecteSurveillants = () => {
-  const [email, setEmail] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [surveillantId, setSurveillantId] = useState<string|null>(null);
-  const [surveillantData, setSurveillantData] = useState<any>(null);
-  const [disposEnregistrees, setDisposEnregistrees] = useState(false);
+  const { data: activeSession } = useActiveSession();
+  const { data: creneaux = [], isLoading } = useManualCreneaux();
+  const [selectedView, setSelectedView] = useState<"overview" | "collect" | "edit">("overview");
 
-  // Données pour profil inconnu
-  const [nom, setNom] = useState('');
-  const [prenom, setPrenom] = useState('');
-  const [telephone, setTelephone] = useState('');
-
-  // Surveillances à déduire
-  const [surveillancesADeduire, setSurveillancesADeduire] = useState(0);
-
-  // Disponibilités avec nouveau système
-  const [newDispos, setNewDispos] = useState<Record<string, { dispo: boolean, type_choix: string, nom_examen_selectionne: string }>>({});
-
-  // État pour le modal de commentaire
-  const [isCommentaireModalOpen, setIsCommentaireModalOpen] = useState(false);
-
-  // Récupérer la session active
-  const { data: activeSession } = useQuery({
-    queryKey: ['active-session-public'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('is_active', true)
-        .single();
-      if (error && error.code !== 'PGRST116') throw error;
-      return data;
-    }
-  });
-
-  // Utiliser les créneaux optimisés pour harmoniser la logique
-  const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(activeSession?.id || null);
-
-  // Vérifier l'email et charger le profil surveillant
-  useEffect(() => {
-    if (!email || !activeSession) return;
-    let isCancelled = false;
-    console.log('Checking email:', email.trim().toLowerCase());
-    
-    (async () => {
-      const { data, error } = await supabase
-        .from('surveillants')
-        .select('id, nom, prenom, type, surveillances_a_deduire, eft, email')
-        .eq('email', email.trim().toLowerCase())
-        .maybeSingle();
-      
-      console.log('Surveillant lookup result:', { data, error, email: email.trim().toLowerCase() });
-      
-      if (!isCancelled) {
-        if (!data) {
-          console.log('No surveillant found for email:', email.trim().toLowerCase());
-          setSurveillantId(null);
-          setSurveillantData(null);
-          setSurveillancesADeduire(0);
-        } else {
-          console.log('Found surveillant:', data);
-          setSurveillantId(data.id);
-          setSurveillantData(data);
-          setSurveillancesADeduire(data.surveillances_a_deduire || 0);
-          setNom(data.nom);
-          setPrenom(data.prenom);
-        }
-      }
-    })();
-    return () => { isCancelled = true; };
-  }, [email, activeSession]);
-
-  // Créer les créneaux à partir des créneaux optimisés
-  const timeSlots: TimeSlot[] = optimizedCreneaux
-    .filter(slot => slot.type === 'surveillance')
-    .map(slot => ({
-      date: slot.date_examen,
-      heure_debut: slot.heure_debut,
-      heure_fin: slot.heure_fin,
-      heure_debut_surveillance: slot.heure_debut_surveillance,
-      label: `${slot.date_examen} ${slot.heure_debut}-${slot.heure_fin}`
-    }));
-
-  console.log(`[CollecteSurveillants] Generated ${timeSlots.length} time slots from optimized creneaux`);
-
-  // Charger les disponibilités existantes
-  useEffect(() => {
-    if (!surveillantId || !activeSession?.id) return;
-    (async () => {
-      const { data, error } = await supabase
-        .from('disponibilites')
-        .select('date_examen, heure_debut, heure_fin, type_choix, nom_examen_selectionne')
-        .eq('surveillant_id', surveillantId)
-        .eq('session_id', activeSession.id);
-      if (!error && data && data.length > 0) {
-        setDisposEnregistrees(true);
-        const loadedDispos: Record<string, { dispo: boolean, type_choix: string, nom_examen_selectionne: string }> = {};
-        data.forEach((row: any) => {
-          const key = `${row.date_examen}|${row.heure_debut}|${row.heure_fin}`;
-          loadedDispos[key] = {
-            dispo: true,
-            type_choix: row.type_choix || 'souhaitee',
-            nom_examen_selectionne: row.nom_examen_selectionne || ''
-          };
-        });
-        setNewDispos(loadedDispos);
-      }
-    })();
-  }, [surveillantId, activeSession?.id]);
-
-  // Handlers pour les disponibilités
-  const handleDisponibleChange = (key: string, checked: boolean) => {
-    setNewDispos(d => ({
-      ...d,
-      [key]: { ...d[key], dispo: checked, type_choix: d[key]?.type_choix || 'souhaitee', nom_examen_selectionne: d[key]?.nom_examen_selectionne || '' }
-    }));
-  };
-
-  const handleTypeChange = (key: string, type: string) => {
-    setNewDispos(d => ({
-      ...d,
-      [key]: { ...d[key], type_choix: type }
-    }));
-  };
-
-  const handleNomExamenChange = (key: string, val: string) => {
-    setNewDispos(d => ({
-      ...d,
-      [key]: { ...d[key], nom_examen_selectionne: val }
-    }));
-  };
-
-  // Soumission du formulaire
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email || !telephone) {
-      toast({
-        title: "Champs requis",
-        description: "Veuillez remplir l'email et le téléphone.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Pour surveillant inconnu, créer le profil
-    let usedSurveillantId = surveillantId;
-    if (!surveillantId) {
-      if (!nom || !prenom) {
-        toast({
-          title: "Champs requis",
-          description: "Veuillez remplir le nom et prénom.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      const { data: surveillantObj } = await supabase
-        .from('surveillants')
-        .insert({
-          email: email.trim().toLowerCase(),
-          nom,
-          prenom,
-          telephone: telephone,
-          statut: 'candidat',
-          type: 'Candidat'
-        })
-        .select('id')
-        .single();
-      usedSurveillantId = surveillantObj?.id;
-    } else {
-      // Mettre à jour les surveillances à déduire
-      await supabase
-        .from('surveillants')
-        .update({ 
-          surveillances_a_deduire: surveillancesADeduire,
-          telephone: telephone 
-        })
-        .eq('id', surveillantId);
-    }
-
-    // Préparer les disponibilités
-    const listDispos = Object.entries(newDispos)
-      .filter(([_, d]) => d.dispo)
-      .map(([key, d]) => {
-        const [date_examen, heure_debut, heure_fin] = key.split("|");
-        return {
-          surveillant_id: usedSurveillantId,
-          session_id: activeSession?.id,
-          date_examen,
-          heure_debut,
-          heure_fin,
-          est_disponible: true,
-          type_choix: d.type_choix,
-          nom_examen_selectionne: d.nom_examen_selectionne
-        };
-      });
-
-    if (listDispos.length === 0) {
-      toast({
-        title: "Aucune disponibilité",
-        description: "Veuillez sélectionner au moins un créneau.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Supprimer les anciennes disponibilités
-    if (usedSurveillantId) {
-      await supabase
-        .from('disponibilites')
-        .delete()
-        .eq('surveillant_id', usedSurveillantId)
-        .eq('session_id', activeSession?.id);
-    }
-
-    // Insérer les nouvelles disponibilités
-    await supabase.from('disponibilites').insert(listDispos);
-
-    toast({
-      title: "Sauvegardé",
-      description: "Vos disponibilités ont été enregistrées avec succès.",
-    });
-    setSubmitted(true);
-    setDisposEnregistrees(true);
-  };
-
-  // Ajout état pour check présence et gestion personnes amenées
-  const [isPresentSelf, setIsPresentSelf] = useState(true); // Présence par défaut = true 
-  const [nbAmenes, setNbAmenes] = useState(0);
-  const [personnesAmenes, setPersonnesAmenes] = useState<PersonnieAmenee[]>([]);
-
-  // Calcule le nombre total de surveillants à trouver
-  const nombreSurveillantsTotaux = timeSlots?.length || 0;
-
-  // Affichage conditionnel
-  if (!email) {
+  if (!activeSession) {
     return (
-      <div className="max-w-md mx-auto space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Collecte des disponibilités de surveillance</CardTitle>
-            <CardDescription>
-              Veuillez saisir votre adresse email pour commencer
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="email">Votre email *</Label>
-                <Input
-                  id="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  type="email"
-                  placeholder="prenom.nom@uclouvain.be"
-                  required
-                />
-              </div>
-              <Button 
-                onClick={() => email && setEmail(email)}
-                disabled={!email}
-                className="w-full"
-              >
-                Continuer
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-center text-gray-500">
+            Aucune session active. Activez une session pour collecter les disponibilités.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
-  if (submitted || disposEnregistrees) {
+  if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto p-6">
-        <CollecteHeader title="Gestion des Surveillances d'Examen" />
-        <Card className="border-green-200">
-          <CardHeader className="text-center">
-            <CardTitle className="text-green-800">Disponibilités enregistrées !</CardTitle>
-            <CardDescription>
-              Merci pour votre candidature. Vos disponibilités ont été transmises au service des surveillances.
-            </CardDescription>
-            <div className="mt-4 flex justify-center space-x-4">
-              <Button
-                variant="outline"
-                className="border-blue-600 text-blue-600"
-                onClick={() => setSubmitted(false)}
-              >
-                Modifier mes disponibilités
-              </Button>
-              <Button
-                variant="outline"
-                className="border-green-600 text-green-600"
-                onClick={() => setIsCommentaireModalOpen(true)}
-              >
-                <MessageSquare className="h-4 w-4 mr-2" />
-                Laisser un commentaire
-              </Button>
-            </div>
-          </CardHeader>
-        </Card>
-        
-        <CommentaireDisponibiliteModal
-          isOpen={isCommentaireModalOpen}
-          onClose={() => setIsCommentaireModalOpen(false)}
-          sessionId={activeSession?.id || ''}
-          surveillantId={surveillantId}
-          email={email}
-          nom={nom}
-          prenom={prenom}
-        />
-      </div>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="animate-pulse">Chargement des créneaux...</div>
+        </CardContent>
+      </Card>
     );
   }
 
-  // Affichage principal du formulaire
-  let profilePanel = null;
-  if (surveillantData) {
-    profilePanel = (
-      <SurveillantProfilePanel
-        surveillant={{ ...surveillantData, email }}
-        telephone={telephone}
-        setTelephone={setTelephone}
-        surveillancesADeduire={surveillancesADeduire}
-        setSurveillancesADeduire={setSurveillancesADeduire}
-        onDemandeModif={() => {}}
-      />
-    );
-  } else {
-    profilePanel = (
-      <UnknownSurveillantForm
-        nom={nom}
-        setNom={setNom}
-        prenom={prenom}
-        setPrenom={setPrenom}
-        telephone={telephone}
-        setTelephone={setTelephone}
-      />
+  if (creneaux.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-8">
+            <AlertCircle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Aucun créneau configuré</h3>
+            <p className="text-gray-500 mb-4">
+              Vous devez d'abord configurer et valider des créneaux de surveillance, 
+              puis les associer aux examens avant de pouvoir collecter les disponibilités.
+            </p>
+            <Button asChild>
+              <a href="/admin">Aller à la configuration des créneaux</a>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
-  const creneauRows = timeSlots.map(slot => {
-    const key = `${slot.date}|${slot.heure_debut}|${slot.heure_fin}`;
-    const value = newDispos[key] || { dispo: false, type_choix: 'souhaitee', nom_examen_selectionne: "" };
-    return (
-      <CreneauRow
-        key={key}
-        creneauKey={key}
-        creneau={{
-          date_examen: slot.date,
-          heure_debut: slot.heure_debut,
-          heure_fin: slot.heure_fin,
-          examenIds: [] // Pas besoin des IDs pour l'affichage
-        }}
-        value={value}
-        onDisponibleChange={handleDisponibleChange}
-        onTypeChange={handleTypeChange}
-        onNomExamenChange={handleNomExamenChange}
-      />
-    );
-  });
+  // Statistiques
+  const totalExamens = creneaux.reduce((acc, creneau) => acc + creneau.examens.length, 0);
+  const datesUniques = new Set(creneaux.map(c => c.date)).size;
+  const creneauxParJour = creneaux.reduce((acc, creneau) => {
+    acc[creneau.date] = (acc[creneau.date] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <CollecteHeader title="Collecte des disponibilités de surveillance" />
-      
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Email : {email}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {profilePanel}
-          </CardContent>
-        </Card>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Users className="h-5 w-5" />
+            <span>Collecte des disponibilités</span>
+          </CardTitle>
+          <CardDescription>
+            Session {activeSession.name} - Basée sur les créneaux manuels configurés
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* Statistiques générales */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{creneaux.length}</div>
+                  <div className="text-sm text-blue-700">Créneaux actifs</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{totalExamens}</div>
+                  <div className="text-sm text-green-700">Examens associés</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-purple-200 bg-purple-50">
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">{datesUniques}</div>
+                  <div className="text-sm text-purple-700">Jours d'examens</div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-orange-200 bg-orange-50">
+              <CardContent className="pt-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-orange-600">
+                    {Math.round(creneaux.length / datesUniques * 10) / 10}
+                  </div>
+                  <div className="text-sm text-orange-700">Créneaux/jour (moy.)</div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Users className="h-5 w-5" />
-              <span>Créneaux de surveillance disponibles</span>
-            </CardTitle>
-            <CardDescription>
-              Sélectionnez les créneaux où vous êtes disponible pour la surveillance d'examens. 
-              Les détails des examens ne sont pas affichés pour garantir une attribution équitable.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {creneauRows.length > 0 ? creneauRows : (
-                <p className="text-center text-gray-500 py-8">
-                  Aucun créneau de surveillance disponible pour cette session.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+      <Tabs value={selectedView} onValueChange={(value) => setSelectedView(value as any)} className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview" className="flex items-center space-x-2">
+            <Calendar className="h-4 w-4" />
+            <span>Vue d'ensemble</span>
+          </TabsTrigger>
+          <TabsTrigger value="collect" className="flex items-center space-x-2">
+            <Users className="h-4 w-4" />
+            <span>Collecte</span>
+          </TabsTrigger>
+          <TabsTrigger value="edit" className="flex items-center space-x-2">
+            <CheckCircle className="h-4 w-4" />
+            <span>Gestion</span>
+          </TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col">
-              <div className="font-bold text-lg flex items-center">
-                <span>Votre présence à la surveillance</span>
+        <TabsContent value="overview" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Créneaux par date</CardTitle>
+              <CardDescription>
+                Vue d'ensemble des créneaux de surveillance configurés
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {Object.keys(creneauxParJour)
+                  .sort()
+                  .map(date => {
+                    const creneauxDuJour = creneaux.filter(c => c.date === date);
+                    return (
+                      <div key={date} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="font-semibold text-lg">
+                            {formatDateWithDayBelgian(date)}
+                          </h3>
+                          <Badge variant="outline">
+                            {creneauxDuJour.length} créneaux
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {creneauxDuJour.map(creneau => (
+                            <Card key={creneau.id} className="border-gray-200">
+                              <CardContent className="pt-4">
+                                <div className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <Clock className="h-4 w-4 text-blue-600" />
+                                    <Badge variant="outline">
+                                      {formatTimeRange(creneau.heure_debut, creneau.heure_fin)}
+                                    </Badge>
+                                  </div>
+                                  {creneau.nom_creneau && (
+                                    <div className="font-medium text-sm">
+                                      {creneau.nom_creneau}
+                                    </div>
+                                  )}
+                                  <div className="text-sm text-gray-600">
+                                    {creneau.examens.length} examen{creneau.examens.length > 1 ? 's' : ''}
+                                  </div>
+                                  <div className="space-y-1">
+                                    {creneau.examens.map(examen => (
+                                      <div key={examen.id} className="text-xs bg-gray-50 p-2 rounded">
+                                        <div className="font-medium">{examen.matiere}</div>
+                                        <div className="text-gray-500">
+                                          {examen.salle} • {examen.heure_debut}-{examen.heure_fin}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
-              <div className="mt-2 bg-blue-50 rounded px-3 py-2 flex items-center gap-2">
-                Surveillants théoriques nécessaires :
-                <span className="text-blue-700 font-bold">{Math.max(0, nombreSurveillantsTotaux - (isPresentSelf ? 1 : 0) - nbAmenes)}</span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                checked={isPresentSelf}
-                onCheckedChange={checked => setIsPresentSelf(!!checked)}
-                className="scale-125"
-              />
-              <span className="font-medium">Je serai présent pour assurer la surveillance</span>
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              Par défaut, nous considérons que vous serez présent. Décochez si vous ne pouvez pas assurer la surveillance.
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <div className="font-bold text-lg">
-              Personnes que vous amenez
-            </div>
-            <div className="mt-2 bg-orange-50 rounded px-3 py-2 text-orange-800 font-semibold">
-              Surveillants restants à attribuer : {Math.max(0, nombreSurveillantsTotaux - (isPresentSelf ? 1 : 0) - nbAmenes)}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <label className="block mb-1 font-medium">
-              Nombre de personnes que j'amenez
-            </label>
-            <Input
-              type="number"
-              min={0}
-              max={10}
-              value={nbAmenes}
-              onChange={e => {
-                const val = Math.max(0, parseInt(e.target.value) || 0);
-                setNbAmenes(val);
-                setPersonnesAmenes(arr => {
-                  const copies = arr.slice(0, val);
-                  while (copies.length < val) copies.push({ nom: "", prenom: "" });
-                  return copies;
-                });
-              }}
-              className="max-w-[100px]"
-            />
-            <div className="text-xs text-gray-700 mb-2">
-              Indiquez le nombre de personnes (assistants, collègues) que vous amenez pour aider à la surveillance.
-            </div>
-            <AmenesSurveillantsFields nombre={nbAmenes} personnes={personnesAmenes} setPersonnes={setPersonnesAmenes} />
-          </CardContent>
-        </Card>
+        <TabsContent value="collect" className="space-y-6">
+          <DisponibilitesCollector />
+        </TabsContent>
 
-        <div className="flex justify-center space-x-4">
-          <Button type="submit" size="lg" className="px-8">
-            Enregistrer mes disponibilités
-          </Button>
-          <Button 
-            type="button" 
-            variant="outline" 
-            size="lg" 
-            className="px-8"
-            onClick={() => setIsCommentaireModalOpen(true)}
-          >
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Laisser un commentaire
-          </Button>
-        </div>
-      </form>
-      
-      <CommentaireDisponibiliteModal
-        isOpen={isCommentaireModalOpen}
-        onClose={() => setIsCommentaireModalOpen(false)}
-        sessionId={activeSession?.id || ''}
-        surveillantId={surveillantId}
-        email={email}
-        nom={nom}
-        prenom={prenom}
-      />
+        <TabsContent value="edit" className="space-y-6">
+          <ExistingAvailabilitiesEditor />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

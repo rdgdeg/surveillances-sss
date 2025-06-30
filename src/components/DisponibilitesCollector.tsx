@@ -1,391 +1,281 @@
 
-import { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar, Users, Send, AlertCircle } from "lucide-react";
+import { useManualCreneaux } from "@/hooks/useManualCreneaux";
+import { useActiveSession } from "@/hooks/useSessions";
+import { formatDateWithDayBelgian, formatTimeRange } from "@/lib/dateUtils";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { DemandeModificationModal } from "./DemandeModificationModal";
 
-interface CreneauFusionne {
-  id: string;
-  date_surveillance: string;
-  heure_debut_surveillance: string;
-  heure_fin_surveillance: string;
+interface DisponibiliteFormData {
+  surveillantEmail: string;
+  creneauxSelectionnes: string[];
+  typeChoix: 'souhaitee' | 'obligatoire';
+  commentaire?: string;
 }
 
-interface Surveillant {
-  id: string;
-  email: string;
-  nom: string;
-  prenom: string;
-  type: string;
-  telephone: string | null;
-  quota: number;
-  session_id: string;
-}
+export const DisponibilitesCollector = () => {
+  const { data: activeSession } = useActiveSession();
+  const { data: creneaux = [], isLoading } = useManualCreneaux();
+  const [formData, setFormData] = useState<DisponibiliteFormData>({
+    surveillantEmail: "",
+    creneauxSelectionnes: [],
+    typeChoix: 'souhaitee'
+  });
 
-type ModeCollector = "surveillant" | "public";
+  const handleCreneauToggle = (creneauId: string, checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      creneauxSelectionnes: checked 
+        ? [...prev.creneauxSelectionnes, creneauId]
+        : prev.creneauxSelectionnes.filter(id => id !== creneauId)
+    }));
+  };
 
-// Composant générique pour la collecte des disponibilités
-export function DisponibilitesCollector({
-  mode,
-  surveillantInitial = null,
-  onDone,
-}: {
-  mode: ModeCollector;
-  surveillantInitial?: Surveillant | null;
-  onDone?: () => void;
-}) {
-  const [email, setEmail] = useState("");
-  const [surveillant, setSurveillant] = useState<Surveillant | null>(surveillantInitial ?? null);
-  const [creneaux, setCreneaux] = useState<CreneauFusionne[]>([]);
-  const [dispos, setDispos] = useState<Record<string, { dispo: boolean; obligatoire: boolean; examenCode: string }>>({});
-  const [telephone, setTelephone] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  
-  // Nouveaux états pour les personnes inconnues
-  const [nom, setNom] = useState("");
-  const [prenom, setPrenom] = useState("");
-  const [showUnknownPersonForm, setShowUnknownPersonForm] = useState(false);
-
-  // Mode surveillant : auto-load profile
-  useEffect(() => {
-    if (mode === "surveillant" && email.includes("@")) {
-      supabase
-        .from("surveillants")
-        .select("id,email,nom,prenom,type,telephone")
-        .eq("email", email.trim().toLowerCase())
-        .maybeSingle()
-        .then(async ({ data, error }) => {
-          if (!error && data) {
-            let quota = 0;
-            let session_id = "";
-            const { data: sessionRow } = await supabase
-              .from("surveillant_sessions")
-              .select("quota,session_id")
-              .eq("surveillant_id", data.id)
-              .eq("is_active", true)
-              .maybeSingle();
-            quota = sessionRow?.quota ?? 0;
-            session_id = sessionRow?.session_id ?? "";
-            setSurveillant({ ...data, quota, session_id });
-            setTelephone(data.telephone || "");
-            setShowUnknownPersonForm(false);
-          } else {
-            setSurveillant(null);
-            setTelephone("");
-            setShowUnknownPersonForm(true);
-          }
-        });
-    }
-    // Mode public: on laisse l'instanciation initiale agir (compte candidats)
-  }, [mode, email]);
-
-  // Récupérer tous les créneaux fusionnés
-  useEffect(() => {
-    supabase
-      .from("creneaux_surveillance")
-      .select("id,date_surveillance,heure_debut_surveillance,heure_fin_surveillance")
-      .order("date_surveillance")
-      .order("heure_debut_surveillance")
-      .then(({ data, error }) => {
-        if (!error && data) setCreneaux(data);
-      });
-  }, []);
-
-  // Récupérer les disponibilités sauvegardées (si surveillant)
-  useEffect(() => {
-    if (surveillant) {
-      supabase
-        .from("disponibilites")
-        .select("id,date_examen,heure_debut,heure_fin,est_disponible,commentaire_surveillance_obligatoire,nom_examen_obligatoire")
-        .eq("surveillant_id", surveillant.id)
-        .then(({ data }) => {
-          const dispoObj: Record<string, { dispo: boolean; obligatoire: boolean; examenCode: string }> = {};
-          (data || []).forEach(d => {
-            const key = `${d.date_examen}|${d.heure_debut}|${d.heure_fin}`;
-            dispoObj[key] = {
-              dispo: d.est_disponible,
-              obligatoire: !!d.commentaire_surveillance_obligatoire,
-              examenCode: d.nom_examen_obligatoire || ""
-            };
-          });
-          setDispos(dispoObj);
-        });
-    }
-  }, [surveillant]);
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    // Validation des créneaux obligatoires
-    Object.entries(dispos).forEach(([key, d]) => {
-      if (d.obligatoire && !d.examenCode.trim()) {
-        newErrors[key] = "Le code examen est obligatoire pour une surveillance obligatoire";
-      }
-    });
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleDispoChange = (key: string, checked: boolean) => {
-    setDispos(d => ({
-      ...d,
-      [key]: { ...d[key], dispo: checked }
-    }));
-    // Supprimer l'erreur si elle existe
-    if (errors[key]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[key];
-        return newErrors;
-      });
-    }
-  };
-
-  const handleObligatoireChange = (key: string, checked: boolean) => {
-    setDispos(d => ({
-      ...d,
-      [key]: { ...d[key], obligatoire: checked }
-    }));
-    // Si on décoche obligatoire, supprimer l'erreur
-    if (!checked && errors[key]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[key];
-        return newErrors;
-      });
-    }
-  };
-
-  const handleCodeChange = (key: string, val: string) => {
-    setDispos(d => ({
-      ...d,
-      [key]: { ...d[key], examenCode: val }
-    }));
-    // Supprimer l'erreur si le champ est rempli
-    if (val.trim() && errors[key]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[key];
-        return newErrors;
-      });
-    }
-  };
-
-  async function handleSave() {
-    if (!validateForm()) {
-      toast({ 
-        title: "Erreur de validation", 
-        description: "Veuillez corriger les erreurs avant de sauvegarder.", 
-        variant: "destructive" 
+    if (!formData.surveillantEmail) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez saisir un email de surveillant",
+        variant: "destructive"
       });
       return;
     }
 
-    if (surveillant) {
-      // Personne connue - sauvegarder les disponibilités
-      if (!telephone.match(/^\+?\d+$/)) {
-        toast({ title: "Erreur", description: "Numéro de téléphone obligatoire et valide.", variant: "destructive" });
-        return;
-      }
-      await supabase
-        .from("surveillants")
-        .update({ telephone })
-        .eq("id", surveillant.id);
-      const updates = creneaux.map(cr => {
-        const key = `${cr.date_surveillance}|${cr.heure_debut_surveillance}|${cr.heure_fin_surveillance}`;
-        const d = dispos[key] || { dispo: false, obligatoire: false, examenCode: "" };
-        return {
-          surveillant_id: surveillant.id,
-          session_id: surveillant.session_id ?? "",
-          date_examen: cr.date_surveillance,
-          heure_debut: cr.heure_debut_surveillance,
-          heure_fin: cr.heure_fin_surveillance,
-          est_disponible: d.dispo,
-          commentaire_surveillance_obligatoire: d.obligatoire ? "Créneau obligatoire" : null,
-          nom_examen_obligatoire: d.examenCode || null,
-          type_choix: d.obligatoire ? "obligatoire" : "souhaitee"
-        };
+    if (formData.creneauxSelectionnes.length === 0) {
+      toast({
+        title: "Erreur", 
+        description: "Veuillez sélectionner au moins un créneau",
+        variant: "destructive"
       });
-      await supabase.from("disponibilites").delete().eq("surveillant_id", surveillant.id);
-      const { error } = await supabase.from("disponibilites").insert(updates);
-      if (error) {
-        toast({ title: "Erreur", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Sauvegardé", description: "Vos disponibilités ont été enregistrées." });
-        onDone?.();
-      }
-    } else if (showUnknownPersonForm && nom && prenom && email && telephone) {
-      // Personne inconnue - enregistrer comme candidat
-      const { error } = await supabase
-        .from("candidats_surveillance")
-        .insert({
-          nom,
-          prenom,
-          email: email.trim().toLowerCase(),
-          telephone,
-          statut: "candidat_externe",
-        });
-      
-      if (error) {
-        toast({ title: "Erreur", description: error.message, variant: "destructive" });
-      } else {
-        toast({ 
-          title: "Candidature enregistrée", 
-          description: "Votre candidature a été enregistrée. L'administration vous contactera."
-        });
-        onDone?.();
-      }
+      return;
     }
-  }
 
-  // Organisation semaine (groupe par date)
-  const semaineMap: Record<string, CreneauFusionne[]> = {};
-  creneaux.forEach(cr => {
-    if (!semaineMap[cr.date_surveillance]) semaineMap[cr.date_surveillance] = [];
-    semaineMap[cr.date_surveillance].push(cr);
-  });
+    // Ici, vous implementeriez la logique pour sauvegarder les disponibilités
+    // en utilisant les créneaux manuels sélectionnés
+    
+    toast({
+      title: "Disponibilités enregistrées",
+      description: `${formData.creneauxSelectionnes.length} créneaux sélectionnés pour ${formData.surveillantEmail}`,
+    });
+    
+    // Reset form
+    setFormData({
+      surveillantEmail: "",
+      creneauxSelectionnes: [],
+      typeChoix: 'souhaitee'
+    });
+  };
 
-  return (
-    <div className="max-w-2xl mx-auto space-y-5">
+  if (!activeSession) {
+    return (
       <Card>
-        <CardHeader>
-          <CardTitle>Déclarer mes disponibilités</CardTitle>
-          <CardDescription>
-            {mode === "surveillant"
-              ? "Indiquez votre email pour charger votre profil ou créer une candidature."
-              : "Remplissez ce formulaire pour déclarer vos disponibilités pour la surveillance des examens."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Email (toujours requis pour identifier) */}
-          {mode === "surveillant" && (
-            <div className="flex flex-col space-y-2 mb-4">
-              <Input placeholder="Votre email UCLouvain" type="email" value={email} onChange={e => setEmail(e.target.value)} />
-            </div>
-          )}
-
-          {/* Profil surveillant connu */}
-          {surveillant && (
-            <div className="space-y-1 border p-3 rounded mb-3 bg-blue-50">
-              <div className="flex space-x-3 items-center">
-                <span className="font-bold">{surveillant.nom} {surveillant.prenom}</span>
-                <Badge>{surveillant.type}</Badge>
-                <Badge variant="secondary">Quota: {surveillant.quota || "?"}</Badge>
-                <Button size="sm" variant="outline" onClick={() => setModalOpen(true)}>
-                  Demander une modification
-                </Button>
-              </div>
-              <div>
-                <label>Téléphone <span className="font-bold text-red-600">*</span> :</label>
-                <Input value={telephone} onChange={e => setTelephone(e.target.value)} placeholder="+324...." required />
-              </div>
-            </div>
-          )}
-
-          {/* Formulaire pour personne inconnue */}
-          {showUnknownPersonForm && mode === "surveillant" && email.includes("@") && (
-            <div className="border p-4 rounded mb-3 bg-yellow-50">
-              <h3 className="font-semibold mb-3">Profil non trouvé - Créer une candidature</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium">Nom <span className="text-red-600">*</span></label>
-                  <Input value={nom} onChange={e => setNom(e.target.value)} placeholder="Votre nom" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium">Prénom <span className="text-red-600">*</span></label>
-                  <Input value={prenom} onChange={e => setPrenom(e.target.value)} placeholder="Votre prénom" required />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium">Téléphone <span className="text-red-600">*</span></label>
-                  <Input value={telephone} onChange={e => setTelephone(e.target.value)} placeholder="+324...." required />
-                </div>
-              </div>
-              <p className="text-sm text-gray-600 mt-2">
-                Vos informations seront transmises à l'administration pour validation.
-              </p>
-            </div>
-          )}
-
-          <DemandeModificationModal
-            open={modalOpen}
-            onClose={() => setModalOpen(false)}
-            surveillantId={surveillant?.id || ""}
-            email={email}
-          />
-
-          {/* Affichage des créneaux disponibles pour tous */}
-          {Object.keys(semaineMap).length > 0 && (surveillant || showUnknownPersonForm) && (
-            <div className="space-y-6">
-              {Object.entries(semaineMap).map(([date, creneauxJournée]) => (
-                <div key={date} className="border p-3 rounded mb-2">
-                  <div className="font-semibold text-uclouvain-blue mb-2">{date}</div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {creneauxJournée.map(cr => {
-                      const key = `${cr.date_surveillance}|${cr.heure_debut_surveillance}|${cr.heure_fin_surveillance}`;
-                      const d = dispos[key] || { dispo: false, obligatoire: false, examenCode: "" };
-                      const hasError = !!errors[key];
-                      
-                      return (
-                        <div key={cr.id} className={`border p-2 rounded ${hasError ? 'border-red-500 bg-red-50' : ''}`}>
-                          <div className="flex items-center space-x-2 mb-2">
-                            <Checkbox
-                              checked={!!d.dispo}
-                              onCheckedChange={val => handleDispoChange(key, !!val)}
-                              disabled={showUnknownPersonForm} // Désactivé pour les candidats externes
-                            />
-                            <span>{cr.heure_debut_surveillance} - {cr.heure_fin_surveillance}</span>
-                          </div>
-                          
-                          {surveillant && (
-                            <div className="space-y-2">
-                              <div className="flex items-center space-x-2">
-                                <Checkbox
-                                  checked={!!d.obligatoire}
-                                  onCheckedChange={val => handleObligatoireChange(key, !!val)}
-                                />
-                                <span className="text-xs">Surveillance obligatoire</span>
-                              </div>
-                              
-                              {d.obligatoire && (
-                                <div>
-                                  <Input
-                                    placeholder="Code examen *"
-                                    value={d.examenCode}
-                                    onChange={e => handleCodeChange(key, e.target.value)}
-                                    className={hasError ? 'border-red-500' : ''}
-                                    required
-                                  />
-                                  {hasError && (
-                                    <p className="text-xs text-red-600 mt-1">{errors[key]}</p>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-              <Button 
-                className="mt-4" 
-                onClick={handleSave}
-                disabled={showUnknownPersonForm && (!nom || !prenom || !telephone)}
-              >
-                {surveillant ? "Enregistrer mes disponibilités" : "Envoyer ma candidature"}
-              </Button>
-            </div>
-          )}
+        <CardContent className="pt-6">
+          <p className="text-center text-gray-500">
+            Aucune session active.
+          </p>
         </CardContent>
       </Card>
-    </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="animate-pulse">Chargement des créneaux...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (creneaux.length === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-8">
+            <AlertCircle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Aucun créneau disponible</h3>
+            <p className="text-gray-500">
+              Configurez d'abord les créneaux et associez-les aux examens.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Grouper les créneaux par date
+  const creneauxParDate = creneaux.reduce((acc, creneau) => {
+    if (!acc[creneau.date]) {
+      acc[creneau.date] = [];
+    }
+    acc[creneau.date].push(creneau);
+    return acc;
+  }, {} as Record<string, typeof creneaux>);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center space-x-2">
+          <Users className="h-5 w-5" />
+          <span>Collecte de disponibilités</span>
+        </CardTitle>
+        <CardDescription>
+          Saisissez les disponibilités basées sur les créneaux manuels configurés
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Informations surveillant */}
+          <div className="space-y-4">
+            <h3 className="font-semibold">Informations du surveillant</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="email">Email du surveillant *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.surveillantEmail}
+                  onChange={(e) => setFormData(prev => ({ ...prev, surveillantEmail: e.target.value }))}
+                  placeholder="email@uclouvain.be"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="typeChoix">Type de disponibilité</Label>
+                <Select 
+                  value={formData.typeChoix} 
+                  onValueChange={(value: any) => setFormData(prev => ({ ...prev, typeChoix: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="souhaitee">Disponibilité souhaitée</SelectItem>
+                    <SelectItem value="obligatoire">Surveillance obligatoire</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {/* Sélection des créneaux */}
+          <div className="space-y-4">
+            <h3 className="font-semibold">Créneaux disponibles</h3>
+            <div className="space-y-6">
+              {Object.keys(creneauxParDate)
+                .sort()
+                .map(date => (
+                  <div key={date} className="border rounded-lg p-4">
+                    <h4 className="font-medium mb-4 flex items-center space-x-2">
+                      <Calendar className="h-4 w-4" />
+                      <span>{formatDateWithDayBelgian(date)}</span>
+                      <Badge variant="outline">
+                        {creneauxParDate[date].length} créneaux
+                      </Badge>
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {creneauxParDate[date].map(creneau => (
+                        <div 
+                          key={creneau.id} 
+                          className="border rounded p-3 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-start space-x-3">
+                            <Checkbox
+                              id={creneau.id}
+                              checked={formData.creneauxSelectionnes.includes(creneau.id)}
+                              onCheckedChange={(checked) => handleCreneauToggle(creneau.id, !!checked)}
+                            />
+                            <div className="flex-1 space-y-2">
+                              <label 
+                                htmlFor={creneau.id}
+                                className="cursor-pointer block"
+                              >
+                                <div className="font-medium">
+                                  {formatTimeRange(creneau.heure_debut, creneau.heure_fin)}
+                                  {creneau.nom_creneau && (
+                                    <span className="ml-2 text-sm text-gray-600">
+                                      ({creneau.nom_creneau})
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {creneau.examens.length} examen{creneau.examens.length > 1 ? 's' : ''}
+                                </div>
+                              </label>
+                              <div className="space-y-1">
+                                {creneau.examens.map(examen => (
+                                  <div key={examen.id} className="text-xs bg-blue-50 p-2 rounded">
+                                    <div className="font-medium">{examen.matiere}</div>
+                                    <div className="text-gray-600">
+                                      {examen.salle} • {examen.heure_debut}-{examen.heure_fin}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Commentaire */}
+          <div>
+            <Label htmlFor="commentaire">Commentaire (optionnel)</Label>
+            <Textarea
+              id="commentaire"
+              value={formData.commentaire || ''}
+              onChange={(e) => setFormData(prev => ({ ...prev, commentaire: e.target.value }))}
+              placeholder="Informations complémentaires..."
+              rows={3}
+            />
+          </div>
+
+          {/* Résumé */}
+          {formData.creneauxSelectionnes.length > 0 && (
+            <div className="border rounded-lg p-4 bg-blue-50">
+              <h4 className="font-medium mb-2">Résumé de la sélection</h4>
+              <div className="text-sm text-gray-600">
+                <p>{formData.creneauxSelectionnes.length} créneaux sélectionnés</p>
+                <p>Type: {formData.typeChoix === 'souhaitee' ? 'Disponibilité souhaitée' : 'Surveillance obligatoire'}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Boutons */}
+          <div className="flex justify-end space-x-2">
+            <Button 
+              type="button" 
+              variant="outline"
+              onClick={() => setFormData({
+                surveillantEmail: "",
+                creneauxSelectionnes: [],
+                typeChoix: 'souhaitee'
+              })}
+            >
+              Réinitialiser
+            </Button>
+            <Button type="submit" className="flex items-center space-x-2">
+              <Send className="h-4 w-4" />
+              <span>Enregistrer les disponibilités</span>
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
-}
+};

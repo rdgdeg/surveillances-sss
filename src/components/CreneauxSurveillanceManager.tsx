@@ -11,11 +11,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Clock, Plus, Edit, Trash2, Check, X, CheckCircle, Calendar, Settings } from "lucide-react";
+import { Clock, Plus, Edit, Trash2, Check, X, CheckCircle, Calendar, Settings, Link2 } from "lucide-react";
 import { useActiveSession } from "@/hooks/useSessions";
 import { formatTimeRange } from "@/lib/dateUtils";
 import { toast } from "@/hooks/use-toast";
 import { CreneauxVueSemaines } from "./CreneauxVueSemaines";
+import { ExamenCreneauAssociator } from "./ExamenCreneauAssociator";
 
 interface CreneauSurveillanceConfig {
   id: string;
@@ -66,6 +67,30 @@ export const CreneauxSurveillanceManager = () => {
 
       if (error) throw error;
       return data || [];
+    },
+    enabled: !!activeSession?.id
+  });
+
+  // Récupérer le nombre d'examens associés à chaque créneau
+  const { data: examensParCreneau = {} } = useQuery({
+    queryKey: ['examens-par-creneau', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession?.id) return {};
+
+      const { data, error } = await supabase
+        .from('creneaux_examens')
+        .select('creneau_id, examens!inner(session_id)')
+        .eq('examens.session_id', activeSession.id);
+
+      if (error) throw error;
+
+      // Compter les examens par créneau
+      const count: Record<string, number> = {};
+      data?.forEach(item => {
+        count[item.creneau_id] = (count[item.creneau_id] || 0) + 1;
+      });
+
+      return count;
     },
     enabled: !!activeSession?.id
   });
@@ -255,8 +280,12 @@ export const CreneauxSurveillanceManager = () => {
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="vue-semaines" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+      <Tabs defaultValue="associations" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="associations" className="flex items-center space-x-2">
+            <Link2 className="h-4 w-4" />
+            <span>Associations</span>
+          </TabsTrigger>
           <TabsTrigger value="vue-semaines" className="flex items-center space-x-2">
             <Calendar className="h-4 w-4" />
             <span>Vue par semaines</span>
@@ -265,7 +294,15 @@ export const CreneauxSurveillanceManager = () => {
             <Settings className="h-4 w-4" />
             <span>Configuration</span>
           </TabsTrigger>
+          <TabsTrigger value="import" className="flex items-center space-x-2">
+            <Plus className="h-4 w-4" />
+            <span>Import</span>
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="associations" className="space-y-6">
+          <ExamenCreneauAssociator />
+        </TabsContent>
 
         <TabsContent value="vue-semaines" className="space-y-6">
           <CreneauxVueSemaines />
@@ -355,6 +392,7 @@ export const CreneauxSurveillanceManager = () => {
                       <TableHead>Créneau</TableHead>
                       <TableHead>Nom</TableHead>
                       <TableHead>Description</TableHead>
+                      <TableHead>Examens</TableHead>
                       <TableHead>Statut</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -390,6 +428,11 @@ export const CreneauxSurveillanceManager = () => {
                               {creneau.description || "-"}
                             </div>
                           )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">
+                            {examensParCreneau[creneau.id] || 0} examens
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="space-y-1">
@@ -445,7 +488,7 @@ export const CreneauxSurveillanceManager = () => {
                                       <AlertDialogTitle>Supprimer le créneau</AlertDialogTitle>
                                       <AlertDialogDescription>
                                         Êtes-vous sûr de vouloir supprimer le créneau {formatTimeRange(creneau.heure_debut, creneau.heure_fin)} ?
-                                        Cette action est irréversible.
+                                        Cette action supprimera aussi toutes les associations avec les examens.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -471,6 +514,26 @@ export const CreneauxSurveillanceManager = () => {
                   Aucun créneau configuré pour cette session.
                 </p>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="import" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Import en masse de créneaux</CardTitle>
+              <CardDescription>
+                Fonctionnalité à développer : import CSV des créneaux prédéfinis
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <Plus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">Fonctionnalité en développement</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Permettra d'importer rapidement les créneaux depuis un fichier CSV
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

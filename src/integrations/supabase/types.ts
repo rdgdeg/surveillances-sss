@@ -311,6 +311,52 @@ export type Database = {
           },
         ]
       }
+      creneaux_examens: {
+        Row: {
+          created_at: string
+          creneau_id: string
+          examen_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          creneau_id: string
+          examen_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          creneau_id?: string
+          examen_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creneaux_examens_creneau_id_fkey"
+            columns: ["creneau_id"]
+            isOneToOne: false
+            referencedRelation: "creneaux_surveillance_config"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creneaux_examens_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "examens"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creneaux_examens_examen_id_fkey"
+            columns: ["examen_id"]
+            isOneToOne: false
+            referencedRelation: "surveillance_assignments_view"
+            referencedColumns: ["examen_id"]
+          },
+        ]
+      }
       creneaux_surveillance: {
         Row: {
           created_at: string
