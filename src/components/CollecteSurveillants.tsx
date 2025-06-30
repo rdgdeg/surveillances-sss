@@ -9,7 +9,7 @@ import { useManualCreneaux } from "@/hooks/useManualCreneaux";
 import { useActiveSession } from "@/hooks/useSessions";
 import { formatDateWithDayBelgian, formatTimeRange } from "@/lib/dateUtils";
 import { DisponibilitesCollector } from "./DisponibilitesCollector";
-import { ExistingAvailabilitiesEditor } from "./ExistingAvailabilitiesEditor";
+import { GeneralAvailabilitiesManager } from "./GeneralAvailabilitiesManager";
 
 export const CollecteSurveillants = () => {
   const { data: activeSession } = useActiveSession();
@@ -206,7 +206,7 @@ export const CollecteSurveillants = () => {
         </TabsContent>
 
         <TabsContent value="edit" className="space-y-6">
-          <ExistingAvailabilitiesEditor />
+          <GeneralAvailabilitiesManager />
         </TabsContent>
       </Tabs>
     </div>
