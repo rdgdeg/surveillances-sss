@@ -1,119 +1,25 @@
+
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
-  CheckSquare,
-  Users,
-  ClipboardList,
   FileText,
-  AlertTriangle,
   Calendar,
-  Grid3X3,
-  UserCheck,
-  Eye,
-  BookOpen,
-  Upload,
-  CalendarDays,
-  UserCog,
-  Shield,
-  Lock,
-  History,
-  Database,
-  UserPlus,
-  FileCheck,
   FileSpreadsheet,
-  Settings,
-  BarChart3,
-  MapPin,
+  Users,
   Clock,
   Target,
   MessageSquare,
-  Building,
-  Key,
+  UserCog,
   CheckCircle,
-  Search
+  Settings,
+  Building,
+  Lock,
+  Shield,
+  Search,
+  CalendarDays
 } from "lucide-react";
-
-const menuItems = [
-  // DASHBOARD
-  { 
-    category: "Vue d'ensemble",
-    items: [
-      { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-    ]
-  },
-  
-  // GESTION DES DISPONIBILITÉS
-  { 
-    category: "Disponibilités",
-    items: [
-      { name: "Vue d'ensemble", href: "/admin/disponibilites", icon: Eye },
-      { name: "Par jour", href: "/admin/disponibilites/par-jour", icon: Calendar },
-      { name: "Matrice créneaux", href: "/admin/disponibilites/matrice", icon: Grid3X3 },
-      { name: "Par personne", href: "/admin/disponibilites/par-personne", icon: UserCheck },
-      { name: "Demandes spécifiques", href: "/admin/demandes-specifiques", icon: AlertTriangle },
-    ]
-  },
-
-  // GESTION DES DONNÉES
-  { 
-    category: "Import & Templates",
-    items: [
-      { name: "Templates & Import", href: "/admin/templates", icon: FileSpreadsheet },
-      { name: "Codes Examens", href: "/admin?tab=import-codes", icon: Upload },
-    ]
-  },
-
-  // EXAMENS ET PLANNING
-  { 
-    category: "Examens & Planning",
-    items: [
-      { name: "Gestion Examens", href: "/admin?tab=examens", icon: BookOpen },
-      { name: "Planning", href: "/admin?tab=planning", icon: CalendarDays },
-      { name: "Validations", href: "/admin?tab=validations", icon: FileCheck },
-    ]
-  },
-
-  // SURVEILLANTS
-  { 
-    category: "Surveillants",
-    items: [
-      { name: "Gestion Surveillants", href: "/admin?tab=surveillants", icon: Users },
-      { name: "Pré-assignations", href: "/admin?tab=pre-assignations", icon: UserPlus },
-      { name: "Candidatures", href: "/admin/candidatures", icon: ClipboardList },
-    ]
-  },
-
-  // ENSEIGNANTS
-  { 
-    category: "Enseignants",
-    items: [
-      { name: "Vue Enseignant", href: "/admin?tab=enseignant-view", icon: UserCog },
-      { name: "Tokens Enseignants", href: "/admin?tab=tokens-enseignants", icon: Shield },
-      { name: "Suivi Confirmations", href: "/admin?tab=suivi-confirm-enseignants", icon: FileText },
-    ]
-  },
-
-  // CONFIGURATION
-  { 
-    category: "Configuration",
-    items: [
-      { name: "Contraintes Salles", href: "/admin?tab=contraintes", icon: MapPin },
-      { name: "Verrouillages", href: "/admin?tab=feature-locks", icon: Lock },
-      { name: "Contrôles", href: "/admin?tab=controles-verifications", icon: FileCheck },
-    ]
-  },
-
-  // ADMINISTRATION
-  { 
-    category: "Administration",
-    items: [
-      { name: "Historique", href: "/admin?tab=historique", icon: History },
-      { name: "Données Sensibles", href: "/admin?tab=donnees-sensibles", icon: Database },
-    ]
-  }
-];
+import { AdminSearchBar } from "./AdminSearchBar";
 
 export function AdminSidebar() {
   const location = useLocation();
@@ -133,7 +39,8 @@ export function AdminSidebar() {
     <div className="h-full w-64 bg-white border-r border-gray-200 flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Administration</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-3">Administration</h2>
+        <AdminSearchBar />
       </div>
 
       {/* Navigation */}
@@ -148,7 +55,7 @@ export function AdminSidebar() {
           }`}
         >
           <div className="flex items-center space-x-2">
-            <BarChart3 className="h-4 w-4" />
+            <LayoutDashboard className="h-4 w-4" />
             <span>Tableau de bord</span>
           </div>
         </Link>
@@ -176,33 +83,33 @@ export function AdminSidebar() {
           <Link
             to="/admin?tab=planning"
             className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("planning")
+              isActiveTab("planning") || isActiveTab("validations")
                 ? "bg-uclouvain-blue text-white"
                 : "text-gray-700 hover:bg-gray-100"
             }`}
           >
             <div className="flex items-center space-x-2">
               <Calendar className="h-4 w-4" />
-              <span>Planning</span>
+              <span>Planning & Validations</span>
             </div>
           </Link>
 
           <Link
-            to="/admin?tab=validations"
+            to="/admin/templates"
             className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("validations")
+              isActiveSection("/admin/templates")
                 ? "bg-uclouvain-blue text-white"
                 : "text-gray-700 hover:bg-gray-100"
             }`}
           >
             <div className="flex items-center space-x-2">
-              <CheckSquare className="h-4 w-4" />
-              <span>Validations</span>
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>Templates & Import</span>
             </div>
           </Link>
         </div>
 
-        {/* Surveillants */}
+        {/* Surveillance */}
         <div className="space-y-1">
           <h3 className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
             Surveillance
@@ -272,6 +179,20 @@ export function AdminSidebar() {
           </h3>
           
           <Link
+            to="/admin?tab=controles-verifications"
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActiveTab("controles-verifications")
+                ? "bg-uclouvain-blue text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <CalendarDays className="h-4 w-4" />
+              <span>Créneaux de surveillance</span>
+            </div>
+          </Link>
+
+          <Link
             to="/admin?tab=contraintes"
             className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
               isActiveTab("contraintes")
@@ -295,7 +216,7 @@ export function AdminSidebar() {
           >
             <div className="flex items-center space-x-2">
               <Lock className="h-4 w-4" />
-              <span>Verrouillage fonctions</span>
+              <span>Verrouillages</span>
             </div>
           </Link>
 
@@ -321,16 +242,16 @@ export function AdminSidebar() {
           </h3>
           
           <Link
-            to="/admin?tab=tokens-enseignants"
+            to="/admin?tab=enseignant-view"
             className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("tokens-enseignants")
+              isActiveTab("enseignant-view")
                 ? "bg-uclouvain-blue text-white"
                 : "text-gray-700 hover:bg-gray-100"
             }`}
           >
             <div className="flex items-center space-x-2">
-              <Key className="h-4 w-4" />
-              <span>Tokens enseignants</span>
+              <UserCog className="h-4 w-4" />
+              <span>Vue Enseignant</span>
             </div>
           </Link>
 
@@ -349,10 +270,10 @@ export function AdminSidebar() {
           </Link>
         </div>
 
-        {/* Données & Sécurité */}
+        {/* Contrôles */}
         <div className="space-y-1">
           <h3 className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Données & Sécurité
+            Contrôles & Données
           </h3>
           
           <Link
@@ -365,35 +286,7 @@ export function AdminSidebar() {
           >
             <div className="flex items-center space-x-2">
               <Search className="h-4 w-4" />
-              <span>Contrôles & Vérifications</span>
-            </div>
-          </Link>
-
-          <Link
-            to="/admin?tab=historique"
-            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("historique")
-                ? "bg-uclouvain-blue text-white"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <History className="h-4 w-4" />
-              <span>Historique</span>
-            </div>
-          </Link>
-
-          <Link
-            to="/admin?tab=donnees-sensibles"
-            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("donnees-sensibles")
-                ? "bg-uclouvain-blue text-white"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <Database className="h-4 w-4" />
-              <span>Données sensibles</span>
+              <span>Vérifications qualité</span>
             </div>
           </Link>
         </div>

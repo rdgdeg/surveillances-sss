@@ -29,14 +29,11 @@ function getAdminContent(tab: string | null) {
   switch (tab) {
     case "examens":
       return <ExamenAdvancedManager />;
-    case "import-codes":
     case "planning":
     case "validations":
       return <ExamenReviewManager />;
     case "enseignant-view":
-      return <EnseignantViewManager />;
-    case "tokens-enseignants":
-      return <ExamenReviewManager />;
+      return <EnseignantViewManager />;  
     case "surveillants":
       return <SurveillantUnifiedManager />;
     case "pre-assignations":
@@ -47,10 +44,6 @@ function getAdminContent(tab: string | null) {
       return <FeatureLockManager />;
     case "gestion-utilisateurs":
       return <AdminUserManager />;
-    case "historique":
-      return <div className="text-gray-700">Historique des actions administratives (module à intégrer).</div>;
-    case "donnees-sensibles":
-      return <div className="text-gray-700">Gestion des données sensibles (accès restreint).</div>;
     case "suivi-confirm-enseignants":
       return <SuiviConfirmationEnseignants />;
     case "controles-verifications":
@@ -83,12 +76,35 @@ export default function AdminPage() {
         case "demandes-specifiques":
           navigate("/admin/demandes-specifiques", { replace: true });
           return;
+        // Redirection des anciens tabs supprimés
+        case "import-codes":
+          navigate("/admin/templates", { replace: true });
+          return;
+        case "tokens-enseignants":
+          // Rediriger vers suivi confirmations car plus pertinent
+          navigate("/admin?tab=suivi-confirm-enseignants", { replace: true });
+          return;
+        case "historique":
+        case "donnees-sensibles":
+          // Rediriger vers dashboard car non développés
+          navigate("/admin", { replace: true });
+          return;
       }
     }
   }, [currentTab, navigate]);
 
   // Si nous avons une redirection en cours, ne rien afficher
-  if (currentTab && ["disponibilites", "candidatures", "suivi-disponibilites", "matrice-disponibilites", "demandes-specifiques"].includes(currentTab)) {
+  if (currentTab && [
+    "disponibilites", 
+    "candidatures", 
+    "suivi-disponibilites", 
+    "matrice-disponibilites", 
+    "demandes-specifiques",
+    "import-codes",
+    "tokens-enseignants",
+    "historique",
+    "donnees-sensibles"
+  ].includes(currentTab)) {
     return null;
   }
 
