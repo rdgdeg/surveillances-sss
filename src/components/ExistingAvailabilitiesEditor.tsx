@@ -12,7 +12,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateWithDayBelgian } from "@/lib/dateUtils";
 import { CheckCircle, Calendar, Clock, Edit, Plus, Trash2 } from "lucide-react";
-import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
+import { useManualCreneaux } from "@/hooks/useManualCreneaux";
 
 interface ExistingAvailabilitiesEditorProps {
   surveillantId: string;
@@ -48,8 +48,8 @@ export const ExistingAvailabilitiesEditor = ({
   const [editingDisponibilites, setEditingDisponibilites] = useState<Record<string, Disponibilite>>({});
   const [newAvailabilities, setNewAvailabilities] = useState<Record<string, NewAvailabilitySlot>>({});
 
-  // Utiliser les créneaux optimisés pour harmoniser la logique
-  const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(sessionId);
+  // Utiliser les créneaux manuels pour avoir la même logique que dans GeneralAvailabilitiesManager
+  const { data: manualCreneaux = [] } = useManualCreneaux();
 
   // Charger les disponibilités existantes
   const { data: existingDisponibilites = [], isLoading } = useQuery({
@@ -68,18 +68,17 @@ export const ExistingAvailabilitiesEditor = ({
     }
   });
 
-  // Créer les créneaux disponibles à partir des créneaux optimisés
-  const availableSlots = optimizedCreneaux
-    .filter(slot => slot.type === 'surveillance')
-    .map(slot => ({
-      key: `${slot.date_examen}|${slot.heure_debut}|${slot.heure_fin}`,
-      date_examen: slot.date_examen,
-      heure_debut: slot.heure_debut,
-      heure_fin: slot.heure_fin,
-      label: `${formatDateWithDayBelgian(slot.date_examen)} ${slot.heure_debut}-${slot.heure_fin}`
-    }));
+  // Créer les créneaux disponibles à partir des créneaux manuels validés
+  const availableSlots = manualCreneaux.map(creneau => ({
+    key: `${creneau.date}|${creneau.heure_debut}|${creneau.heure_fin}`,
+    date_examen: creneau.date,
+    heure_debut: creneau.heure_debut,
+    heure_fin: creneau.heure_fin,
+    label: `${formatDateWithDayBelgian(creneau.date)} ${creneau.heure_debut}-${creneau.heure_fin}`,
+    examens: creneau.examens
+  }));
 
-  console.log(`[ExistingAvailabilitiesEditor] Generated ${availableSlots.length} available slots from optimized creneaux`);
+  console.log(`[ExistingAvailabilitiesEditor] Generated ${availableSlots.length} available slots from manual creneaux`);
 
   // Initialiser les disponibilités en cours d'édition
   useEffect(() => {
@@ -145,6 +144,7 @@ export const ExistingAvailabilitiesEditor = ({
         description: "Vos disponibilités ont été mises à jour avec succès.",
       });
       queryClient.invalidateQueries({ queryKey: ['existing-disponibilites'] });
+      queryClient.invalidateQueries({ queryKey: ['surveillants-with-disponibilites'] });
       onComplete();
     },
     onError: (error) => {
@@ -173,6 +173,7 @@ export const ExistingAvailabilitiesEditor = ({
         description: "La disponibilité a été supprimée avec succès.",
       });
       queryClient.invalidateQueries({ queryKey: ['existing-disponibilites'] });
+      queryClient.invalidateQueries({ queryKey: ['surveillants-with-disponibilites'] });
     },
     onError: (error) => {
       console.error('[ExistingAvailabilitiesEditor] Error deleting availability:', error);
@@ -263,6 +264,23 @@ export const ExistingAvailabilitiesEditor = ({
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
+            {/* Message informatif sur les créneaux disponibles */}
+            {availableSlots.length === 0 ? (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <p className="text-orange-800">
+                  Aucun créneau de surveillance n'est actuellement configuré et validé pour cette session. 
+                  Les créneaux apparaîtront ici une fois que les examens auront été associés aux créneaux de surveillance.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-blue-800">
+                  {availableSlots.length} créneaux de surveillance sont disponibles pour cette session, 
+                  basés sur les examens validés et les créneaux configurés.
+                </p>
+              </div>
+            )}
+
             {/* Disponibilités existantes */}
             {existingDisponibilites.length > 0 && (
               <div className="space-y-4">
@@ -280,6 +298,21 @@ export const ExistingAvailabilitiesEditor = ({
                           <span className="text-gray-700">
                             {dispo.heure_debut} - {dispo.heure_fin}
                           </span>
+                          
+                          {/* Afficher les examens associés à ce créneau */}
+                          {(() => {
+                            const slotKey = `${dispo.date_examen}|${dispo.heure_debut}|${dispo.heure_fin}`;
+                            const correspondingSlot = availableSlots.find(slot => slot.key === slotKey);
+                            return correspondingSlot && correspondingSlot.examens.length > 0 ? (
+                              <Badge variant="outline" className="ml-2">
+                                {correspondingSlot.examens.length} examen(s)
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="ml-2">
+                                Créneau obsolète
+                              </Badge>
+                            );
+                          })()}
                         </div>
                         <Button
                           variant="outline"
@@ -355,6 +388,11 @@ export const ExistingAvailabilitiesEditor = ({
                             <Badge variant="outline" className="border-green-500 text-green-700">
                               Nouveau
                             </Badge>
+                            {slot.examens.length > 0 && (
+                              <Badge variant="outline" className="ml-2">
+                                {slot.examens.length} examen(s)
+                              </Badge>
+                            )}
                           </div>
                           <Button
                             variant="outline"
@@ -417,6 +455,11 @@ export const ExistingAvailabilitiesEditor = ({
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-4 w-4 text-gray-500" />
                         <span>{slot.label}</span>
+                        {slot.examens.length > 0 && (
+                          <Badge variant="outline" className="ml-2">
+                            {slot.examens.length} examen(s)
+                          </Badge>
+                        )}
                       </div>
                       <Button
                         variant="outline"
@@ -430,6 +473,17 @@ export const ExistingAvailabilitiesEditor = ({
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Message si aucun créneau disponible */}
+            {availableSlots.length === 0 && existingDisponibilites.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>Aucun créneau de surveillance disponible pour cette session.</p>
+                <p className="text-sm mt-2">
+                  Les créneaux apparaîtront une fois que les examens auront été validés et associés aux créneaux de surveillance.
+                </p>
               </div>
             )}
 
