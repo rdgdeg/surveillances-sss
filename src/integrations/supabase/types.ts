@@ -1285,6 +1285,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      can_manage_surveillant: {
+        Args: { surveillant_email: string }
+        Returns: boolean
+      }
       classifier_code_examen: {
         Args: { code_original: string }
         Returns: {

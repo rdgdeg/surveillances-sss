@@ -24,17 +24,19 @@ import { CreneauRow } from "./CreneauRow";
 import { Input } from "@/components/ui/input";
 import { AmenesSurveillantsFields } from "./AmenesSurveillantsFields";
 import { CommentaireDisponibiliteModal } from "./CommentaireDisponibiliteModal";
+import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
 
-interface ExamenSlot {
-  id: string;
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-}
-
-interface PersonneAmenee {
+interface PersonnieAmenee {
   nom: string;
   prenom: string;
+}
+
+interface TimeSlot {
+  date: string;
+  heure_debut: string;
+  heure_fin: string;
+  label: string;
+  heure_debut_surveillance?: string;
 }
 
 export const CollecteSurveillants = () => {
@@ -72,6 +74,9 @@ export const CollecteSurveillants = () => {
     }
   });
 
+  // Utiliser les créneaux optimisés pour harmoniser la logique
+  const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(activeSession?.id || null);
+
   // Vérifier l'email et charger le profil surveillant
   useEffect(() => {
     if (!email || !activeSession) return;
@@ -106,51 +111,18 @@ export const CollecteSurveillants = () => {
     return () => { isCancelled = true; };
   }, [email, activeSession]);
 
-  // Récupérer les examens pour créer les créneaux - sans détails des examens
-  const { data: examens } = useQuery({
-    queryKey: ['examens-creneaux-only', activeSession?.id],
-    queryFn: async (): Promise<ExamenSlot[]> => {
-      if (!activeSession?.id) return [];
+  // Créer les créneaux à partir des créneaux optimisés
+  const timeSlots: TimeSlot[] = optimizedCreneaux
+    .filter(slot => slot.type === 'surveillance')
+    .map(slot => ({
+      date: slot.date_examen,
+      heure_debut: slot.heure_debut,
+      heure_fin: slot.heure_fin,
+      heure_debut_surveillance: slot.heure_debut_surveillance,
+      label: `${slot.date_examen} ${slot.heure_debut}-${slot.heure_fin}`
+    }));
 
-      const { data, error } = await supabase
-        .from('examens')
-        .select('id, date_examen, heure_debut, heure_fin')
-        .eq('session_id', activeSession.id)
-        .eq('statut_validation', 'VALIDE')
-        .order('date_examen')
-        .order('heure_debut');
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!activeSession?.id
-  });
-
-  // Créer les créneaux uniques
-  let uniqueCreneaux: {
-    examenIds: string[];
-    date_examen: string;
-    heure_debut: string;
-    heure_fin: string;
-  }[] = [];
-
-  if (examens && examens.length > 0) {
-    const creneauMap = new Map();
-    for (const ex of examens) {
-      const key = `${ex.date_examen}_${ex.heure_debut}_${ex.heure_fin}`;
-      if (creneauMap.has(key)) {
-        creneauMap.get(key).examenIds.push(ex.id);
-      } else {
-        creneauMap.set(key, {
-          examenIds: [ex.id],
-          date_examen: ex.date_examen,
-          heure_debut: ex.heure_debut,
-          heure_fin: ex.heure_fin,
-        });
-      }
-    }
-    uniqueCreneaux = Array.from(creneauMap.values());
-  }
+  console.log(`[CollecteSurveillants] Generated ${timeSlots.length} time slots from optimized creneaux`);
 
   // Charger les disponibilités existantes
   useEffect(() => {
@@ -297,10 +269,10 @@ export const CollecteSurveillants = () => {
   // Ajout état pour check présence et gestion personnes amenées
   const [isPresentSelf, setIsPresentSelf] = useState(true); // Présence par défaut = true 
   const [nbAmenes, setNbAmenes] = useState(0);
-  const [personnesAmenes, setPersonnesAmenes] = useState<PersonneAmenee[]>([]);
+  const [personnesAmenes, setPersonnesAmenes] = useState<PersonnieAmenee[]>([]);
 
   // Calcule le nombre total de surveillants à trouver
-  const nombreSurveillantsTotaux = uniqueCreneaux?.length || 0;
+  const nombreSurveillantsTotaux = timeSlots?.length || 0;
 
   // Affichage conditionnel
   if (!email) {
@@ -409,14 +381,19 @@ export const CollecteSurveillants = () => {
     );
   }
 
-  const creneauRows = (uniqueCreneaux || []).map(creneau => {
-    const key = `${creneau.date_examen}|${creneau.heure_debut}|${creneau.heure_fin}`;
+  const creneauRows = timeSlots.map(slot => {
+    const key = `${slot.date}|${slot.heure_debut}|${slot.heure_fin}`;
     const value = newDispos[key] || { dispo: false, type_choix: 'souhaitee', nom_examen_selectionne: "" };
     return (
       <CreneauRow
         key={key}
         creneauKey={key}
-        creneau={creneau}
+        creneau={{
+          date_examen: slot.date,
+          heure_debut: slot.heure_debut,
+          heure_fin: slot.heure_fin,
+          examenIds: [] // Pas besoin des IDs pour l'affichage
+        }}
         value={value}
         onDisponibleChange={handleDisponibleChange}
         onTypeChange={handleTypeChange}

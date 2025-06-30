@@ -2,162 +2,160 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-interface ExamenSlot {
-  id: string;
+export interface OptimizedCreneau {
+  type: 'surveillance' | 'examen';
   date_examen: string;
   heure_debut: string;
   heure_fin: string;
-  matiere: string;
-  salle: string;
+  heure_debut_surveillance?: string;
+  examens: Array<{
+    id: string;
+    code_examen: string;
+    matiere: string;
+    salle: string;
+    heure_debut: string;
+    heure_fin: string;
+    nombre_surveillants: number;
+    surveillants_enseignant: number;
+    surveillants_amenes: number;
+    surveillants_pre_assignes: number;
+  }>;
 }
 
-interface TimeSlot {
-  date_examen: string;
-  heure_debut: string;
-  heure_fin: string;
-  examens: ExamenSlot[];
-  type: 'surveillance' | 'examen';
-  heure_debut_surveillance?: string; // Heure de début de surveillance (45 min avant)
-}
+// Créneaux fixes étendus pour une meilleure couverture
+const CRENEAUX_FIXES = [
+  { debut: '07:30', fin: '10:30' },
+  { debut: '07:30', fin: '11:30' },
+  { debut: '07:30', fin: '12:30' },
+  { debut: '07:30', fin: '13:30' },
+  { debut: '08:30', fin: '11:30' },
+  { debut: '08:30', fin: '12:30' },
+  { debut: '08:30', fin: '13:30' },
+  { debut: '09:30', fin: '12:30' },
+  { debut: '09:30', fin: '13:30' },
+  { debut: '10:30', fin: '13:30' },
+  { debut: '12:15', fin: '15:00' }, // Ajouté pour les examens 13h-15h
+  { debut: '12:15', fin: '16:00' }, // Ajouté pour les examens 13h-16h
+  { debut: '12:15', fin: '17:00' },
+  { debut: '12:15', fin: '18:00' }, // Couverture maximale
+  { debut: '13:15', fin: '16:00' },
+  { debut: '13:15', fin: '17:00' },
+  { debut: '13:15', fin: '18:00' },
+  { debut: '14:15', fin: '17:00' },
+  { debut: '14:15', fin: '18:00' },
+  { debut: '15:15', fin: '18:00' },
+  { debut: '16:15', fin: '19:00' },
+  { debut: '17:15', fin: '20:00' },
+  { debut: '18:15', fin: '21:00' },
+];
 
 export const useOptimizedCreneaux = (sessionId: string | null) => {
   return useQuery({
     queryKey: ['optimized-creneaux', sessionId],
-    queryFn: async (): Promise<TimeSlot[]> => {
+    queryFn: async (): Promise<OptimizedCreneau[]> => {
       if (!sessionId) return [];
-
+      
+      console.log('[useOptimizedCreneaux] Fetching examens for session:', sessionId);
+      
       const { data: examens, error } = await supabase
         .from('examens')
-        .select('id, date_examen, heure_debut, heure_fin, matiere, salle')
+        .select(`
+          id, code_examen, matiere, salle, date_examen, heure_debut, heure_fin,
+          nombre_surveillants, surveillants_enseignant, surveillants_amenes, surveillants_pre_assignes
+        `)
         .eq('session_id', sessionId)
         .eq('is_active', true)
         .eq('statut_validation', 'VALIDE')
         .order('date_examen')
         .order('heure_debut');
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useOptimizedCreneaux] Error fetching examens:', error);
+        throw error;
+      }
 
-      // Définir les créneaux de surveillance fixes
-      const creneauxSurveillance = [
-        { debut: '08:15', fin: '11:00' },
-        { debut: '08:15', fin: '12:00' },
-        { debut: '12:15', fin: '15:00' },
-        { debut: '15:15', fin: '18:00' },
-        { debut: '15:45', fin: '18:30' }
-      ];
+      console.log('[useOptimizedCreneaux] Found examens:', examens?.length || 0);
 
-      // Fonction helper pour convertir time en minutes
-      const toMinutes = (time: string) => {
-        const [h, m] = time.split(':').map(Number);
-        return h * 60 + m;
-      };
-
-      // Fonction pour convertir minutes en time
-      const toTimeString = (minutes: number) => {
-        const h = Math.floor(minutes / 60);
-        const m = minutes % 60;
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
-      };
-
-      // Fonction pour vérifier si un examen est couvert par un créneau
-      const verifierCouverture = (examen: any, creneau: any): boolean => {
-        const creneauDebutMin = toMinutes(creneau.debut);
-        const creneauFinMin = toMinutes(creneau.fin);
-        const examDebutMin = toMinutes(examen.heure_debut);
-        const examFinMin = toMinutes(examen.heure_fin);
-
-        // L'examen doit commencer au plus tôt 45 minutes après le début du créneau
-        const debutSurveillanceMin = examDebutMin - 45;
-        return debutSurveillanceMin >= creneauDebutMin && examFinMin <= creneauFinMin;
-      };
+      if (!examens || examens.length === 0) {
+        return [];
+      }
 
       // Grouper les examens par date
-      const examensParDate = examens?.reduce((acc: Record<string, any[]>, examen) => {
+      const examensByDate = examens.reduce((acc, examen) => {
         if (!acc[examen.date_examen]) {
           acc[examen.date_examen] = [];
         }
         acc[examen.date_examen].push(examen);
         return acc;
-      }, {}) || {};
+      }, {} as Record<string, typeof examens>);
 
-      const timeSlots: TimeSlot[] = [];
+      const optimizedCreneaux: OptimizedCreneau[] = [];
 
-      Object.entries(examensParDate).forEach(([date, examensJour]) => {
-        // 1. Créer les créneaux d'examens réels (nouveauté)
-        const groupesExamens = new Map<string, any[]>();
+      // Pour chaque date, créer les créneaux optimisés
+      Object.entries(examensByDate).forEach(([date, examensDate]) => {
+        console.log(`[useOptimizedCreneaux] Processing date ${date} with ${examensDate.length} examens`);
         
-        examensJour.forEach(examen => {
-          const cleGroupe = `${examen.heure_debut}-${examen.heure_fin}`;
-          if (!groupesExamens.has(cleGroupe)) {
-            groupesExamens.set(cleGroupe, []);
-          }
-          groupesExamens.get(cleGroupe)!.push(examen);
-        });
-
-        // Ajouter les créneaux d'examens réels
-        Array.from(groupesExamens.entries()).forEach(([cleGroupe, examensGroupe]) => {
-          const [heure_debut, heure_fin] = cleGroupe.split('-');
-          timeSlots.push({
-            date_examen: date,
-            heure_debut,
-            heure_fin,
-            examens: examensGroupe,
-            type: 'examen'
-          });
-        });
-
-        // 2. Créer les créneaux de surveillance optimisés (existant)
-        const creneauxUtilises = new Map<string, TimeSlot>();
+        // Créer les créneaux de surveillance basés sur les créneaux fixes
+        const creneauxSurveillanceUtilises = new Set<string>();
         
-        Array.from(groupesExamens.values()).forEach(groupeExamens => {
-          // Trouver tous les créneaux compatibles pour ce groupe
-          const creneauxCompatibles = creneauxSurveillance.filter(creneau => 
-            groupeExamens.every(examen => verifierCouverture(examen, creneau))
-          );
+        examensDate.forEach(examen => {
+          console.log(`[useOptimizedCreneaux] Processing examen ${examen.code_examen} ${examen.heure_debut}-${examen.heure_fin}`);
           
-          if (creneauxCompatibles.length > 0) {
-            // Prendre le créneau le plus court qui couvre tous les examens du groupe
-            const creneauOptimal = creneauxCompatibles.sort((a, b) => {
-              const dureeA = toMinutes(a.fin) - toMinutes(a.debut);
-              const dureeB = toMinutes(b.fin) - toMinutes(b.debut);
-              return dureeA - dureeB;
-            })[0];
+          // Trouver les créneaux fixes qui peuvent couvrir cet examen
+          const creneauxCompatibles = CRENEAUX_FIXES.filter(creneau => {
+            const examDebut = parseInt(examen.heure_debut.replace(':', ''));
+            const examFin = parseInt(examen.heure_fin.replace(':', ''));
+            const creneauDebut = parseInt(creneau.debut.replace(':', ''));
+            const creneauFin = parseInt(creneau.fin.replace(':', ''));
             
-            const creneauKey = `${date}-${creneauOptimal.debut}-${creneauOptimal.fin}`;
+            // Le créneau doit commencer avant l'examen et finir après ou en même temps
+            return creneauDebut <= examDebut && creneauFin >= examFin;
+          });
+          
+          console.log(`[useOptimizedCreneaux] Found ${creneauxCompatibles.length} compatible slots for ${examen.code_examen}`);
+          
+          // Pour chaque créneau compatible, créer ou enrichir le créneau optimisé
+          creneauxCompatibles.forEach(creneau => {
+            const creneauKey = `${date}_${creneau.debut}_${creneau.fin}`;
             
-            if (!creneauxUtilises.has(creneauKey)) {
-              // Calculer l'heure de début de surveillance (45 min avant le premier examen)
-              const premierExamenDebut = Math.min(...groupeExamens.map(e => toMinutes(e.heure_debut)));
-              const debutSurveillance = toTimeString(premierExamenDebut - 45);
+            if (!creneauxSurveillanceUtilises.has(creneauKey)) {
+              creneauxSurveillanceUtilises.add(creneauKey);
               
-              creneauxUtilises.set(creneauKey, {
+              // Trouver tous les examens qui peuvent être couverts par ce créneau
+              const examensCouverts = examensDate.filter(ex => {
+                const examDebut = parseInt(ex.heure_debut.replace(':', ''));
+                const examFin = parseInt(ex.heure_fin.replace(':', ''));
+                const creneauDebut = parseInt(creneau.debut.replace(':', ''));
+                const creneauFin = parseInt(creneau.fin.replace(':', ''));
+                
+                return creneauDebut <= examDebut && creneauFin >= examFin;
+              });
+              
+              console.log(`[useOptimizedCreneaux] Créneau ${creneau.debut}-${creneau.fin} covers ${examensCouverts.length} examens`);
+              
+              optimizedCreneaux.push({
+                type: 'surveillance',
                 date_examen: date,
-                heure_debut: creneauOptimal.debut,
-                heure_fin: creneauOptimal.fin,
-                heure_debut_surveillance: debutSurveillance,
-                examens: [],
-                type: 'surveillance'
+                heure_debut: creneau.debut,
+                heure_fin: creneau.fin,
+                heure_debut_surveillance: creneau.debut,
+                examens: examensCouverts
               });
             }
-            
-            // Ajouter tous les examens du groupe à ce créneau
-            creneauxUtilises.get(creneauKey)!.examens.push(...groupeExamens);
-          }
+          });
         });
-
-        // Ajouter les créneaux de surveillance de cette date au résultat final
-        timeSlots.push(...Array.from(creneauxUtilises.values()));
       });
 
-      return timeSlots.sort((a, b) => {
+      console.log(`[useOptimizedCreneaux] Generated ${optimizedCreneaux.length} optimized surveillance slots`);
+      
+      // Trier par date puis par heure
+      optimizedCreneaux.sort((a, b) => {
         const dateCompare = a.date_examen.localeCompare(b.date_examen);
         if (dateCompare !== 0) return dateCompare;
-        // Trier par type (examens avant surveillance) puis par heure
-        if (a.type !== b.type) {
-          return a.type === 'examen' ? -1 : 1;
-        }
         return a.heure_debut.localeCompare(b.heure_debut);
       });
+
+      return optimizedCreneaux;
     },
     enabled: !!sessionId
   });
