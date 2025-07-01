@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Users, Calendar, Clock, MapPin, BookOpen, FileText, Filter, ArrowUpDown } from 'lucide-react';
-import { format } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Search, Users, Calendar, Clock, MapPin, BookOpen, FileText, Filter, ArrowUpDown, ChevronDown, ChevronRight } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 export const PlanningGeneral = () => {
@@ -19,6 +20,7 @@ export const PlanningGeneral = () => {
   const [selectedFaculte, setSelectedFaculte] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
   
   const { data: sessions = [] } = useSessions();
   const { data: planningItems = [], isLoading } = usePlanningGeneral(selectedSessionId, searchTerm);
@@ -40,7 +42,12 @@ export const PlanningGeneral = () => {
 
   // Fonction de tri
   const sortedItems = [...filteredItems].sort((a, b) => {
-    if (!sortBy) return 0;
+    if (!sortBy) {
+      // Tri par défaut : date puis heure de début
+      const dateA = new Date(`${a.date_examen}T${a.heure_debut}`);
+      const dateB = new Date(`${b.date_examen}T${b.heure_debut}`);
+      return dateA.getTime() - dateB.getTime();
+    }
 
     let aValue: any;
     let bValue: any;
@@ -88,6 +95,31 @@ export const PlanningGeneral = () => {
     return 0;
   });
 
+  // Grouper les examens par semaine
+  const examensParSemaine = sortedItems.reduce((acc, item) => {
+    const dateExamen = parseISO(item.date_examen);
+    const debutSemaine = startOfWeek(dateExamen, { locale: fr, weekStartsOn: 1 });
+    const finSemaine = endOfWeek(dateExamen, { locale: fr, weekStartsOn: 1 });
+    
+    const cléSemaine = format(debutSemaine, 'yyyy-MM-dd', { locale: fr });
+    const labelSemaine = `${format(debutSemaine, 'dd MMM', { locale: fr })} - ${format(finSemaine, 'dd MMM yyyy', { locale: fr })}`;
+    
+    if (!acc[cléSemaine]) {
+      acc[cléSemaine] = {
+        label: labelSemaine,
+        dateDebut: debutSemaine,
+        examens: []
+      };
+    }
+    
+    acc[cléSemaine].examens.push(item);
+    return acc;
+  }, {} as Record<string, { label: string; dateDebut: Date; examens: typeof sortedItems }>);
+
+  // Trier les semaines par date
+  const semainesTriees = Object.entries(examensParSemaine)
+    .sort(([, a], [, b]) => a.dateDebut.getTime() - b.dateDebut.getTime());
+
   const handleSort = (column: string) => {
     if (sortBy === column) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -95,6 +127,24 @@ export const PlanningGeneral = () => {
       setSortBy(column);
       setSortOrder('asc');
     }
+  };
+
+  const toggleWeekExpansion = (weekKey: string) => {
+    const newExpanded = new Set(expandedWeeks);
+    if (newExpanded.has(weekKey)) {
+      newExpanded.delete(weekKey);
+    } else {
+      newExpanded.add(weekKey);
+    }
+    setExpandedWeeks(newExpanded);
+  };
+
+  const expandAllWeeks = () => {
+    setExpandedWeeks(new Set(Object.keys(examensParSemaine)));
+  };
+
+  const collapseAllWeeks = () => {
+    setExpandedWeeks(new Set());
   };
 
   const formatDate = (dateString: string) => {
@@ -151,7 +201,7 @@ export const PlanningGeneral = () => {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Planning Général des Examens</h1>
           <p className="text-gray-600">
-            Liste complète des examens importés avec détail par auditoire
+            Liste complète des examens importés avec détail par auditoire, organisée par semaine
           </p>
         </div>
 
@@ -244,7 +294,7 @@ export const PlanningGeneral = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>Planning Complet des Examens</span>
+                <span>Planning Complet des Examens par Semaine</span>
                 <div className="flex items-center space-x-4">
                   {selectedFaculte !== 'all' && (
                     <Badge variant="outline" className="flex items-center space-x-1">
@@ -254,8 +304,26 @@ export const PlanningGeneral = () => {
                   )}
                   <Badge variant="outline" className="flex items-center space-x-1">
                     <Calendar className="h-3 w-3" />
-                    <span>{sortedItems.length} lignes</span>
+                    <span>{sortedItems.length} examens</span>
                   </Badge>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={expandAllWeeks}
+                      disabled={Object.keys(examensParSemaine).length === 0}
+                    >
+                      Tout développer
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={collapseAllWeeks}
+                      disabled={Object.keys(examensParSemaine).length === 0}
+                    >
+                      Tout réduire
+                    </Button>
+                  </div>
                 </div>
               </CardTitle>
             </CardHeader>
@@ -271,127 +339,156 @@ export const PlanningGeneral = () => {
                   </p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <SortableHeader column="date">
-                          <Calendar className="h-4 w-4" />
-                          <span>Date</span>
-                        </SortableHeader>
-                        <TableHead className="min-w-[100px]">
-                          <div className="flex items-center space-x-1">
-                            <Clock className="h-4 w-4" />
-                            <span>Horaire</span>
-                          </div>
-                        </TableHead>
-                        <SortableHeader column="matiere">
-                          <span>Matière</span>
-                        </SortableHeader>
-                        <SortableHeader column="auditoire">
-                          <MapPin className="h-4 w-4" />
-                          <span>Auditoire</span>
-                        </SortableHeader>
-                        <SortableHeader column="faculte">
-                          <BookOpen className="h-4 w-4" />
-                          <span>Faculté</span>
-                        </SortableHeader>
-                        <SortableHeader column="surveillants">
-                          <Users className="h-4 w-4" />
-                          <span>Surveillants</span>
-                        </SortableHeader>
-                        <TableHead className="min-w-[120px]">
-                          <div className="flex items-center space-x-1">
-                            <FileText className="h-4 w-4" />
-                            <span>Consignes</span>
-                          </div>
-                        </TableHead>
-                        <SortableHeader column="statut">
-                          <span>Statut</span>
-                        </SortableHeader>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sortedItems.map((item) => (
-                        <TableRow key={item.id} className="hover:bg-gray-50">
-                          <TableCell className="font-medium">
-                            {formatDate(item.date_examen)}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col text-sm">
-                              <span>{formatTime(item.heure_debut)}</span>
-                              <span className="text-gray-500">→ {formatTime(item.heure_fin)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div>
-                              <div className="font-medium">{item.matiere}</div>
-                              {item.code_examen && (
-                                <div className="text-sm text-gray-500">{item.code_examen}</div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="font-mono">
-                              {item.auditoire}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {item.faculte ? (
-                              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                                {item.faculte}
-                              </Badge>
+                <div className="space-y-4">
+                  {semainesTriees.map(([weekKey, weekData]) => (
+                    <div key={weekKey} className="border rounded-lg overflow-hidden">
+                      <div
+                        className="bg-gray-50 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => toggleWeekExpansion(weekKey)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            {expandedWeeks.has(weekKey) ? (
+                              <ChevronDown className="h-4 w-4" />
                             ) : (
-                              <span className="text-gray-500 italic text-sm">Non renseigné</span>
+                              <ChevronRight className="h-4 w-4" />
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              {/* Afficher les surveillants seulement sur la ligne principale */}
-                              {item.is_main_exam_row ? (
-                                <>
-                                  {item.surveillants.length > 0 ? (
-                                    item.surveillants.map((surveillant) => (
-                                      <div key={surveillant.id} className="flex items-center space-x-2">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                        <span className="text-sm">
-                                          {surveillant.prenom} {surveillant.nom}
-                                        </span>
-                                      </div>
-                                    ))
-                                  ) : (
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Semaine du {weekData.label}
+                            </h3>
+                            <Badge variant="secondary">
+                              {weekData.examens.length} examen{weekData.examens.length > 1 ? 's' : ''}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {expandedWeeks.has(weekKey) && (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="bg-gray-50">
+                                <SortableHeader column="date">
+                                  <Calendar className="h-4 w-4" />
+                                  <span>Date</span>
+                                </SortableHeader>
+                                <TableHead className="min-w-[100px]">
+                                  <div className="flex items-center space-x-1">
+                                    <Clock className="h-4 w-4" />
+                                    <span>Horaire</span>
+                                  </div>
+                                </TableHead>
+                                <SortableHeader column="matiere">
+                                  <span>Matière</span>
+                                </SortableHeader>
+                                <SortableHeader column="auditoire">
+                                  <MapPin className="h-4 w-4" />
+                                  <span>Auditoire</span>
+                                </SortableHeader>
+                                <SortableHeader column="faculte">
+                                  <BookOpen className="h-4 w-4" />
+                                  <span>Faculté</span>
+                                </SortableHeader>
+                                <SortableHeader column="surveillants">
+                                  <Users className="h-4 w-4" />
+                                  <span>Surveillants</span>
+                                </SortableHeader>
+                                <TableHead className="min-w-[120px]">
+                                  <div className="flex items-center space-x-1">
+                                    <FileText className="h-4 w-4" />
+                                    <span>Consignes</span>
+                                  </div>
+                                </TableHead>
+                                <SortableHeader column="statut">
+                                  <span>Statut</span>
+                                </SortableHeader>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {weekData.examens.map((item) => (
+                                <TableRow key={item.id} className="hover:bg-gray-50">
+                                  <TableCell className="font-medium">
+                                    {formatDate(item.date_examen)}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col text-sm">
+                                      <span>{formatTime(item.heure_debut)}</span>
+                                      <span className="text-gray-500">→ {formatTime(item.heure_fin)}</span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div>
+                                      <div className="font-medium">{item.matiere}</div>
+                                      {item.code_examen && (
+                                        <div className="text-sm text-gray-500">{item.code_examen}</div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant="outline" className="font-mono">
+                                      {item.auditoire}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    {item.faculte ? (
+                                      <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                                        {item.faculte}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-gray-500 italic text-sm">Non renseigné</span>
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="space-y-1">
+                                      {/* Afficher les surveillants seulement sur la ligne principale */}
+                                      {item.is_main_exam_row ? (
+                                        <>
+                                          {item.surveillants.length > 0 ? (
+                                            item.surveillants.map((surveillant) => (
+                                              <div key={surveillant.id} className="flex items-center space-x-2">
+                                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                <span className="text-sm">
+                                                  {surveillant.prenom} {surveillant.nom}
+                                                </span>
+                                              </div>
+                                            ))
+                                          ) : (
+                                            <div className="flex items-center space-x-2 text-blue-600">
+                                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                              <span className="text-sm italic">À venir</span>
+                                            </div>
+                                          )}
+                                          <div className="text-xs text-gray-500 mt-1">
+                                            Total besoin: {item.besoin_reel_total}
+                                            {item.pre_assignes_total > 0 && (
+                                              <span className="block">Pré-assignés: {item.pre_assignes_total}</span>
+                                            )}
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <div className="text-xs text-gray-400 italic">
+                                          Même examen (voir ligne principale)
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
                                     <div className="flex items-center space-x-2 text-blue-600">
-                                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                      <FileText className="h-3 w-3" />
                                       <span className="text-sm italic">À venir</span>
                                     </div>
-                                  )}
-                                  <div className="text-xs text-gray-500 mt-1">
-                                    Total besoin: {item.besoin_reel_total}
-                                    {item.pre_assignes_total > 0 && (
-                                      <span className="block">Pré-assignés: {item.pre_assignes_total}</span>
-                                    )}
-                                  </div>
-                                </>
-                              ) : (
-                                <div className="text-xs text-gray-400 italic">
-                                  Même examen (voir ligne principale)
-                                </div>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center space-x-2 text-blue-600">
-                              <FileText className="h-3 w-3" />
-                              <span className="text-sm italic">À venir</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            {getStatutBadge(item.statut_validation)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                                  </TableCell>
+                                  <TableCell>
+                                    {getStatutBadge(item.statut_validation)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
