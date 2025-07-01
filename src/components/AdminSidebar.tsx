@@ -60,10 +60,10 @@ export function AdminSidebar() {
           </div>
         </Link>
 
-        {/* Examens & Planning */}
+        {/* 🏗️ Configuration */}
         <div className="space-y-1">
-          <h3 className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Examens & Planning
+          <h3 className="px-3 py-2 text-xs font-semibold text-blue-600 uppercase tracking-wider">
+            🏗️ Configuration
           </h3>
           
           <Link
@@ -81,16 +81,16 @@ export function AdminSidebar() {
           </Link>
 
           <Link
-            to="/admin?tab=planning"
+            to="/admin?tab=controles-verifications"
             className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("planning") || isActiveTab("validations")
+              isActiveTab("controles-verifications")
                 ? "bg-uclouvain-blue text-white"
                 : "text-gray-700 hover:bg-gray-100"
             }`}
           >
             <div className="flex items-center space-x-2">
-              <Calendar className="h-4 w-4" />
-              <span>Planning & Validations</span>
+              <Settings className="h-4 w-4" />
+              <span>Créneaux & Planning</span>
             </div>
           </Link>
 
@@ -107,90 +107,6 @@ export function AdminSidebar() {
               <span>Templates & Import</span>
             </div>
           </Link>
-        </div>
-
-        {/* Surveillance */}
-        <div className="space-y-1">
-          <h3 className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Surveillance
-          </h3>
-          
-          <Link
-            to="/admin?tab=surveillants"
-            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("surveillants")
-                ? "bg-uclouvain-blue text-white"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <Users className="h-4 w-4" />
-              <span>Surveillants</span>
-            </div>
-          </Link>
-
-          <Link
-            to="/admin/disponibilites"
-            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveSection("/admin/disponibilites") || pathname.startsWith("/admin/disponibilites")
-                ? "bg-uclouvain-blue text-white"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <Clock className="h-4 w-4" />
-              <span>Disponibilités</span>
-            </div>
-          </Link>
-
-          <Link
-            to="/admin?tab=pre-assignations"
-            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("pre-assignations")
-                ? "bg-uclouvain-blue text-white"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <Target className="h-4 w-4" />
-              <span>Pré-assignations</span>
-            </div>
-          </Link>
-
-          <Link
-            to="/admin/demandes-specifiques"
-            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveSection("/admin/demandes-specifiques")
-                ? "bg-uclouvain-blue text-white"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <MessageSquare className="h-4 w-4" />
-              <span>Demandes spécifiques</span>
-            </div>
-          </Link>
-        </div>
-
-        {/* Configuration */}
-        <div className="space-y-1">
-          <h3 className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Configuration
-          </h3>
-          
-          <Link
-            to="/admin?tab=controles-verifications"
-            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("controles-verifications")
-                ? "bg-uclouvain-blue text-white"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <CalendarDays className="h-4 w-4" />
-              <span>Créneaux de surveillance</span>
-            </div>
-          </Link>
 
           <Link
             to="/admin?tab=contraintes"
@@ -205,42 +121,28 @@ export function AdminSidebar() {
               <span>Contraintes auditoires</span>
             </div>
           </Link>
-
-          <Link
-            to="/admin?tab=feature-locks"
-            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("feature-locks")
-                ? "bg-uclouvain-blue text-white"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <Lock className="h-4 w-4" />
-              <span>Verrouillages</span>
-            </div>
-          </Link>
-
-          <Link
-            to="/admin?tab=gestion-utilisateurs"
-            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-              isActiveTab("gestion-utilisateurs")
-                ? "bg-uclouvain-blue text-white"
-                : "text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <div className="flex items-center space-x-2">
-              <Shield className="h-4 w-4" />
-              <span>Gestion utilisateurs</span>
-            </div>
-          </Link>
         </div>
 
-        {/* Enseignants */}
+        {/* ✅ Validation */}
         <div className="space-y-1">
-          <h3 className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Enseignants
+          <h3 className="px-3 py-2 text-xs font-semibold text-green-600 uppercase tracking-wider">
+            ✅ Validation
           </h3>
           
+          <Link
+            to="/admin?tab=planning"
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActiveTab("planning") || isActiveTab("validations")
+                ? "bg-uclouvain-blue text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Calendar className="h-4 w-4" />
+              <span>Validation examens</span>
+            </div>
+          </Link>
+
           <Link
             to="/admin?tab=enseignant-view"
             className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -270,12 +172,103 @@ export function AdminSidebar() {
           </Link>
         </div>
 
-        {/* Contrôles */}
+        {/* 👥 Surveillance */}
         <div className="space-y-1">
-          <h3 className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-            Contrôles & Données
+          <h3 className="px-3 py-2 text-xs font-semibold text-purple-600 uppercase tracking-wider">
+            👥 Surveillance
           </h3>
           
+          <Link
+            to="/admin/disponibilites"
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActiveSection("/admin/disponibilites") || pathname.startsWith("/admin/disponibilites")
+                ? "bg-uclouvain-blue text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Clock className="h-4 w-4" />
+              <span>Disponibilités</span>
+            </div>
+          </Link>
+
+          <Link
+            to="/admin?tab=surveillants"
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActiveTab("surveillants")
+                ? "bg-uclouvain-blue text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Users className="h-4 w-4" />
+              <span>Surveillants</span>
+            </div>
+          </Link>
+
+          <Link
+            to="/admin?tab=pre-assignations"
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActiveTab("pre-assignations")
+                ? "bg-uclouvain-blue text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Target className="h-4 w-4" />
+              <span>Attributions</span>
+            </div>
+          </Link>
+
+          <Link
+            to="/admin/demandes-specifiques"
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActiveSection("/admin/demandes-specifiques")
+                ? "bg-uclouvain-blue text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <MessageSquare className="h-4 w-4" />
+              <span>Demandes spécifiques</span>
+            </div>
+          </Link>
+        </div>
+
+        {/* ⚙️ Administration */}
+        <div className="space-y-1">
+          <h3 className="px-3 py-2 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+            ⚙️ Administration
+          </h3>
+          
+          <Link
+            to="/admin?tab=gestion-utilisateurs"
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActiveTab("gestion-utilisateurs")
+                ? "bg-uclouvain-blue text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Shield className="h-4 w-4" />
+              <span>Gestion utilisateurs</span>
+            </div>
+          </Link>
+
+          <Link
+            to="/admin?tab=feature-locks"
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              isActiveTab("feature-locks")
+                ? "bg-uclouvain-blue text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Lock className="h-4 w-4" />
+              <span>Verrouillages</span>
+            </div>
+          </Link>
+
           <Link
             to="/admin?tab=controles-verifications"
             className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${

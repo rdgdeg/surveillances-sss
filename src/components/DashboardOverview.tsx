@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Users, Calendar, AlertTriangle, CheckCircle, TrendingUp, Calculator, UserCheck, FileText, Briefcase } from "lucide-react";
 import { ExamensCompletsModal } from "./ExamensCompletsModal";
+import { AdminDashboardWorkflow } from "./AdminDashboardWorkflow";
 import { useState } from "react";
 
 interface DashboardStats {
@@ -199,6 +200,9 @@ export const DashboardOverview = () => {
 
   return (
     <div className="space-y-6">
+      {/* Workflow guidé */}
+      <AdminDashboardWorkflow />
+
       {/* Examens Complets Modal */}
       <ExamensCompletsModal
         open={examensCompletsOpen}

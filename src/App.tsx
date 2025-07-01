@@ -36,6 +36,7 @@ const App = () => (
           <Route path="/admin/demandes-specifiques" element={<AdminDemandesSpecifiquesPage />} />
           <Route path="/admin/candidatures" element={<AdminCandidaturesPage />} />
           <Route path="/planning-general" element={<PlanningGeneral />} />
+          <Route path="/planning" element={<PlanningGeneral />} />
           <Route path="/surveillant" element={<Surveillant />} />
           <Route path="/enseignant" element={<EnseignantRedirect />} />
         </Routes>

@@ -1,65 +1,48 @@
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Users, Filter, Search } from "lucide-react";
+import { Calendar, Clock, Users, Filter, Search, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDateWithDayBelgian } from "@/lib/dateUtils";
+import { supabase } from "@/integrations/supabase/client";
+import { useActiveSession } from "@/hooks/useSessions";
 
 export const PlanningView = () => {
   const [selectedDate, setSelectedDate] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const { data: activeSession } = useActiveSession();
 
-  // Données d'exemple pour les examens
-  const mockExamens = [
-    {
-      id: 1,
-      date: "2024-01-15",
-      heure: "08:00-10:00",
-      matiere: "Mathématiques L1",
-      salle: "Amphi A",
-      nombreSurveillants: 2,
-      typeRequis: "PAT",
-      surveillantsAssignes: ["Marie Dupont (PAT)", "Jean Martin (Assistant)"],
-      statut: "complete"
+  // Charger les examens réels avec leurs attributions
+  const { data: examens = [], isLoading } = useQuery({
+    queryKey: ['examens-planning', activeSession?.id],
+    queryFn: async () => {
+      if (!activeSession?.id) return [];
+
+      const { data, error } = await supabase
+        .from('examens')
+        .select(`
+          *,
+          attributions(
+            id,
+            surveillant_id,
+            surveillants(nom, prenom, type)
+          )
+        `)
+        .eq('session_id', activeSession.id)
+        .eq('is_active', true)
+        .order('date_examen')
+        .order('heure_debut');
+
+      if (error) throw error;
+      return data || [];
     },
-    {
-      id: 2,
-      date: "2024-01-15",
-      heure: "10:30-12:30",
-      matiere: "Physique L2",
-      salle: "Salle 203",
-      nombreSurveillants: 1,
-      typeRequis: "Assistant",
-      surveillantsAssignes: [],
-      statut: "pending"
-    },
-    {
-      id: 3,
-      date: "2024-01-16",
-      heure: "14:00-17:00",
-      matiere: "Chimie L3",
-      salle: "Labo 1",
-      nombreSurveillants: 3,
-      typeRequis: "PAT",
-      surveillantsAssignes: ["Pierre Durand (PAT)"],
-      statut: "partial"
-    },
-    {
-      id: 4,
-      date: "2024-01-17",
-      heure: "09:00-11:00",
-      matiere: "Anglais L1",
-      salle: "Salle 105",
-      nombreSurveillants: 1,
-      typeRequis: "Jobiste",
-      surveillantsAssignes: [],
-      statut: "pending"
-    }
-  ];
+    enabled: !!activeSession?.id
+  });
 
   const getStatutColor = (statut: string) => {
     switch (statut) {
@@ -79,21 +62,71 @@ export const PlanningView = () => {
     }
   };
 
-  const filteredExamens = mockExamens.filter(examen => {
+  // Traitement des données pour le statut
+  const examensAvecStatut = examens.map(examen => {
+    const attributionsCount = examen.attributions?.length || 0;
+    const surveillantsRequis = examen.surveillants_a_attribuer || 0;
+    
+    let statut = "pending";
+    if (attributionsCount >= surveillantsRequis && surveillantsRequis > 0) {
+      statut = "complete";
+    } else if (attributionsCount > 0) {
+      statut = "partial";
+    }
+
+    return {
+      ...examen,
+      statut,
+      surveillantsAssignes: examen.attributions?.map(attr => 
+        `${attr.surveillants?.prenom} ${attr.surveillants?.nom} (${attr.surveillants?.type})`
+      ) || []
+    };
+  });
+
+  const filteredExamens = examensAvecStatut.filter(examen => {
     const matchesSearch = examen.matiere.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          examen.salle.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === "all" || examen.typeRequis === filterType;
-    const matchesDate = !selectedDate || examen.date === selectedDate;
+    const matchesType = filterType === "all" || examen.type_requis === filterType;
+    const matchesDate = !selectedDate || examen.date_examen === selectedDate;
     
     return matchesSearch && matchesType && matchesDate;
   });
 
   const stats = {
-    total: mockExamens.length,
-    complete: mockExamens.filter(e => e.statut === "complete").length,
-    partial: mockExamens.filter(e => e.statut === "partial").length,
-    pending: mockExamens.filter(e => e.statut === "pending").length
+    total: examensAvecStatut.length,
+    complete: examensAvecStatut.filter(e => e.statut === "complete").length,
+    partial: examensAvecStatut.filter(e => e.statut === "partial").length,
+    pending: examensAvecStatut.filter(e => e.statut === "pending").length
   };
+
+  if (!activeSession) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-8">
+            <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Aucune session active</h3>
+            <p className="text-gray-500">
+              Veuillez activer une session pour consulter le planning des examens.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-500">Chargement du planning...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -175,6 +208,7 @@ export const PlanningView = () => {
                 <SelectItem value="PAT">PAT</SelectItem>
                 <SelectItem value="Assistant">Assistant</SelectItem>
                 <SelectItem value="Jobiste">Jobiste</SelectItem>
+                <SelectItem value="Enseignant">Enseignant</SelectItem>
               </SelectContent>
             </Select>
             <Input
@@ -192,8 +226,8 @@ export const PlanningView = () => {
                 <div className="flex items-start justify-between">
                   <div className="space-y-3 flex-1">
                     <div className="flex items-center space-x-4">
-                      <Badge variant="outline">{formatDateWithDayBelgian(examen.date)}</Badge>
-                      <Badge variant="outline">{examen.heure}</Badge>
+                      <Badge variant="outline">{formatDateWithDayBelgian(examen.date_examen)}</Badge>
+                      <Badge variant="outline">{examen.heure_debut}-{examen.heure_fin}</Badge>
                       <Badge className={getStatutColor(examen.statut)}>
                         {getStatutText(examen.statut)}
                       </Badge>
@@ -203,8 +237,13 @@ export const PlanningView = () => {
                       <h3 className="font-medium text-gray-900 text-lg">{examen.matiere}</h3>
                       <p className="text-gray-600">Salle : {examen.salle}</p>
                       <p className="text-sm text-gray-500">
-                        Surveillants requis : {examen.nombreSurveillants} ({examen.typeRequis} obligatoire)
+                        Surveillants requis : {examen.surveillants_a_attribuer || 0} ({examen.type_requis} obligatoire)
                       </p>
+                      {examen.enseignant_nom && (
+                        <p className="text-sm text-gray-500">
+                          Enseignant : {examen.enseignant_nom}
+                        </p>
+                      )}
                     </div>
 
                     <div>

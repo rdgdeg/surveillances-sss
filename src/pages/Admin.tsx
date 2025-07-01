@@ -14,11 +14,14 @@ import { ControlesVerificationsManager } from "@/components/ControlesVerificatio
 import { AdminUserManager } from "@/components/AdminUserManager";
 import { EnseignantViewManager } from "@/components/EnseignantViewManager";
 
-// Dashboard d'accueil avec les statistiques principales
+// Dashboard d'accueil avec workflow guidé et statistiques
 function DashboardAdmin() {
   return (
     <div className="w-full max-w-none space-y-6">
-      <h2 className="text-xl font-semibold mb-4 text-uclouvain-blue">Tableau de bord - Vue d'ensemble</h2>
+      <div className="text-center mb-6">
+        <h2 className="text-2xl font-bold text-uclouvain-blue">Centre d'Administration</h2>
+        <p className="text-gray-600">Gérez l'organisation des surveillances d'examens</p>
+      </div>
       <DashboardOverview />
     </div>
   );

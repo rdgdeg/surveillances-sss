@@ -31,7 +31,7 @@ const Index = () => {
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <Link to="/planning-general">
+              <Link to="/planning">
                 <Button variant="outline" className="border-uclouvain-cyan text-uclouvain-cyan hover:bg-uclouvain-cyan hover:text-uclouvain-blue transition-colors text-sm">
                   <Calendar className="h-3 w-3 mr-1" />
                   Planning Général
@@ -76,7 +76,7 @@ const Index = () => {
                 </CardDescription>
               </div>
               <div className="flex justify-center">
-                <Link to="/planning-general" className="w-full">
+                <Link to="/planning" className="w-full">
                   <Button className="w-full bg-purple-600 hover:bg-purple-700 text-base font-medium rounded-lg h-12">
                     Voir le planning complet
                   </Button>
