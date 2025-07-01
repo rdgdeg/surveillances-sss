@@ -1,285 +1,258 @@
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Users, Filter, Search, AlertTriangle } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { formatDateWithDayBelgian } from "@/lib/dateUtils";
-import { supabase } from "@/integrations/supabase/client";
-import { useActiveSession } from "@/hooks/useSessions";
+import { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Search, Calendar, Clock, MapPin, Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, parseISO } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
-export const PlanningView = () => {
-  const [selectedDate, setSelectedDate] = useState("");
-  const [filterType, setFilterType] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
-  const { data: activeSession } = useActiveSession();
+interface ExamenSurveillance {
+  id: string;
+  date: string;
+  heure_debut: string;
+  heure_fin: string;
+  matiere: string;
+  code_examen?: string;
+  salle: string;
+  type: string;
+  surveillants: Array<{
+    id: string;
+    nom: string;
+    prenom: string;
+    email: string;
+  }>;
+}
 
-  // Charger les examens réels avec leurs attributions
-  const { data: examens = [], isLoading } = useQuery({
-    queryKey: ['examens-planning', activeSession?.id],
-    queryFn: async () => {
-      if (!activeSession?.id) return [];
+interface PlanningViewProps {
+  examens: ExamenSurveillance[];
+  searchTerm: string;
+  onSearchChange: (term: string) => void;
+}
 
-      const { data, error } = await supabase
-        .from('examens')
-        .select(`
-          *,
-          attributions(
-            id,
-            surveillant_id,
-            surveillants(nom, prenom, type)
-          )
-        `)
-        .eq('session_id', activeSession.id)
-        .eq('is_active', true)
-        .order('date_examen')
-        .order('heure_debut');
+export const PlanningView = ({ examens, searchTerm, onSearchChange }: PlanningViewProps) => {
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
 
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!activeSession?.id
+  // Filtrer les examens (retirer ceux du 22 juin qui sont des erreurs)
+  const examensFiltered = examens.filter(examen => {
+    const dateExamen = new Date(examen.date);
+    // Exclure les examens du 22 juin (mois 5 car les mois commencent à 0)
+    return !(dateExamen.getMonth() === 5 && dateExamen.getDate() === 22);
   });
 
-  const getStatutColor = (statut: string) => {
-    switch (statut) {
-      case "complete": return "bg-green-100 text-green-800";
-      case "partial": return "bg-orange-100 text-orange-800";
-      case "pending": return "bg-red-100 text-red-800";
-      default: return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getStatutText = (statut: string) => {
-    switch (statut) {
-      case "complete": return "Complet";
-      case "partial": return "Partiel";
-      case "pending": return "En attente";
-      default: return "Inconnu";
-    }
-  };
-
-  // Traitement des données pour le statut
-  const examensAvecStatut = examens.map(examen => {
-    const attributionsCount = examen.attributions?.length || 0;
-    const surveillantsRequis = examen.surveillants_a_attribuer || 0;
+  // Grouper les examens par semaine
+  const examensParSemaine = examensFiltered.reduce((acc, examen) => {
+    const dateExamen = parseISO(examen.date);
+    const debutSemaine = startOfWeek(dateExamen, { locale: fr, weekStartsOn: 1 });
+    const finSemaine = endOfWeek(dateExamen, { locale: fr, weekStartsOn: 1 });
     
-    let statut = "pending";
-    if (attributionsCount >= surveillantsRequis && surveillantsRequis > 0) {
-      statut = "complete";
-    } else if (attributionsCount > 0) {
-      statut = "partial";
-    }
-
-    return {
-      ...examen,
-      statut,
-      surveillantsAssignes: examen.attributions?.map(attr => 
-        `${attr.surveillants?.prenom} ${attr.surveillants?.nom} (${attr.surveillants?.type})`
-      ) || []
-    };
-  });
-
-  const filteredExamens = examensAvecStatut.filter(examen => {
-    const matchesSearch = examen.matiere.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         examen.salle.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = filterType === "all" || examen.type_requis === filterType;
-    const matchesDate = !selectedDate || examen.date_examen === selectedDate;
+    const cléSemaine = format(debutSemaine, 'yyyy-MM-dd', { locale: fr });
+    const labelSemaine = `${format(debutSemaine, 'dd MMM', { locale: fr })} - ${format(finSemaine, 'dd MMM yyyy', { locale: fr })}`;
     
-    return matchesSearch && matchesType && matchesDate;
-  });
+    if (!acc[cléSemaine]) {
+      acc[cléSemaine] = {
+        label: labelSemaine,
+        dateDebut: debutSemaine,
+        examens: []
+      };
+    }
+    
+    acc[cléSemaine].examens.push(examen);
+    return acc;
+  }, {} as Record<string, { label: string; dateDebut: Date; examens: ExamenSurveillance[] }>);
 
-  const stats = {
-    total: examensAvecStatut.length,
-    complete: examensAvecStatut.filter(e => e.statut === "complete").length,
-    partial: examensAvecStatut.filter(e => e.statut === "partial").length,
-    pending: examensAvecStatut.filter(e => e.statut === "pending").length
+  // Trier les semaines par date
+  const semainesTriees = Object.entries(examensParSemaine)
+    .sort(([, a], [, b]) => a.dateDebut.getTime() - b.dateDebut.getTime());
+
+  const toggleWeekExpansion = (weekKey: string) => {
+    const newExpanded = new Set(expandedWeeks);
+    if (newExpanded.has(weekKey)) {
+      newExpanded.delete(weekKey);
+    } else {
+      newExpanded.add(weekKey);
+    }
+    setExpandedWeeks(newExpanded);
   };
 
-  if (!activeSession) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="text-center py-8">
-            <AlertTriangle className="h-12 w-12 text-orange-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Aucune session active</h3>
-            <p className="text-gray-500">
-              Veuillez activer une session pour consulter le planning des examens.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const expandAllWeeks = () => {
+    setExpandedWeeks(new Set(Object.keys(examensParSemaine)));
+  };
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-500">Chargement du planning...</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const collapseAllWeeks = () => {
+    setExpandedWeeks(new Set());
+  };
+
+  const formatDate = (dateString: string) => {
+    try {
+      return format(new Date(dateString), 'EEEE dd MMMM yyyy', { locale: fr });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const formatTime = (timeString: string) => {
+    try {
+      return timeString.slice(0, 5); // HH:MM
+    } catch {
+      return timeString;
+    }
+  };
 
   return (
     <div className="space-y-6">
-      {/* Statistiques */}
-      <div className="grid md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Calendar className="h-5 w-5 text-blue-600" />
-              <div>
-                <p className="text-2xl font-bold">{stats.total}</p>
-                <p className="text-sm text-gray-600">Total examens</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-green-600" />
-              <div>
-                <p className="text-2xl font-bold text-green-600">{stats.complete}</p>
-                <p className="text-sm text-gray-600">Complets</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-orange-600" />
-              <div>
-                <p className="text-2xl font-bold text-orange-600">{stats.partial}</p>
-                <p className="text-sm text-gray-600">Partiels</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Filter className="h-5 w-5 text-red-600" />
-              <div>
-                <p className="text-2xl font-bold text-red-600">{stats.pending}</p>
-                <p className="text-sm text-gray-600">En attente</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtres et recherche */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Calendar className="h-5 w-5" />
-            <span>Planning des Examens</span>
+            <Search className="h-5 w-5" />
+            <span>Recherche</span>
           </CardTitle>
-          <CardDescription>
-            Vue d'ensemble et gestion des attributions de surveillances
-          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-64">
-              <Input
-                placeholder="Rechercher par matière ou salle..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filtrer par type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les types</SelectItem>
-                <SelectItem value="PAT">PAT</SelectItem>
-                <SelectItem value="Assistant">Assistant</SelectItem>
-                <SelectItem value="Jobiste">Jobiste</SelectItem>
-                <SelectItem value="Enseignant">Enseignant</SelectItem>
-              </SelectContent>
-            </Select>
+        <CardContent>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-48"
+              placeholder="Filtrer par nom, email, matière ou salle..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="pl-10"
             />
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Liste des examens */}
-          <div className="space-y-4">
-            {filteredExamens.map((examen) => (
-              <div key={examen.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="space-y-3 flex-1">
-                    <div className="flex items-center space-x-4">
-                      <Badge variant="outline">{formatDateWithDayBelgian(examen.date_examen)}</Badge>
-                      <Badge variant="outline">{examen.heure_debut}-{examen.heure_fin}</Badge>
-                      <Badge className={getStatutColor(examen.statut)}>
-                        {getStatutText(examen.statut)}
-                      </Badge>
-                    </div>
-                    
-                    <div>
-                      <h3 className="font-medium text-gray-900 text-lg">{examen.matiere}</h3>
-                      <p className="text-gray-600">Salle : {examen.salle}</p>
-                      <p className="text-sm text-gray-500">
-                        Surveillants requis : {examen.surveillants_a_attribuer || 0} ({examen.type_requis} obligatoire)
-                      </p>
-                      {examen.enseignant_nom && (
-                        <p className="text-sm text-gray-500">
-                          Enseignant : {examen.enseignant_nom}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <h4 className="font-medium text-sm text-gray-700 mb-2">Surveillants assignés :</h4>
-                      {examen.surveillantsAssignes.length > 0 ? (
-                        <div className="flex flex-wrap gap-2">
-                          {examen.surveillantsAssignes.map((surveillant, index) => (
-                            <Badge key={index} variant="secondary">
-                              {surveillant}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500 italic">Aucun surveillant assigné</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="ml-4">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                    >
-                      Gérer
-                    </Button>
-                  </div>
-                </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Planning de surveillance - Vue globale</span>
+            <div className="flex items-center space-x-4">
+              <Badge variant="outline" className="flex items-center space-x-1">
+                <Calendar className="h-3 w-3" />
+                <span>{examensFiltered.length} examens</span>
+              </Badge>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={expandAllWeeks}
+                  disabled={Object.keys(examensParSemaine).length === 0}
+                >
+                  Tout développer
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={collapseAllWeeks}
+                  disabled={Object.keys(examensParSemaine).length === 0}
+                >
+                  Tout réduire
+                </Button>
               </div>
-            ))}
-          </div>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-gray-600 mb-4">
+            Retrouvez tous les examens, salles, horaires et leurs surveillants attribués.
+            Utilisez la recherche pour filtrer sur un surveillant (nom, prénom ou email), une matière ou une salle.
+          </p>
 
-          {filteredExamens.length === 0 && (
+          {examensFiltered.length === 0 ? (
             <div className="text-center py-8">
               <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">Aucun examen trouvé avec les critères sélectionnés</p>
+              <p className="text-gray-600">
+                {searchTerm 
+                  ? "Aucun résultat trouvé pour votre recherche"
+                  : "Aucun examen avec surveillance attribuée"
+                }
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {semainesTriees.map(([weekKey, weekData]) => (
+                <div key={weekKey} className="border rounded-lg overflow-hidden">
+                  <div
+                    className="bg-gray-50 px-4 py-3 cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => toggleWeekExpansion(weekKey)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        {expandedWeeks.has(weekKey) ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Semaine du {weekData.label}
+                        </h3>
+                        <Badge variant="secondary">
+                          {weekData.examens.length} examen{weekData.examens.length > 1 ? 's' : ''}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {expandedWeeks.has(weekKey) && (
+                    <div className="divide-y divide-gray-200">
+                      {weekData.examens.map((examen) => (
+                        <div key={examen.id} className="p-4 hover:bg-gray-50">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-4 mb-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {formatDate(examen.date)}
+                                </Badge>
+                                <div className="flex items-center space-x-1 text-sm text-gray-600">
+                                  <Clock className="h-3 w-3" />
+                                  <span>{formatTime(examen.heure_debut)} – {formatTime(examen.heure_fin)}</span>
+                                </div>
+                                <Badge className="bg-blue-100 text-blue-800">
+                                  {examen.salle}
+                                </Badge>
+                              </div>
+                              
+                              <h4 className="font-medium text-gray-900 mb-1">
+                                {examen.matiere}
+                                {examen.code_examen && (
+                                  <span className="text-sm text-gray-500 ml-2">({examen.code_examen})</span>
+                                )}
+                              </h4>
+                              
+                              <div className="flex items-center space-x-1 text-sm text-gray-600">
+                                <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                  {examen.type}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="ml-4">
+                              <div className="text-sm font-medium mb-1 flex items-center space-x-1">
+                                <Users className="h-3 w-3" />
+                                <span>Surveillants:</span>
+                              </div>
+                              {examen.surveillants.length > 0 ? (
+                                <div className="space-y-1">
+                                  {examen.surveillants.map((surveillant) => (
+                                    <div key={surveillant.id} className="text-sm text-gray-600">
+                                      {surveillant.prenom} {surveillant.nom}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-sm text-gray-500 italic">
+                                  Aucun surveillant attribué
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>
