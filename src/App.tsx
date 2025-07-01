@@ -13,6 +13,7 @@ import AdminDemandesSpecifiquesPage from "./pages/AdminDemandesSpecifiques";
 import AdminCandidaturesPage from "./pages/AdminCandidatures";
 import AdminTemplatesPage from "./pages/AdminTemplates";
 import PlanningGeneral from "./pages/PlanningGeneral";
+import Planning from "./pages/Planning";
 import Surveillant from "./pages/Surveillant";
 import EnseignantToken from "./pages/EnseignantToken";
 import EnseignantRedirect from "./pages/EnseignantRedirect";
@@ -36,7 +37,7 @@ const App = () => (
           <Route path="/admin/demandes-specifiques" element={<AdminDemandesSpecifiquesPage />} />
           <Route path="/admin/candidatures" element={<AdminCandidaturesPage />} />
           <Route path="/planning-general" element={<PlanningGeneral />} />
-          <Route path="/planning" element={<PlanningGeneral />} />
+          <Route path="/planning" element={<Planning />} />
           <Route path="/surveillant" element={<Surveillant />} />
           <Route path="/enseignant" element={<EnseignantRedirect />} />
         </Routes>
