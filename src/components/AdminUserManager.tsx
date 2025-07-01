@@ -12,6 +12,8 @@ import { Plus, Trash2, Shield, Users, AlertTriangle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { SessionSelector } from "./SessionSelector";
+import { PlanningVisibilityControl } from "./PlanningVisibilityControl";
 
 interface UserRole {
   id: string;
@@ -183,6 +185,8 @@ export function AdminUserManager() {
 
   return (
     <div className="space-y-6">
+      <SessionSelector />
+      <PlanningVisibilityControl />
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>

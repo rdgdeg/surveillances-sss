@@ -131,7 +131,26 @@ export const useCreneauxDisponibles = () => {
         .order('heure_debut');
 
       if (error) throw error;
-      return data || [];
+      
+      // Ajuster les créneaux pour inclure le temps de préparation (45 minutes avant)
+      const creneauxAjustes = (data || []).map(creneau => {
+        // Calculer l'heure de début de surveillance (45 minutes avant l'heure de début d'examen)
+        const heureDebut = new Date(`1970-01-01T${creneau.heure_debut}:00`);
+        heureDebut.setMinutes(heureDebut.getMinutes() - 45);
+        
+        const heureDebutSurveillance = heureDebut.toTimeString().slice(0, 5);
+        
+        return {
+          ...creneau,
+          heure_debut_surveillance: heureDebutSurveillance,
+          heure_fin_surveillance: creneau.heure_fin,
+          // Garder les horaires originaux pour référence
+          heure_debut_examen: creneau.heure_debut,
+          heure_fin_examen: creneau.heure_fin
+        };
+      });
+
+      return creneauxAjustes;
     },
     enabled: !!activeSession?.id
   });

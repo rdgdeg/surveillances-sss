@@ -10,6 +10,7 @@ export interface Session {
   year: number;
   period: number;
   is_active: boolean;
+  planning_general_visible: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -119,6 +120,41 @@ export const useActivateSession = () => {
       toast({
         title: "Erreur",
         description: error.message || "Impossible d'activer la session.",
+        variant: "destructive"
+      });
+    }
+  });
+};
+
+export const useTogglePlanningVisibility = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ sessionId, visible }: { sessionId: string; visible: boolean }) => {
+      const { data, error } = await supabase
+        .from('sessions')
+        .update({ planning_general_visible: visible })
+        .eq('id', sessionId)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ['active-session'] });
+      toast({
+        title: variables.visible ? "Planning activé" : "Planning désactivé",
+        description: variables.visible 
+          ? "Le planning général est maintenant visible pour tous."
+          : "Le planning général a été masqué.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de modifier la visibilité du planning.",
         variant: "destructive"
       });
     }
