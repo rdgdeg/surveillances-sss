@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,6 +61,8 @@ export default function AdminCreneauxSurveillance() {
     queryFn: async () => {
       if (!activeSession?.id) return [];
       
+      console.log('[AdminCreneauxSurveillance] Fetching creneaux for session:', activeSession.id);
+      
       const { data, error } = await supabase
         .from('creneaux_surveillance_generated')
         .select('*')
@@ -67,7 +70,12 @@ export default function AdminCreneauxSurveillance() {
         .order('date_surveillance')
         .order('heure_debut');
       
-      if (error) throw error;
+      if (error) {
+        console.error('[AdminCreneauxSurveillance] Error fetching creneaux:', error);
+        throw error;
+      }
+
+      console.log('[AdminCreneauxSurveillance] Fetched creneaux:', data);
       return data as CreneauGenere[];
     },
     enabled: !!activeSession?.id
@@ -78,14 +86,22 @@ export default function AdminCreneauxSurveillance() {
     mutationFn: async () => {
       if (!activeSession?.id) throw new Error('Aucune session active');
       
+      console.log('[AdminCreneauxSurveillance] Calling generer_creneaux_surveillance for session:', activeSession.id);
+      
       const { data, error } = await supabase.rpc('generer_creneaux_surveillance', {
         p_session_id: activeSession.id
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('[AdminCreneauxSurveillance] Error generating creneaux:', error);
+        throw error;
+      }
+      
+      console.log('[AdminCreneauxSurveillance] Generated creneaux result:', data);
       return data;
     },
     onSuccess: (nbCreneaux) => {
+      console.log('[AdminCreneauxSurveillance] Successfully generated creneaux:', nbCreneaux);
       toast({
         title: "Créneaux générés",
         description: `${nbCreneaux} créneau(x) ont été générés automatiquement.`
@@ -93,9 +109,10 @@ export default function AdminCreneauxSurveillance() {
       queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-generated'] });
     },
     onError: (error: any) => {
+      console.error('[AdminCreneauxSurveillance] Error in mutation:', error);
       toast({
         title: "Erreur",
-        description: error.message,
+        description: error.message || "Une erreur est survenue lors de la génération des créneaux",
         variant: "destructive"
       });
     }
