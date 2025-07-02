@@ -309,27 +309,25 @@ export const EnseignantExamenForm = () => {
 
           <Card>
             <CardContent className="space-y-6 pt-6">
-              {!informationsMisesAJour && (
-                <div className="px-3 py-2 rounded-lg bg-yellow-50 border border-yellow-200 mb-4">
-                  <span className="font-medium text-yellow-700">
-                    ⚠️ Vous devez mettre à jour vos informations avant de confirmer vos besoins
-                  </span>
-                </div>
-              )}
-              
               <div className="flex justify-end space-x-2">
                 <Button
                   onClick={() => confirmerExamenMutation.mutate(selectedExamen.id)}
                   disabled={
                     confirmerExamenMutation.isPending || 
-                    selectedExamen.besoins_confirmes_par_enseignant ||
-                    !informationsMisesAJour
+                    selectedExamen.besoins_confirmes_par_enseignant
                   }
+                  className="bg-green-600 hover:bg-green-700"
                 >
                   <Save className="mr-2 h-4 w-4" />
-                  {selectedExamen.besoins_confirmes_par_enseignant ? "Déjà confirmé" : "Confirmer les besoins"}
+                  {selectedExamen.besoins_confirmes_par_enseignant ? "Besoins confirmés ✓" : "Confirmer les besoins"}
                 </Button>
               </div>
+              
+              {!selectedExamen.besoins_confirmes_par_enseignant && (
+                <div className="text-sm text-gray-600 text-center">
+                  La confirmation enregistrera automatiquement vos informations et vos besoins en surveillance.
+                </div>
+              )}
             </CardContent>
           </Card>
         </>
