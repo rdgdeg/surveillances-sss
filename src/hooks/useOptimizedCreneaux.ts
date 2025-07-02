@@ -93,34 +93,61 @@ export const useOptimizedCreneaux = (sessionId: string | null) => {
         const examensDate = examens.filter(e => e.date_examen === date);
         console.log(`[useOptimizedCreneaux] Processing date ${date} with ${examensDate.length} examens`);
         
-        // Pour chaque créneau configuré, vérifier s'il y a des examens qui correspondent
-        creneauxConfig.forEach(creneauConfig => {
-          const creneauDebutMin = toMinutes(creneauConfig.heure_debut);
-          const creneauFinMin = toMinutes(creneauConfig.heure_fin);
+        // Grouper les examens par plages horaires contiguës
+        const plagesHoraires: Array<{
+          heureDebutMin: number;
+          heureFinMax: number;
+          examens: typeof examensDate;
+        }> = [];
+        
+        examensDate.forEach(examen => {
+          const examenDebutMin = toMinutes(examen.heure_debut);
+          const examenFinMin = toMinutes(examen.heure_fin);
           
-          // Trouver tous les examens de cette date qui peuvent être couverts par ce créneau
-          const examensCouverts = examensDate.filter(examen => {
-            const examenDebutMin = toMinutes(examen.heure_debut);
-            const examenFinMin = toMinutes(examen.heure_fin);
-            
-            // L'examen doit commencer après le début du créneau (avec 45min de préparation)
-            // et finir avant la fin du créneau
+          // Chercher une plage existante qui peut inclure cet examen
+          let plageExistante = plagesHoraires.find(plage => {
             const debutSurveillanceMin = examenDebutMin - 45;
-            
-            return debutSurveillanceMin >= creneauDebutMin && examenFinMin <= creneauFinMin;
+            return (
+              debutSurveillanceMin <= plage.heureFinMax + 60 && // Tolérance de 1h entre les plages
+              examenFinMin >= plage.heureDebutMin - 60
+            );
           });
           
-          // Si ce créneau couvre au moins un examen, l'ajouter
-          if (examensCouverts.length > 0) {
-            console.log(`[useOptimizedCreneaux] Creating slot for ${date} ${creneauConfig.heure_debut}-${creneauConfig.heure_fin} covering ${examensCouverts.length} examens`);
+          if (plageExistante) {
+            // Étendre la plage existante
+            plageExistante.heureDebutMin = Math.min(plageExistante.heureDebutMin, examenDebutMin - 45);
+            plageExistante.heureFinMax = Math.max(plageExistante.heureFinMax, examenFinMin);
+            plageExistante.examens.push(examen);
+          } else {
+            // Créer une nouvelle plage
+            plagesHoraires.push({
+              heureDebutMin: examenDebutMin - 45, // 45min de préparation
+              heureFinMax: examenFinMin,
+              examens: [examen]
+            });
+          }
+        });
+        
+        // Pour chaque plage horaire, trouver le créneau configuré optimal
+        plagesHoraires.forEach(plage => {
+          // Trouver le créneau configuré qui peut couvrir cette plage avec la marge minimale
+          const creneauOptimal = creneauxConfig.find(creneauConfig => {
+            const creneauDebutMin = toMinutes(creneauConfig.heure_debut);
+            const creneauFinMin = toMinutes(creneauConfig.heure_fin);
+            
+            return creneauDebutMin <= plage.heureDebutMin && creneauFinMin >= plage.heureFinMax;
+          });
+          
+          if (creneauOptimal) {
+            console.log(`[useOptimizedCreneaux] Creating optimal slot for ${date} ${creneauOptimal.heure_debut}-${creneauOptimal.heure_fin} covering ${plage.examens.length} examens`);
             
             optimizedCreneaux.push({
               type: 'surveillance',
               date_examen: date,
-              heure_debut: creneauConfig.heure_debut,
-              heure_fin: creneauConfig.heure_fin,
-              heure_debut_surveillance: creneauConfig.heure_debut,
-              examens: examensCouverts
+              heure_debut: creneauOptimal.heure_debut,
+              heure_fin: creneauOptimal.heure_fin,
+              heure_debut_surveillance: creneauOptimal.heure_debut,
+              examens: plage.examens
             });
           }
         });
