@@ -12,6 +12,7 @@ import AdminDisponibilitesParPersonnePage from "./pages/AdminDisponibilitesParPe
 import AdminDemandesSpecifiquesPage from "./pages/AdminDemandesSpecifiques";
 import AdminCandidaturesPage from "./pages/AdminCandidatures";
 import AdminTemplatesPage from "./pages/AdminTemplates";
+import AdminCreneauxSurveillancePage from "./pages/AdminCreneauxSurveillance";
 import PlanningGeneral from "./pages/PlanningGeneral";
 import Planning from "./pages/Planning";
 import Surveillant from "./pages/Surveillant";
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/admin/disponibilites/par-personne" element={<AdminDisponibilitesParPersonnePage />} />
           <Route path="/admin/demandes-specifiques" element={<AdminDemandesSpecifiquesPage />} />
           <Route path="/admin/candidatures" element={<AdminCandidaturesPage />} />
+          <Route path="/admin/creneaux-surveillance" element={<AdminCreneauxSurveillancePage />} />
           <Route path="/planning-general" element={<PlanningGeneral />} />
           <Route path="/planning" element={<Planning />} />
           <Route path="/surveillant" element={<Surveillant />} />

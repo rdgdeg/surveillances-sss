@@ -458,6 +458,80 @@ export type Database = {
           },
         ]
       }
+      creneaux_surveillance_generated: {
+        Row: {
+          created_at: string
+          date_surveillance: string
+          description: string | null
+          examens_couverts: Json
+          genere_le: string
+          heure_debut: string
+          heure_fin: string
+          id: string
+          is_active: boolean
+          is_manual: boolean
+          nb_examens: number
+          nb_surveillants_requis: number
+          nom_creneau: string | null
+          notes_admin: string | null
+          session_id: string
+          statut: string
+          updated_at: string
+          valide_le: string | null
+          valide_par: string | null
+        }
+        Insert: {
+          created_at?: string
+          date_surveillance: string
+          description?: string | null
+          examens_couverts?: Json
+          genere_le?: string
+          heure_debut: string
+          heure_fin: string
+          id?: string
+          is_active?: boolean
+          is_manual?: boolean
+          nb_examens?: number
+          nb_surveillants_requis?: number
+          nom_creneau?: string | null
+          notes_admin?: string | null
+          session_id: string
+          statut?: string
+          updated_at?: string
+          valide_le?: string | null
+          valide_par?: string | null
+        }
+        Update: {
+          created_at?: string
+          date_surveillance?: string
+          description?: string | null
+          examens_couverts?: Json
+          genere_le?: string
+          heure_debut?: string
+          heure_fin?: string
+          id?: string
+          is_active?: boolean
+          is_manual?: boolean
+          nb_examens?: number
+          nb_surveillants_requis?: number
+          nom_creneau?: string | null
+          notes_admin?: string | null
+          session_id?: string
+          statut?: string
+          updated_at?: string
+          valide_le?: string | null
+          valide_par?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creneaux_surveillance_generated_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       demandes_modification_disponibilites: {
         Row: {
           commentaire_admin: string | null
@@ -1346,6 +1420,10 @@ export type Database = {
       generate_teacher_token: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      generer_creneaux_surveillance: {
+        Args: { p_session_id: string }
+        Returns: number
       }
       has_role: {
         Args: {

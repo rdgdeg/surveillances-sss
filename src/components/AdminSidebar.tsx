@@ -148,6 +148,20 @@ export function AdminSidebar() {
             </div>
             <div className="text-xs text-gray-500 ml-6 mt-1">Contrôle codes, types, statuts</div>
           </Link>
+          
+          <Link
+            to="/admin/creneaux-surveillance"
+            className={`block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+              pathname === "/admin/creneaux-surveillance"
+                ? "bg-uclouvain-blue text-white"
+                : "text-gray-700 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <Clock className="h-4 w-4" />
+              <span>Créneaux Surveillance</span>
+            </div>
+          </Link>
 
           <Link
             to="/admin?tab=enseignant-view"

@@ -12,7 +12,7 @@ import { Calendar, Clock, Check, AlertCircle, Users, AlertTriangle } from "lucid
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
-import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
+import { useOptimizedCreneauxFromGenerated } from "@/hooks/useCreneauxGeneres";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -36,7 +36,7 @@ export const OptimizedAvailabilityForm = ({
   onSuccess 
 }: OptimizedAvailabilityFormProps) => {
   const queryClient = useQueryClient();
-  const { data: optimizedCreneaux = [], isLoading } = useOptimizedCreneaux(sessionId);
+  const { data: optimizedCreneaux = [], isLoading } = useOptimizedCreneauxFromGenerated(sessionId);
   const [selectedSlots, setSelectedSlots] = useState<Record<string, DisponibiliteData>>({});
   const [remarques, setRemarques] = useState("");
   const [surveillantType, setSurveillantType] = useState<string>("");
