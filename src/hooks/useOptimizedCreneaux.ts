@@ -86,87 +86,42 @@ export const useOptimizedCreneaux = (sessionId: string | null) => {
       // Récupérer toutes les dates d'examens uniques
       const datesExamens = [...new Set(examens.map(e => e.date_examen))].sort();
 
+      console.log('[useOptimizedCreneaux] Processing dates:', datesExamens);
+
       // Pour chaque date d'examen
       datesExamens.forEach(date => {
         const examensDate = examens.filter(e => e.date_examen === date);
-        const creneauxUtilises = new Set<string>();
+        console.log(`[useOptimizedCreneaux] Processing date ${date} with ${examensDate.length} examens`);
         
-        // Trier les examens par heure de début
-        examensDate.sort((a, b) => a.heure_debut.localeCompare(b.heure_debut));
-        
-        // Grouper les examens en plages horaires continues
-        const groupesExamens: Array<typeof examensDate> = [];
-        let groupeActuel: typeof examensDate = [];
-        
-        examensDate.forEach(examen => {
-          if (groupeActuel.length === 0) {
-            groupeActuel = [examen];
-          } else {
-            // Vérifier si cet examen peut être dans le même groupe de surveillance
-            const dernierExamen = groupeActuel[groupeActuel.length - 1];
-            const ecartMinutes = toMinutes(examen.heure_debut) - toMinutes(dernierExamen.heure_fin);
-            
-            // Si l'écart est inférieur à 2h, on peut les grouper dans le même créneau
-            if (ecartMinutes <= 120) {
-              groupeActuel.push(examen);
-            } else {
-              // Nouveau groupe
-              groupesExamens.push([...groupeActuel]);
-              groupeActuel = [examen];
-            }
-          }
-        });
-        
-        // Ajouter le dernier groupe
-        if (groupeActuel.length > 0) {
-          groupesExamens.push(groupeActuel);
-        }
-        
-        // Pour chaque groupe d'examens, trouver le créneau optimal
-        groupesExamens.forEach(groupeExamens => {
-          if (groupeExamens.length === 0) return;
+        // Pour chaque créneau configuré, vérifier s'il y a des examens qui correspondent
+        creneauxConfig.forEach(creneauConfig => {
+          const creneauDebutMin = toMinutes(creneauConfig.heure_debut);
+          const creneauFinMin = toMinutes(creneauConfig.heure_fin);
           
-          // Calculer les heures min/max nécessaires pour ce groupe
-          const premierExamen = groupeExamens[0];
-          const dernierExamen = groupeExamens[groupeExamens.length - 1];
-          const heureDebutSurveillanceRequise = toMinutes(premierExamen.heure_debut) - 45;
-          const heureFinRequise = toMinutes(dernierExamen.heure_fin);
-          
-          // Trouver le créneau configuré optimal (le plus petit qui peut couvrir tous les examens)
-          let creneauOptimal = null;
-          let tailleOptimale = Infinity;
-          
-          creneauxConfig.forEach(creneau => {
-            const creneauDebutMin = toMinutes(creneau.heure_debut);
-            const creneauFinMin = toMinutes(creneau.heure_fin);
-            const tailleCreneau = creneauFinMin - creneauDebutMin;
+          // Trouver tous les examens de cette date qui peuvent être couverts par ce créneau
+          const examensCouverts = examensDate.filter(examen => {
+            const examenDebutMin = toMinutes(examen.heure_debut);
+            const examenFinMin = toMinutes(examen.heure_fin);
             
-            // Vérifier si ce créneau peut couvrir tous les examens du groupe
-            const peutCouvrir = heureDebutSurveillanceRequise >= creneauDebutMin && 
-                              heureFinRequise <= creneauFinMin;
+            // L'examen doit commencer après le début du créneau (avec 45min de préparation)
+            // et finir avant la fin du créneau
+            const debutSurveillanceMin = examenDebutMin - 45;
             
-            if (peutCouvrir && tailleCreneau < tailleOptimale) {
-              creneauOptimal = creneau;
-              tailleOptimale = tailleCreneau;
-            }
+            return debutSurveillanceMin >= creneauDebutMin && examenFinMin <= creneauFinMin;
           });
           
-          // Ajouter le créneau optimal s'il existe et n'est pas déjà utilisé
-          if (creneauOptimal) {
-            const creneauKey = `${date}|${creneauOptimal.heure_debut}|${creneauOptimal.heure_fin}`;
+          // Si ce créneau couvre au moins un examen, l'ajouter
+          if (examensCouverts.length > 0) {
+            console.log(`[useOptimizedCreneaux] Creating slot for ${date} ${creneauConfig.heure_debut}-${creneauConfig.heure_fin} covering ${examensCouverts.length} examens`);
             
-            if (!creneauxUtilises.has(creneauKey)) {
-              creneauxUtilises.add(creneauKey);
-              
-              optimizedCreneaux.push({
-                type: 'surveillance',
-                date_examen: date,
-                heure_debut: creneauOptimal.heure_debut,
-                heure_fin: creneauOptimal.heure_fin,
-                heure_debut_surveillance: creneauOptimal.heure_debut,
-                examens: groupeExamens
-              });
-            }
+            optimizedCreneaux.push({
+              type: 'surveillance',
+              date_examen: date,
+              heure_debut: creneauConfig.heure_debut,
+              heure_fin: creneauConfig.heure_fin,
+              heure_debut_surveillance: creneauConfig.heure_debut,
+              examens: examensCouverts
+            });
           }
         });
       });
