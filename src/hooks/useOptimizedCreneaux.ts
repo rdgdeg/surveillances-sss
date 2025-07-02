@@ -72,43 +72,38 @@ export const useOptimizedCreneaux = (sessionId: string | null) => {
       console.log('[useOptimizedCreneaux] Found examens:', examens?.length || 0);
 
       if (!examens || examens.length === 0) {
-        console.log('[useOptimizedCreneaux] No examens found');
         return [];
       }
 
-      // Grouper les examens par date
-      const examensByDate = examens.reduce((acc, examen) => {
-        if (!acc[examen.date_examen]) {
-          acc[examen.date_examen] = [];
-        }
-        acc[examen.date_examen].push(examen);
-        return acc;
-      }, {} as Record<string, typeof examens>);
-
-      console.log('[useOptimizedCreneaux] Examens grouped by date:', Object.keys(examensByDate));
-
       const optimizedCreneaux: OptimizedCreneau[] = [];
 
-      // Pour chaque date d'examen, créer les créneaux basés sur les créneaux configurés
-      Object.entries(examensByDate).forEach(([date, examensDate]) => {
-        console.log(`[useOptimizedCreneaux] Processing date ${date} with ${examensDate.length} examens`);
+      // Récupérer toutes les dates d'examens uniques
+      const datesExamens = [...new Set(examens.map(e => e.date_examen))].sort();
+
+      // Pour chaque date d'examen, créer exactement les créneaux configurés qui ont des examens
+      datesExamens.forEach(date => {
+        const examensDate = examens.filter(e => e.date_examen === date);
         
-        // Pour chaque créneau configuré, vérifier s'il peut couvrir des examens de cette date
         creneauxConfig.forEach(creneau => {
+          // Vérifier si ce créneau a des examens pour cette date
           const examensCouverts = examensDate.filter(examen => {
-            const examDebut = parseInt(examen.heure_debut.replace(':', ''));
-            const examFin = parseInt(examen.heure_fin.replace(':', ''));
-            const creneauDebut = parseInt(creneau.heure_debut.replace(':', ''));
-            const creneauFin = parseInt(creneau.heure_fin.replace(':', ''));
-            
-            // Le créneau doit pouvoir couvrir complètement l'examen
-            return creneauDebut <= examDebut && creneauFin >= examFin;
+            const toMinutes = (time: string) => {
+              const [h, m] = time.split(':').map(Number);
+              return h * 60 + m;
+            };
+
+            const creneauDebutMin = toMinutes(creneau.heure_debut);
+            const creneauFinMin = toMinutes(creneau.heure_fin);
+            const examDebutMin = toMinutes(examen.heure_debut);
+            const examFinMin = toMinutes(examen.heure_fin);
+
+            // Le créneau doit pouvoir couvrir complètement l'examen (avec 45min avant)
+            const debutSurveillanceMin = examDebutMin - 45;
+            return debutSurveillanceMin >= creneauDebutMin && examFinMin <= creneauFinMin;
           });
 
-          // Si ce créneau peut couvrir au moins un examen de cette date, l'ajouter
+          // Ajouter le créneau seulement s'il a des examens
           if (examensCouverts.length > 0) {
-            console.log(`[useOptimizedCreneaux] Creneau ${creneau.heure_debut}-${creneau.heure_fin} covers ${examensCouverts.length} examens for date ${date}`);
-            
             optimizedCreneaux.push({
               type: 'surveillance',
               date_examen: date,
@@ -121,7 +116,7 @@ export const useOptimizedCreneaux = (sessionId: string | null) => {
         });
       });
 
-      console.log(`[useOptimizedCreneaux] Generated ${optimizedCreneaux.length} optimized surveillance slots`);
+      console.log(`[useOptimizedCreneaux] Generated ${optimizedCreneaux.length} surveillance slots from configured creneaux`);
       
       // Trier par date puis par heure
       optimizedCreneaux.sort((a, b) => {
