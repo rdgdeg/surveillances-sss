@@ -21,7 +21,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
   const [surveillantId, setSurveillantId] = useState<string | null>(null);
   const [surveillantData, setSurveillantData] = useState<any>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState<'email' | 'existing-availabilities' | 'modification-request' | 'edit-availabilities' | 'session-selection' | 'email-confirmation' | 'instructions' | 'availability' | 'success'>('email');
+  const [currentStep, setCurrentStep] = useState<'email' | 'existing-availabilities' | 'modification-request' | 'edit-availabilities' | 'email-confirmation' | 'availability' | 'success'>('email');
   
   // Pour surveillant inconnu
   const [nom, setNom] = useState('');
@@ -88,7 +88,11 @@ export const SimpleSurveillantAvailabilityForm = () => {
     setPrenom(data.prenom);
     setTelephone(data.telephone || '');
     
-    setCurrentStep('session-selection');
+    // Sélectionner automatiquement la session active
+    if (activeSession) {
+      setSelectedSessionId(activeSession.id);
+      setCurrentStep('existing-availabilities');
+    }
     toast({
       title: "Surveillant trouvé",
       description: `Bonjour ${data.prenom} ${data.nom}`,
@@ -99,7 +103,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
     setSurveillantId(null);
     setSurveillantData(null);
     setSurveillancesADeduire(0);
-    setCurrentStep('session-selection');
+    setCurrentStep('availability');
     toast({
       title: "Email confirmé",
       description: "Vous pouvez maintenant procéder à votre candidature.",
@@ -112,7 +116,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
     if (surveillantId) {
       setCurrentStep('existing-availabilities');
     } else {
-      setCurrentStep('instructions');
+      setCurrentStep('availability');
     }
   };
 
@@ -121,7 +125,7 @@ export const SimpleSurveillantAvailabilityForm = () => {
       if (existingDisponibilites.length > 0) {
         return;
       } else {
-        setCurrentStep('instructions');
+        setCurrentStep('availability');
       }
     }
   }, [currentStep, existingDisponibilites]);
@@ -261,12 +265,12 @@ export const SimpleSurveillantAvailabilityForm = () => {
     setCurrentStep('email');
   };
 
-  // Sélectionner automatiquement la session active s'il n'y en a qu'une
+  // Sélectionner automatiquement la session active
   useEffect(() => {
-    if (currentStep === 'session-selection' && sessions.length === 1 && activeSession) {
+    if (activeSession && !selectedSessionId) {
       setSelectedSessionId(activeSession.id);
     }
-  }, [currentStep, sessions, activeSession]);
+  }, [activeSession, selectedSessionId]);
 
   if (!activeSession) {
     return (
@@ -428,18 +432,6 @@ export const SimpleSurveillantAvailabilityForm = () => {
     );
   }
 
-  if (currentStep === 'session-selection') {
-    return (
-      <SessionSelectionScreen
-        sessions={sessions}
-        activeSessionId={activeSession?.id}
-        email={email}
-        surveillantData={surveillantData}
-        onSessionSelect={handleSessionSelect}
-        existingDisponibilites={[]}
-      />
-    );
-  }
 
   if (currentStep === 'email-confirmation') {
     return (
@@ -492,26 +484,6 @@ export const SimpleSurveillantAvailabilityForm = () => {
     );
   }
 
-  if (currentStep === 'instructions') {
-    const selectedSession = sessions.find(s => s.id === selectedSessionId);
-    
-    return (
-      <AvailabilityInstructionsScreen
-        email={email}
-        surveillantData={surveillantData}
-        telephone={telephone}
-        setTelephone={setTelephone}
-        surveillancesADeduire={surveillancesADeduire}
-        setSurveillancesADeduire={setSurveillancesADeduire}
-        onContinue={handleContinueFromInstructions}
-        nom={nom}
-        setNom={setNom}
-        prenom={prenom}
-        setPrenom={setPrenom}
-        selectedSession={selectedSession}
-      />
-    );
-  }
 
   if (currentStep === 'availability' && surveillantId && selectedSessionId) {
     const selectedSession = sessions.find(s => s.id === selectedSessionId);

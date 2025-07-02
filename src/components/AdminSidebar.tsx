@@ -74,10 +74,13 @@ export function AdminSidebar() {
                 : "text-gray-700 hover:bg-gray-100"
             }`}
           >
-            <div className="flex items-center space-x-2">
-              <FileText className="h-4 w-4" />
-              <span>Gestion examens</span>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-2">
+                <FileText className="h-4 w-4" />
+                <span>Gestion examens</span>
+              </div>
             </div>
+            <div className="text-xs text-gray-500 ml-6 mt-1">Import, édition, activation</div>
           </Link>
 
           <Link
@@ -137,10 +140,13 @@ export function AdminSidebar() {
                 : "text-gray-700 hover:bg-gray-100"
             }`}
           >
-            <div className="flex items-center space-x-2">
-              <Calendar className="h-4 w-4" />
-              <span>Validation examens</span>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-2">
+                <Calendar className="h-4 w-4" />
+                <span>Validation examens</span>
+              </div>
             </div>
+            <div className="text-xs text-gray-500 ml-6 mt-1">Contrôle codes, types, statuts</div>
           </Link>
 
           <Link
@@ -186,10 +192,13 @@ export function AdminSidebar() {
                 : "text-gray-700 hover:bg-gray-100"
             }`}
           >
-            <div className="flex items-center space-x-2">
-              <Clock className="h-4 w-4" />
-              <span>Disponibilités</span>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-2">
+                <Clock className="h-4 w-4" />
+                <span>Disponibilités</span>
+              </div>
             </div>
+            <div className="text-xs text-gray-500 ml-6 mt-1">Suivi collecte, matrice, stats</div>
           </Link>
 
           <Link
@@ -200,10 +209,13 @@ export function AdminSidebar() {
                 : "text-gray-700 hover:bg-gray-100"
             }`}
           >
-            <div className="flex items-center space-x-2">
-              <Users className="h-4 w-4" />
-              <span>Surveillants</span>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-2">
+                <Users className="h-4 w-4" />
+                <span>Surveillants</span>
+              </div>
             </div>
+            <div className="text-xs text-gray-500 ml-6 mt-1">Gestion, quotas, sessions</div>
           </Link>
 
           <Link
@@ -214,10 +226,13 @@ export function AdminSidebar() {
                 : "text-gray-700 hover:bg-gray-100"
             }`}
           >
-            <div className="flex items-center space-x-2">
-              <Target className="h-4 w-4" />
-              <span>Attributions</span>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-2">
+                <Target className="h-4 w-4" />
+                <span>Attributions</span>
+              </div>
             </div>
+            <div className="text-xs text-gray-500 ml-6 mt-1">Attribution automatique/manuelle</div>
           </Link>
 
           <Link

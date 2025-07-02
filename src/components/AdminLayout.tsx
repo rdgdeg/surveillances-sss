@@ -3,6 +3,7 @@ import { ReactNode } from "react";
 import { AdminSidebar } from "./AdminSidebar";
 import { HomeButton } from "./HomeButton";
 import { AdminProtection } from "./AdminProtection";
+import { AdminBreadcrumbs } from "./AdminBreadcrumbs";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -20,6 +21,7 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
               <HomeButton />
             </div>
             <div className="p-6">
+              <AdminBreadcrumbs />
               {children}
             </div>
           </div>

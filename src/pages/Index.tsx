@@ -36,7 +36,7 @@ const Index = () => {
             </div>
             <div className="flex items-center space-x-3">
               {isPlanningVisible ? (
-                <Link to="/planning">
+                <Link to="/planning-general">
                   <Button variant="outline" className="border-uclouvain-cyan text-uclouvain-cyan hover:bg-uclouvain-cyan hover:text-uclouvain-blue transition-colors text-sm">
                     <Calendar className="h-3 w-3 mr-1" />
                     Planning Général
@@ -96,7 +96,7 @@ const Index = () => {
               </div>
               <div className="flex justify-center">
                 {isPlanningVisible ? (
-                  <Link to="/planning" className="w-full">
+                  <Link to="/planning-general" className="w-full">
                     <Button className="w-full bg-purple-600 hover:bg-purple-700 text-base font-medium rounded-lg h-12">
                       Voir le planning complet
                     </Button>
@@ -122,13 +122,13 @@ const Index = () => {
                   Enseignants
                 </CardTitle>
                 <CardDescription className="text-base text-gray-700 mb-6">
-                  Confirmez les examens dont vous êtes responsable et indiquez les assistants qui participeront à la surveillance.
+                  Accès par token personnalisé pour confirmer vos examens et gérer les assistants de surveillance.
                 </CardDescription>
               </div>
               <div className="flex justify-center">
                 <Link to="/enseignant" className="w-full">
                   <Button className="w-full bg-green-600 hover:bg-green-700 text-base font-medium rounded-lg h-12">
-                    Gérer mes examens & assistants
+                    Accès avec token enseignant
                   </Button>
                 </Link>
               </div>
