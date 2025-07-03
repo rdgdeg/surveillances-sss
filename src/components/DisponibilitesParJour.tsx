@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -415,49 +416,4 @@ export const DisponibilitesParJour = () => {
       </Card>
     </div>
   );
-
-  // Exporter vers Excel
-  function exportToExcel() {
-    if (disponibilitesParJour.length === 0) {
-      toast({
-        title: "Aucune donnée",
-        description: "Aucune disponibilité à exporter.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const exportData: any[] = [];
-    
-    disponibilitesParJour.forEach(jour => {
-      jour.creneaux.forEach(creneau => {
-        creneau.surveillants.forEach(surveillant => {
-          exportData.push({
-            'Date': formatDateBelgian(jour.date),
-            'Créneau': formatTimeRange(creneau.heure_debut, creneau.heure_fin),
-            'Nom': surveillant.nom,
-            'Prénom': surveillant.prenom,
-            'Email': surveillant.email,
-            'Type': surveillant.type,
-            'Type Choix': surveillant.type_choix === 'obligatoire' ? 'Obligatoire' : 'Souhaité',
-            'Examen Spécifique': surveillant.nom_examen_selectionne || '-',
-            'Examen Obligatoire': surveillant.nom_examen_obligatoire || '-',
-            'Commentaire': surveillant.commentaire || '-'
-          });
-        });
-      });
-    });
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Disponibilités par jour");
-
-    const fileName = `disponibilites_par_jour_${activeSession?.name || 'session'}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, fileName);
-
-    toast({
-      title: "Export réussi",
-      description: `Données exportées vers ${fileName}`,
-    });
-  }
 };
