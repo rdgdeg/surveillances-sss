@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, Users, Clock, Download, Star, CheckCircle } from "lucide-react";
 import { useActiveSession } from "@/hooks/useSessions";
-import { useOptimizedCreneaux } from "@/hooks/useOptimizedCreneaux";
+import { useOptimizedCreneauxFromGenerated } from "@/hooks/useOptimizedCreneauxFromGenerated";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
 import { toast } from "@/hooks/use-toast";
 import * as XLSX from 'xlsx';
@@ -38,8 +37,8 @@ export const DisponibilitesParJour = () => {
   const [selectedDate, setSelectedDate] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  // Récupérer les créneaux optimisés de surveillance
-  const { data: optimizedCreneaux = [] } = useOptimizedCreneaux(activeSession?.id || null);
+  // Utiliser les créneaux optimisés directement (ceux de la vue par semaines)
+  const { data: optimizedCreneaux = [] } = useOptimizedCreneauxFromGenerated(activeSession?.id || null);
 
   // Récupérer toutes les disponibilités avec infos surveillants
   const { data: disponibilitesParJour = [], isLoading } = useQuery({
@@ -65,7 +64,7 @@ export const DisponibilitesParJour = () => {
 
       if (error) throw error;
 
-      // Récupérer uniquement les créneaux de surveillance optimisés
+      // Utiliser les créneaux optimisés (ceux de la vue par semaines)
       const creneauxSurveillance = optimizedCreneaux.filter(slot => slot.type === 'surveillance');
 
       // Fonction pour vérifier si une disponibilité correspond à un créneau de surveillance
@@ -254,7 +253,7 @@ export const DisponibilitesParJour = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Calendar className="h-5 w-5" />
-              <span>Disponibilités par jour (créneaux optimisés)</span>
+              <span>Disponibilités par jour (créneaux optimisés simplifiés)</span>
             </div>
             <Button onClick={exportToExcel} className="flex items-center space-x-2">
               <Download className="h-4 w-4" />
@@ -262,7 +261,7 @@ export const DisponibilitesParJour = () => {
             </Button>
           </CardTitle>
           <CardDescription>
-            Session {activeSession.name} - Vue organisée par créneaux de surveillance optimisés
+            Session {activeSession.name} - Vue organisée par créneaux de surveillance configurés
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -416,4 +415,49 @@ export const DisponibilitesParJour = () => {
       </Card>
     </div>
   );
+
+  // Exporter vers Excel
+  function exportToExcel() {
+    if (disponibilitesParJour.length === 0) {
+      toast({
+        title: "Aucune donnée",
+        description: "Aucune disponibilité à exporter.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const exportData: any[] = [];
+    
+    disponibilitesParJour.forEach(jour => {
+      jour.creneaux.forEach(creneau => {
+        creneau.surveillants.forEach(surveillant => {
+          exportData.push({
+            'Date': formatDateBelgian(jour.date),
+            'Créneau': formatTimeRange(creneau.heure_debut, creneau.heure_fin),
+            'Nom': surveillant.nom,
+            'Prénom': surveillant.prenom,
+            'Email': surveillant.email,
+            'Type': surveillant.type,
+            'Type Choix': surveillant.type_choix === 'obligatoire' ? 'Obligatoire' : 'Souhaité',
+            'Examen Spécifique': surveillant.nom_examen_selectionne || '-',
+            'Examen Obligatoire': surveillant.nom_examen_obligatoire || '-',
+            'Commentaire': surveillant.commentaire || '-'
+          });
+        });
+      });
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Disponibilités par jour");
+
+    const fileName = `disponibilites_par_jour_${activeSession?.name || 'session'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, fileName);
+
+    toast({
+      title: "Export réussi",
+      description: `Données exportées vers ${fileName}`,
+    });
+  }
 };
