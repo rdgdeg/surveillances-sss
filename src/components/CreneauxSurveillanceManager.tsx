@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,12 +12,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Clock, Plus, Edit, Trash2, Check, X, CheckCircle, Calendar, Settings, Link2 } from "lucide-react";
+import { Clock, Plus, Edit, Trash2, Check, X, CheckCircle, Calendar, Settings, RefreshCw } from "lucide-react";
 import { useActiveSession } from "@/hooks/useSessions";
 import { formatTimeRange } from "@/lib/dateUtils";
 import { toast } from "@/hooks/use-toast";
 import { CreneauxVueSemaines } from "./CreneauxVueSemaines";
-import { ExamenCreneauAssociator } from "./ExamenCreneauAssociator";
 
 interface CreneauSurveillanceConfig {
   id: string;
@@ -27,11 +27,10 @@ interface CreneauSurveillanceConfig {
   description: string | null;
   is_active: boolean;
   is_validated: boolean;
-  validated_by: string | null;
-  validated_at: string | null;
+  type_creneau: 'standard' | 'manuel' | 'etendu';
+  created_by: string | null;
   created_at: string;
   updated_at: string;
-  created_by: string | null;
 }
 
 interface CreneauFormData {
@@ -71,28 +70,25 @@ export const CreneauxSurveillanceManager = () => {
     enabled: !!activeSession?.id
   });
 
-  // Récupérer le nombre d'examens associés à chaque créneau
-  const { data: examensParCreneau = {} } = useQuery({
-    queryKey: ['examens-par-creneau', activeSession?.id],
-    queryFn: async () => {
-      if (!activeSession?.id) return {};
-
-      const { data, error } = await supabase
-        .from('creneaux_examens')
-        .select('creneau_id, examens!inner(session_id)')
-        .eq('examens.session_id', activeSession.id);
-
-      if (error) throw error;
-
-      // Compter les examens par créneau
-      const count: Record<string, number> = {};
-      data?.forEach(item => {
-        count[item.creneau_id] = (count[item.creneau_id] || 0) + 1;
+  // Générer automatiquement les créneaux standards
+  const genererCreneauxMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeSession?.id) throw new Error('Aucune session active');
+      
+      const { data, error } = await supabase.rpc('generer_creneaux_standards', {
+        p_session_id: activeSession.id
       });
-
-      return count;
+      
+      if (error) throw error;
+      return data;
     },
-    enabled: !!activeSession?.id
+    onSuccess: (nbCreneaux) => {
+      toast({
+        title: "Créneaux générés",
+        description: `${nbCreneaux} créneau(x) standard(s) ont été générés automatiquement.`
+      });
+      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-config'] });
+    }
   });
 
   // Mutation pour créer un nouveau créneau
@@ -110,6 +106,7 @@ export const CreneauxSurveillanceManager = () => {
           description: data.description,
           is_active: true,
           is_validated: false,
+          type_creneau: 'manuel',
           created_by: 'admin'
         });
 
@@ -122,13 +119,6 @@ export const CreneauxSurveillanceManager = () => {
       toast({
         title: "Créneau créé",
         description: "Le nouveau créneau de surveillance a été créé avec succès.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message,
-        variant: "destructive"
       });
     }
   });
@@ -151,13 +141,6 @@ export const CreneauxSurveillanceManager = () => {
         title: "Créneau modifié",
         description: "Le créneau a été modifié avec succès.",
       });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message,
-        variant: "destructive"
-      });
     }
   });
 
@@ -177,13 +160,6 @@ export const CreneauxSurveillanceManager = () => {
         title: "Créneau supprimé",
         description: "Le créneau a été supprimé avec succès.",
       });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message,
-        variant: "destructive"
-      });
     }
   });
 
@@ -193,9 +169,7 @@ export const CreneauxSurveillanceManager = () => {
       const { error } = await supabase
         .from('creneaux_surveillance_config')
         .update({
-          is_validated: isValidated,
-          validated_by: isValidated ? 'admin' : null,
-          validated_at: isValidated ? new Date().toISOString() : null
+          is_validated: isValidated
         })
         .eq('id', id);
 
@@ -206,13 +180,6 @@ export const CreneauxSurveillanceManager = () => {
       toast({
         title: "Statut modifié",
         description: "Le statut de validation du créneau a été modifié.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message,
-        variant: "destructive"
       });
     }
   });
@@ -272,7 +239,7 @@ export const CreneauxSurveillanceManager = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Clock className="h-5 w-5" />
-            <span>Gestion des créneaux de surveillance</span>
+            <span>Gestion des créneaux de surveillance (Simplifiée)</span>
           </CardTitle>
           <CardDescription>
             Session {activeSession.name} - {creneauxActifs.length} créneaux configurés, {creneauxValides.length} validés
@@ -280,12 +247,8 @@ export const CreneauxSurveillanceManager = () => {
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="associations" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="associations" className="flex items-center space-x-2">
-            <Link2 className="h-4 w-4" />
-            <span>Associations</span>
-          </TabsTrigger>
+      <Tabs defaultValue="vue-semaines" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="vue-semaines" className="flex items-center space-x-2">
             <Calendar className="h-4 w-4" />
             <span>Vue par semaines</span>
@@ -294,15 +257,7 @@ export const CreneauxSurveillanceManager = () => {
             <Settings className="h-4 w-4" />
             <span>Configuration</span>
           </TabsTrigger>
-          <TabsTrigger value="import" className="flex items-center space-x-2">
-            <Plus className="h-4 w-4" />
-            <span>Import</span>
-          </TabsTrigger>
         </TabsList>
-
-        <TabsContent value="associations" className="space-y-6">
-          <ExamenCreneauAssociator />
-        </TabsContent>
 
         <TabsContent value="vue-semaines" className="space-y-6">
           <CreneauxVueSemaines />
@@ -316,70 +271,81 @@ export const CreneauxSurveillanceManager = () => {
                   <Settings className="h-5 w-5" />
                   <span>Configuration des créneaux</span>
                 </div>
-                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="flex items-center space-x-2">
-                      <Plus className="h-4 w-4" />
-                      <span>Nouveau créneau</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Créer un nouveau créneau</DialogTitle>
-                      <DialogDescription>
-                        Définissez un nouveau créneau de surveillance pour la session {activeSession.name}
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2">
+                  <Button
+                    onClick={() => genererCreneauxMutation.mutate()}
+                    disabled={genererCreneauxMutation.isPending}
+                    variant="outline"
+                    className="flex items-center space-x-2"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${genererCreneauxMutation.isPending ? 'animate-spin' : ''}`} />
+                    <span>Générer standards</span>
+                  </Button>
+                  <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="flex items-center space-x-2">
+                        <Plus className="h-4 w-4" />
+                        <span>Nouveau créneau</span>
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Créer un nouveau créneau</DialogTitle>
+                        <DialogDescription>
+                          Définissez un nouveau créneau de surveillance pour la session {activeSession.name}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="heure_debut">Heure de début</Label>
+                            <Input
+                              type="time"
+                              id="heure_debut"
+                              value={formData.heure_debut}
+                              onChange={(e) => setFormData({ ...formData, heure_debut: e.target.value })}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="heure_fin">Heure de fin</Label>
+                            <Input
+                              type="time"
+                              id="heure_fin"
+                              value={formData.heure_fin}
+                              onChange={(e) => setFormData({ ...formData, heure_fin: e.target.value })}
+                              required
+                            />
+                          </div>
+                        </div>
                         <div>
-                          <Label htmlFor="heure_debut">Heure de début</Label>
+                          <Label htmlFor="nom_creneau">Nom du créneau</Label>
                           <Input
-                            type="time"
-                            id="heure_debut"
-                            value={formData.heure_debut}
-                            onChange={(e) => setFormData({ ...formData, heure_debut: e.target.value })}
-                            required
+                            id="nom_creneau"
+                            value={formData.nom_creneau}
+                            onChange={(e) => setFormData({ ...formData, nom_creneau: e.target.value })}
+                            placeholder="Ex: Matin Étendu"
                           />
                         </div>
                         <div>
-                          <Label htmlFor="heure_fin">Heure de fin</Label>
-                          <Input
-                            type="time"
-                            id="heure_fin"
-                            value={formData.heure_fin}
-                            onChange={(e) => setFormData({ ...formData, heure_fin: e.target.value })}
-                            required
+                          <Label htmlFor="description">Description</Label>
+                          <Textarea
+                            id="description"
+                            value={formData.description}
+                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                            placeholder="Ex: Pour examens longs du matin"
                           />
                         </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="nom_creneau">Nom du créneau</Label>
-                        <Input
-                          id="nom_creneau"
-                          value={formData.nom_creneau}
-                          onChange={(e) => setFormData({ ...formData, nom_creneau: e.target.value })}
-                          placeholder="Ex: Matin Étendu"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="description">Description</Label>
-                        <Textarea
-                          id="description"
-                          value={formData.description}
-                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                          placeholder="Ex: Pour examens longs du matin"
-                        />
-                      </div>
-                      <div className="flex justify-end space-x-2">
-                        <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                          Annuler
-                        </Button>
-                        <Button type="submit">Créer</Button>
-                      </div>
-                    </form>
-                  </DialogContent>
-                </Dialog>
+                        <div className="flex justify-end space-x-2">
+                          <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                            Annuler
+                          </Button>
+                          <Button type="submit">Créer</Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -391,9 +357,9 @@ export const CreneauxSurveillanceManager = () => {
                     <TableRow>
                       <TableHead>Créneau</TableHead>
                       <TableHead>Nom</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Examens</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead>Statut</TableHead>
+                      <TableHead>Description</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -417,6 +383,23 @@ export const CreneauxSurveillanceManager = () => {
                           )}
                         </TableCell>
                         <TableCell>
+                          <Badge 
+                            variant={creneau.type_creneau === 'standard' ? 'default' : 
+                                    creneau.type_creneau === 'etendu' ? 'secondary' : 'outline'}
+                          >
+                            {creneau.type_creneau === 'standard' ? 'Standard' :
+                             creneau.type_creneau === 'etendu' ? 'Étendu' : 'Manuel'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={creneau.is_validated ? "default" : "outline"}
+                            className={creneau.is_validated ? "bg-green-100 text-green-800" : ""}
+                          >
+                            {creneau.is_validated ? "Validé" : "Brouillon"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           {editingCreneau?.id === creneau.id ? (
                             <Input
                               value={formData.description}
@@ -428,24 +411,6 @@ export const CreneauxSurveillanceManager = () => {
                               {creneau.description || "-"}
                             </div>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">
-                            {examensParCreneau[creneau.id] || 0} examens
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <Badge variant={creneau.is_active ? "default" : "secondary"}>
-                              {creneau.is_active ? "Actif" : "Inactif"}
-                            </Badge>
-                            <Badge 
-                              variant={creneau.is_validated ? "default" : "outline"}
-                              className={creneau.is_validated ? "bg-green-100 text-green-800" : ""}
-                            >
-                              {creneau.is_validated ? "Validé" : "Non validé"}
-                            </Badge>
-                          </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
@@ -488,7 +453,7 @@ export const CreneauxSurveillanceManager = () => {
                                       <AlertDialogTitle>Supprimer le créneau</AlertDialogTitle>
                                       <AlertDialogDescription>
                                         Êtes-vous sûr de vouloir supprimer le créneau {formatTimeRange(creneau.heure_debut, creneau.heure_fin)} ?
-                                        Cette action supprimera aussi toutes les associations avec les examens.
+                                        Cette action est irréversible.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -514,26 +479,6 @@ export const CreneauxSurveillanceManager = () => {
                   Aucun créneau configuré pour cette session.
                 </p>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="import" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Import en masse de créneaux</CardTitle>
-              <CardDescription>
-                Fonctionnalité à développer : import CSV des créneaux prédéfinis
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <Plus className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Fonctionnalité en développement</p>
-                <p className="text-sm text-gray-400 mt-2">
-                  Permettra d'importer rapidement les créneaux depuis un fichier CSV
-                </p>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

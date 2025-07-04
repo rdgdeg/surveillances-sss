@@ -1,20 +1,37 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { OptimizedCreneauFromGenerated } from "./useCreneauxGeneres";
 
+export interface OptimizedCreneauFromGenerated {
+  type: 'surveillance';
+  date_examen: string;
+  heure_debut: string;
+  heure_fin: string;
+  heure_debut_surveillance: string;
+  examens: Array<{
+    id: string;
+    code_examen: string;
+    matiere: string;
+    salle: string;
+    heure_debut: string;
+    heure_fin: string;
+    nombre_surveillants: number;
+    surveillants_enseignant: number;
+    surveillants_amenes: number;
+    surveillants_pre_assignes: number;
+  }>;
+}
+
+// Hook simplifié qui utilise directement creneaux_surveillance_config
 export const useOptimizedCreneauxFromGenerated = (sessionId: string | null) => {
   return useQuery({
-    queryKey: ['optimized-creneaux-from-generated', sessionId],
+    queryKey: ['optimized-creneaux-simplified', sessionId],
     queryFn: async (): Promise<OptimizedCreneauFromGenerated[]> => {
       if (!sessionId) return [];
       
-      console.log('[useOptimizedCreneauxFromGenerated] Converting generated creneaux for session:', sessionId);
+      console.log('[useOptimizedCreneauxFromGenerated] Using simplified approach for session:', sessionId);
       
-      // Au lieu d'utiliser les créneaux générés complexes, on utilise directement 
-      // la logique des créneaux optimisés de la vue par semaines
-      
-      // Récupérer les créneaux de surveillance configurés et validés
+      // Récupérer les créneaux de surveillance validés
       const { data: creneauxConfig, error: creneauxError } = await supabase
         .from('creneaux_surveillance_config')
         .select('*')
@@ -28,10 +45,10 @@ export const useOptimizedCreneauxFromGenerated = (sessionId: string | null) => {
         throw creneauxError;
       }
 
-      console.log('[useOptimizedCreneauxFromGenerated] Found configured creneaux:', creneauxConfig?.length || 0);
+      console.log('[useOptimizedCreneauxFromGenerated] Found validated creneaux:', creneauxConfig?.length || 0);
 
       if (!creneauxConfig || creneauxConfig.length === 0) {
-        console.log('[useOptimizedCreneauxFromGenerated] No configured creneaux found');
+        console.log('[useOptimizedCreneauxFromGenerated] No validated creneaux found');
         return [];
       }
 
@@ -77,7 +94,7 @@ export const useOptimizedCreneauxFromGenerated = (sessionId: string | null) => {
         const examensDate = examens.filter(e => e.date_examen === date);
         console.log(`[useOptimizedCreneauxFromGenerated] Processing date ${date} with ${examensDate.length} examens`);
         
-        // Pour chaque créneau configuré, vérifier s'il peut couvrir des examens de cette date
+        // Pour chaque créneau validé, vérifier s'il peut couvrir des examens de cette date
         creneauxConfig.forEach(creneauConfig => {
           const creneauDebutMin = toMinutes(creneauConfig.heure_debut);
           const creneauFinMin = toMinutes(creneauConfig.heure_fin);
@@ -120,7 +137,7 @@ export const useOptimizedCreneauxFromGenerated = (sessionId: string | null) => {
         });
       });
 
-      console.log(`[useOptimizedCreneauxFromGenerated] Generated ${optimizedCreneaux.length} surveillance slots from configured creneaux`);
+      console.log(`[useOptimizedCreneauxFromGenerated] Generated ${optimizedCreneaux.length} surveillance slots from validated creneaux`);
       
       // Trier par date puis par heure
       optimizedCreneaux.sort((a, b) => {

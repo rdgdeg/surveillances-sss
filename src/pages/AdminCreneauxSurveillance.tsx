@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AdminLayout } from "@/components/AdminLayout";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
   Calendar, 
@@ -28,22 +30,26 @@ import { toast } from "@/hooks/use-toast";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
 import { useSessions } from "@/hooks/useSessions";
 
-interface CreneauGenere {
+interface CreneauConfig {
   id: string;
-  date_surveillance: string;
+  session_id: string;
+  heure_debut: string;
+  heure_fin: string;
+  nom_creneau: string | null;
+  description: string | null;
+  is_active: boolean;
+  is_validated: boolean;
+  type_creneau: 'standard' | 'manuel' | 'etendu';
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CreneauFormData {
   heure_debut: string;
   heure_fin: string;
   nom_creneau: string;
   description: string;
-  examens_couverts: any[];
-  nb_examens: number;
-  nb_surveillants_requis: number;
-  statut: 'GENERE' | 'VALIDE' | 'REJETE';
-  is_manual: boolean;
-  genere_le: string;
-  valide_le?: string;
-  valide_par?: string;
-  notes_admin?: string;
 }
 
 export default function AdminCreneauxSurveillance() {
@@ -51,65 +57,53 @@ export default function AdminCreneauxSurveillance() {
   const { data: sessions } = useSessions();
   const activeSession = sessions?.find(s => s.is_active);
   
-  const [selectedCreneau, setSelectedCreneau] = useState<CreneauGenere | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingCreneau, setEditingCreneau] = useState<CreneauGenere | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingCreneau, setEditingCreneau] = useState<CreneauConfig | null>(null);
+  const [formData, setFormData] = useState<CreneauFormData>({
+    heure_debut: "",
+    heure_fin: "",
+    nom_creneau: "",
+    description: ""
+  });
 
-  // Récupérer les créneaux générés
+  // Récupérer les créneaux de surveillance
   const { data: creneaux = [], isLoading } = useQuery({
-    queryKey: ['creneaux-surveillance-generated', activeSession?.id],
-    queryFn: async () => {
+    queryKey: ['creneaux-surveillance-config', activeSession?.id],
+    queryFn: async (): Promise<CreneauConfig[]> => {
       if (!activeSession?.id) return [];
       
-      console.log('[AdminCreneauxSurveillance] Fetching creneaux for session:', activeSession.id);
-      
       const { data, error } = await supabase
-        .from('creneaux_surveillance_generated')
+        .from('creneaux_surveillance_config')
         .select('*')
         .eq('session_id', activeSession.id)
-        .order('date_surveillance')
         .order('heure_debut');
       
-      if (error) {
-        console.error('[AdminCreneauxSurveillance] Error fetching creneaux:', error);
-        throw error;
-      }
-
-      console.log('[AdminCreneauxSurveillance] Fetched creneaux:', data);
-      return data as CreneauGenere[];
+      if (error) throw error;
+      return data as CreneauConfig[];
     },
     enabled: !!activeSession?.id
   });
 
-  // Générer automatiquement les créneaux
+  // Générer automatiquement les créneaux standards
   const genererCreneauxMutation = useMutation({
     mutationFn: async () => {
       if (!activeSession?.id) throw new Error('Aucune session active');
       
-      console.log('[AdminCreneauxSurveillance] Calling generer_creneaux_surveillance for session:', activeSession.id);
-      
-      const { data, error } = await supabase.rpc('generer_creneaux_surveillance', {
+      const { data, error } = await supabase.rpc('generer_creneaux_standards', {
         p_session_id: activeSession.id
       });
       
-      if (error) {
-        console.error('[AdminCreneauxSurveillance] Error generating creneaux:', error);
-        throw error;
-      }
-      
-      console.log('[AdminCreneauxSurveillance] Generated creneaux result:', data);
+      if (error) throw error;
       return data;
     },
     onSuccess: (nbCreneaux) => {
-      console.log('[AdminCreneauxSurveillance] Successfully generated creneaux:', nbCreneaux);
       toast({
         title: "Créneaux générés",
-        description: `${nbCreneaux} créneau(x) ont été générés automatiquement.`
+        description: `${nbCreneaux} créneau(x) standard(s) ont été générés automatiquement.`
       });
-      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-generated'] });
+      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-config'] });
     },
     onError: (error: any) => {
-      console.error('[AdminCreneauxSurveillance] Error in mutation:', error);
       toast({
         title: "Erreur",
         description: error.message || "Une erreur est survenue lors de la génération des créneaux",
@@ -118,75 +112,131 @@ export default function AdminCreneauxSurveillance() {
     }
   });
 
-  // Valider/Rejeter un créneau
-  const updateStatutMutation = useMutation({
-    mutationFn: async ({ id, statut, notes }: { id: string; statut: 'VALIDE' | 'REJETE'; notes?: string }) => {
+  // Créer un nouveau créneau manuel
+  const createCreneauMutation = useMutation({
+    mutationFn: async (data: CreneauFormData) => {
+      if (!activeSession?.id) throw new Error('Session non active');
+
       const { error } = await supabase
-        .from('creneaux_surveillance_generated')
-        .update({
-          statut,
-          valide_le: new Date().toISOString(),
-          valide_par: 'admin', // TODO: récupérer l'utilisateur connecté
-          notes_admin: notes
-        })
-        .eq('id', id);
-      
+        .from('creneaux_surveillance_config')
+        .insert({
+          session_id: activeSession.id,
+          heure_debut: data.heure_debut,
+          heure_fin: data.heure_fin,
+          nom_creneau: data.nom_creneau,
+          description: data.description,
+          is_active: true,
+          is_validated: false,
+          type_creneau: 'manuel',
+          created_by: 'admin'
+        });
+
       if (error) throw error;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-config'] });
+      setIsCreateDialogOpen(false);
+      resetForm();
       toast({
-        title: "Statut mis à jour",
-        description: "Le statut du créneau a été mis à jour."
+        title: "Créneau créé",
+        description: "Le nouveau créneau a été créé avec succès.",
       });
-      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-generated'] });
+    }
+  });
+
+  // Modifier un créneau
+  const updateCreneauMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<CreneauFormData> }) => {
+      const { error } = await supabase
+        .from('creneaux_surveillance_config')
+        .update(data)
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-config'] });
+      setEditingCreneau(null);
+      resetForm();
+      toast({
+        title: "Créneau modifié",
+        description: "Le créneau a été modifié avec succès.",
+      });
     }
   });
 
   // Supprimer un créneau
-  const supprimerCreneauMutation = useMutation({
+  const deleteCreneauMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('creneaux_surveillance_generated')
+        .from('creneaux_surveillance_config')
         .delete()
         .eq('id', id);
-      
+
       if (error) throw error;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-config'] });
       toast({
         title: "Créneau supprimé",
-        description: "Le créneau a été supprimé avec succès."
+        description: "Le créneau a été supprimé avec succès.",
       });
-      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-generated'] });
     }
   });
 
-  const getStatutBadge = (statut: string) => {
-    switch (statut) {
-      case 'GENERE':
-        return <Badge variant="secondary">Généré</Badge>;
-      case 'VALIDE':
-        return <Badge variant="default" className="bg-green-100 text-green-800">Validé</Badge>;
-      case 'REJETE':
-        return <Badge variant="destructive">Rejeté</Badge>;
-      default:
-        return <Badge variant="outline">{statut}</Badge>;
+  // Valider/Invalider un créneau
+  const toggleValidationMutation = useMutation({
+    mutationFn: async ({ id, isValidated }: { id: string; isValidated: boolean }) => {
+      const { error } = await supabase
+        .from('creneaux_surveillance_config')
+        .update({
+          is_validated: isValidated
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['creneaux-surveillance-config'] });
+      toast({
+        title: "Statut modifié",
+        description: "Le statut de validation du créneau a été modifié.",
+      });
+    }
+  });
+
+  const resetForm = () => {
+    setFormData({
+      heure_debut: "",
+      heure_fin: "",
+      nom_creneau: "",
+      description: ""
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (editingCreneau) {
+      updateCreneauMutation.mutate({ id: editingCreneau.id, data: formData });
+    } else {
+      createCreneauMutation.mutate(formData);
     }
   };
 
-  const creneauxParDate = creneaux.reduce((acc, creneau) => {
-    const date = creneau.date_surveillance;
-    if (!acc[date]) acc[date] = [];
-    acc[date].push(creneau);
-    return acc;
-  }, {} as Record<string, CreneauGenere[]>);
+  const handleEdit = (creneau: CreneauConfig) => {
+    setEditingCreneau(creneau);
+    setFormData({
+      heure_debut: creneau.heure_debut,
+      heure_fin: creneau.heure_fin,
+      nom_creneau: creneau.nom_creneau || "",
+      description: creneau.description || ""
+    });
+  };
 
-  const statsCreneaux = {
-    total: creneaux.length,
-    generes: creneaux.filter(c => c.statut === 'GENERE').length,
-    valides: creneaux.filter(c => c.statut === 'VALIDE').length,
-    rejetes: creneaux.filter(c => c.statut === 'REJETE').length,
-    manuels: creneaux.filter(c => c.is_manual).length
+  const handleCancelEdit = () => {
+    setEditingCreneau(null);
+    resetForm();
   };
 
   if (!activeSession) {
@@ -202,12 +252,20 @@ export default function AdminCreneauxSurveillance() {
     );
   }
 
+  const statsCreneaux = {
+    total: creneaux.length,
+    valides: creneaux.filter(c => c.is_validated).length,
+    standards: creneaux.filter(c => c.type_creneau === 'standard').length,
+    manuels: creneaux.filter(c => c.type_creneau === 'manuel').length,
+    etendus: creneaux.filter(c => c.type_creneau === 'etendu').length
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold">Gestion des Créneaux de Surveillance</h1>
+          <h1 className="text-3xl font-bold">Gestion des Créneaux de Surveillance (Simplifié)</h1>
           <p className="text-muted-foreground">
             Session active : {activeSession.name} ({activeSession.year})
           </p>
@@ -226,14 +284,6 @@ export default function AdminCreneauxSurveillance() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-2xl font-bold text-orange-600">{statsCreneaux.generes}</div>
-                <p className="text-xs text-muted-foreground">Générés</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center">
                 <div className="text-2xl font-bold text-green-600">{statsCreneaux.valides}</div>
                 <p className="text-xs text-muted-foreground">Validés</p>
               </div>
@@ -242,15 +292,23 @@ export default function AdminCreneauxSurveillance() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-600">{statsCreneaux.rejetes}</div>
-                <p className="text-xs text-muted-foreground">Rejetés</p>
+                <div className="text-2xl font-bold text-blue-600">{statsCreneaux.standards}</div>
+                <p className="text-xs text-muted-foreground">Standards</p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{statsCreneaux.manuels}</div>
+                <div className="text-2xl font-bold text-orange-600">{statsCreneaux.etendus}</div>
+                <p className="text-xs text-muted-foreground">Étendus</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{statsCreneaux.manuels}</div>
                 <p className="text-xs text-muted-foreground">Manuels</p>
               </div>
             </CardContent>
@@ -262,7 +320,7 @@ export default function AdminCreneauxSurveillance() {
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Settings className="h-5 w-5" />
-              <span>Actions de Gestion</span>
+              <span>Actions</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-4">
@@ -273,192 +331,221 @@ export default function AdminCreneauxSurveillance() {
             >
               <RefreshCw className={`h-4 w-4 ${genererCreneauxMutation.isPending ? 'animate-spin' : ''}`} />
               <span>
-                {genererCreneauxMutation.isPending ? 'Génération...' : 'Générer les créneaux'}
+                {genererCreneauxMutation.isPending ? 'Génération...' : 'Générer créneaux standards'}
               </span>
             </Button>
             
-            <Button variant="outline" className="flex items-center space-x-2">
-              <Plus className="h-4 w-4" />
-              <span>Ajouter manuellement</span>
-            </Button>
+            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="flex items-center space-x-2">
+                  <Plus className="h-4 w-4" />
+                  <span>Ajouter créneau manuel</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Créer un nouveau créneau</DialogTitle>
+                  <DialogDescription>
+                    Ajoutez un créneau de surveillance personnalisé pour la session {activeSession.name}
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="heure_debut">Heure de début</Label>
+                      <Input
+                        type="time"
+                        id="heure_debut"
+                        value={formData.heure_debut}
+                        onChange={(e) => setFormData({ ...formData, heure_debut: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="heure_fin">Heure de fin</Label>
+                      <Input
+                        type="time"
+                        id="heure_fin"
+                        value={formData.heure_fin}
+                        onChange={(e) => setFormData({ ...formData, heure_fin: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="nom_creneau">Nom du créneau</Label>
+                    <Input
+                      id="nom_creneau"
+                      value={formData.nom_creneau}
+                      onChange={(e) => setFormData({ ...formData, nom_creneau: e.target.value })}
+                      placeholder="Ex: Créneau Spécial"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      placeholder="Ex: Créneau personnalisé pour examens spéciaux"
+                    />
+                  </div>
+                  <div className="flex justify-end space-x-2">
+                    <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                      Annuler
+                    </Button>
+                    <Button type="submit">Créer</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
           </CardContent>
         </Card>
 
-        {/* Liste des créneaux par date */}
-        {isLoading ? (
-          <div className="text-center py-8">Chargement des créneaux...</div>
-        ) : Object.keys(creneauxParDate).length === 0 ? (
-          <Card>
-            <CardContent className="py-8 text-center">
-              <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">
-                Aucun créneau généré. Cliquez sur "Générer les créneaux" pour commencer.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          Object.entries(creneauxParDate).map(([date, creneauxDate]) => (
-            <Card key={date}>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5" />
-                  <span>{formatDateBelgian(date)}</span>
-                  <Badge variant="outline">{creneauxDate.length} créneau(x)</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {creneauxDate.map((creneau) => (
-                    <div
-                      key={creneau.id}
-                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="flex items-center space-x-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium">
-                              {formatTimeRange(creneau.heure_debut, creneau.heure_fin)}
-                            </span>
+        {/* Liste des créneaux */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Créneaux de surveillance</CardTitle>
+            <CardDescription>
+              Gérez les créneaux de surveillance pour la session {activeSession.name}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-center py-8">Chargement...</div>
+            ) : creneaux.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Horaire</TableHead>
+                    <TableHead>Nom</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {creneaux.map((creneau) => (
+                    <TableRow key={creneau.id}>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {formatTimeRange(creneau.heure_debut, creneau.heure_fin)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {editingCreneau?.id === creneau.id ? (
+                          <Input
+                            value={formData.nom_creneau}
+                            onChange={(e) => setFormData({ ...formData, nom_creneau: e.target.value })}
+                            className="w-32"
+                          />
+                        ) : (
+                          creneau.nom_creneau || "-"
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={creneau.type_creneau === 'standard' ? 'default' : 
+                                  creneau.type_creneau === 'etendu' ? 'secondary' : 'outline'}
+                        >
+                          {creneau.type_creneau === 'standard' ? 'Standard' :
+                           creneau.type_creneau === 'etendu' ? 'Étendu' : 'Manuel'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={creneau.is_validated ? "default" : "outline"}
+                          className={creneau.is_validated ? "bg-green-100 text-green-800" : ""}
+                        >
+                          {creneau.is_validated ? "Validé" : "Brouillon"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {editingCreneau?.id === creneau.id ? (
+                          <Input
+                            value={formData.description}
+                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                            className="w-48"
+                          />
+                        ) : (
+                          <div className="max-w-xs truncate" title={creneau.description || ""}>
+                            {creneau.description || "-"}
                           </div>
-                          
-                          {getStatutBadge(creneau.statut)}
-                          
-                          {creneau.is_manual && (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                              Manuel
-                            </Badge>
-                          )}
-                          
-                          <div className="text-sm text-muted-foreground">
-                            {creneau.nb_examens} examen(s) • {creneau.nb_surveillants_requis} surveillant(s)
-                          </div>
-                        </div>
-                        
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedCreneau(creneau);
-                              setIsDialogOpen(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          
-                          {creneau.statut === 'GENERE' && (
+                          {editingCreneau?.id === creneau.id ? (
                             <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => updateStatutMutation.mutate({ id: creneau.id, statut: 'VALIDE' })}
-                              >
-                                <Check className="h-4 w-4 text-green-600" />
+                              <Button size="sm" onClick={handleSubmit}>
+                                <Check className="h-3 w-3" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => updateStatutMutation.mutate({ id: creneau.id, statut: 'REJETE' })}
-                              >
-                                <X className="h-4 w-4 text-red-600" />
+                              <Button size="sm" variant="outline" onClick={handleCancelEdit}>
+                                <X className="h-3 w-3" />
                               </Button>
                             </>
+                          ) : (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleEdit(creneau)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={creneau.is_validated ? "outline" : "default"}
+                                onClick={() => toggleValidationMutation.mutate({ 
+                                  id: creneau.id, 
+                                  isValidated: !creneau.is_validated 
+                                })}
+                              >
+                                {creneau.is_validated ? <X className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="destructive">
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Supprimer le créneau</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Êtes-vous sûr de vouloir supprimer le créneau {formatTimeRange(creneau.heure_debut, creneau.heure_fin)} ?
+                                      Cette action est irréversible.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteCreneauMutation.mutate(creneau.id)}
+                                    >
+                                      Supprimer
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </>
                           )}
-                          
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingCreneau(creneau)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => supprimerCreneauMutation.mutate(creneau.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600" />
-                          </Button>
                         </div>
-                      </div>
-                      
-                      {creneau.description && (
-                        <p className="text-sm text-muted-foreground mt-2">
-                          {creneau.description}
-                        </p>
-                      )}
-                      
-                      {creneau.notes_admin && (
-                        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-sm">
-                          <strong>Notes admin :</strong> {creneau.notes_admin}
-                        </div>
-                      )}
-                    </div>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
-
-        {/* Dialog de détails */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-4xl">
-            <DialogHeader>
-              <DialogTitle>Détails du Créneau</DialogTitle>
-              <DialogDescription>
-                {selectedCreneau && formatDateBelgian(selectedCreneau.date_surveillance)} • {selectedCreneau && formatTimeRange(selectedCreneau.heure_debut, selectedCreneau.heure_fin)}
-              </DialogDescription>
-            </DialogHeader>
-            
-            {selectedCreneau && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label>Statut</Label>
-                    <div className="mt-1">{getStatutBadge(selectedCreneau.statut)}</div>
-                  </div>
-                  <div>
-                    <Label>Type</Label>
-                    <div className="mt-1">
-                      <Badge variant={selectedCreneau.is_manual ? "default" : "secondary"}>
-                        {selectedCreneau.is_manual ? "Manuel" : "Généré automatiquement"}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-                
-                <div>
-                  <Label>Examens couverts ({selectedCreneau.nb_examens})</Label>
-                  <div className="mt-2 space-y-2">
-                    {selectedCreneau.examens_couverts.map((examen: any, index: number) => (
-                      <div key={index} className="border rounded p-3 text-sm">
-                        <div className="font-medium">{examen.code_examen}</div>
-                        <div className="text-muted-foreground">{examen.matiere}</div>
-                        <div className="flex items-center space-x-4 mt-1">
-                          <span>Salle: {examen.salle}</span>
-                          <span>Horaire: {formatTimeRange(examen.heure_debut, examen.heure_fin)}</span>
-                          <span>Surveillants: {examen.nombre_surveillants}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                {selectedCreneau.notes_admin && (
-                  <div>
-                    <Label>Notes administrateur</Label>
-                    <div className="mt-1 p-3 bg-yellow-50 border border-yellow-200 rounded text-sm">
-                      {selectedCreneau.notes_admin}
-                    </div>
-                  </div>
-                )}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">
+                  Aucun créneau trouvé. Générez des créneaux standards ou ajoutez-en manuellement.
+                </p>
               </div>
             )}
-          </DialogContent>
-        </Dialog>
+          </CardContent>
+        </Card>
       </div>
     </AdminLayout>
   );
