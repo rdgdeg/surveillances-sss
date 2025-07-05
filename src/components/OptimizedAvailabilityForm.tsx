@@ -12,7 +12,7 @@ import { Calendar, Clock, Check, AlertCircle, Users, AlertTriangle } from "lucid
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateBelgian, formatTimeRange } from "@/lib/dateUtils";
-import { useOptimizedCreneauxFromGenerated } from "@/hooks/useCreneauxGeneres";
+import { useOptimizedCreneauxFromGenerated } from "@/hooks/useOptimizedCreneauxFromGenerated";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Alert, AlertDescription } from "@/components/ui/alert";
