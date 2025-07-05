@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,7 +64,10 @@ export const CreneauxSurveillanceManager = () => {
         .order('heure_debut');
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(item => ({
+        ...item,
+        type_creneau: (item.type_creneau || 'manuel') as 'standard' | 'manuel' | 'etendu'
+      }));
     },
     enabled: !!activeSession?.id
   });
@@ -123,7 +125,6 @@ export const CreneauxSurveillanceManager = () => {
     }
   });
 
-  // Mutation pour modifier un créneau
   const updateCreneauMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<CreneauFormData> }) => {
       const { error } = await supabase
@@ -144,7 +145,6 @@ export const CreneauxSurveillanceManager = () => {
     }
   });
 
-  // Mutation pour supprimer un créneau
   const deleteCreneauMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -163,7 +163,6 @@ export const CreneauxSurveillanceManager = () => {
     }
   });
 
-  // Mutation pour valider/invalider un créneau
   const toggleValidationMutation = useMutation({
     mutationFn: async ({ id, isValidated }: { id: string; isValidated: boolean }) => {
       const { error } = await supabase
