@@ -104,12 +104,16 @@ export const useOptimizedCreneauxFromGenerated = (sessionId: string | null) => {
             const examenDebutMin = toMinutes(examen.heure_debut);
             const examenFinMin = toMinutes(examen.heure_fin);
             
-            // Logique plus flexible : le créneau peut couvrir l'examen si :
-            // 1. Il commence assez tôt (au maximum 15min après le début de l'examen - permet flexibilité)
-            // 2. Il finit assez tard (au minimum à la fin de l'examen)
-            const maxDebutAccepte = examenDebutMin + 15; // Tolérance de 15min
+            // Logique corrigée pour la surveillance :
+            // 1. Le créneau doit commencer AVANT ou au début de l'examen (surveillance pré-examen)
+            // 2. Le créneau doit finir à la fin ou après l'examen
+            // 3. Tolérance de 2h avant (pour surveillance étendue) et 15min de flexibilité
+            const maxAvanceAcceptable = examenDebutMin + 15; // 15min de tolérance max après début examen
+            const surDebutAcceptable = examenDebutMin - 120; // Jusqu'à 2h avant l'examen
             
-            return creneauDebutMin <= maxDebutAccepte && creneauFinMin >= examenFinMin;
+            return creneauDebutMin >= surDebutAcceptable && 
+                   creneauDebutMin <= maxAvanceAcceptable && 
+                   creneauFinMin >= examenFinMin;
           });
           
           // Si ce créneau peut couvrir au moins un examen de cette date, l'ajouter
