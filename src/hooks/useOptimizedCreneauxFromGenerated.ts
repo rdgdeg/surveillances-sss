@@ -22,36 +22,15 @@ export interface OptimizedCreneauFromGenerated {
   }>;
 }
 
-// Hook simplifié qui utilise directement creneaux_surveillance_config
+// Hook qui génère les créneaux directement à partir des examens réels
 export const useOptimizedCreneauxFromGenerated = (sessionId: string | null) => {
   return useQuery({
-    queryKey: ['optimized-creneaux-simplified', sessionId],
+    queryKey: ['optimized-creneaux-from-exams', sessionId],
     queryFn: async (): Promise<OptimizedCreneauFromGenerated[]> => {
       if (!sessionId) return [];
       
-      console.log('[useOptimizedCreneauxFromGenerated] Using simplified approach for session:', sessionId);
+      console.log('[useOptimizedCreneauxFromGenerated] Generating creneaux directly from exams for session:', sessionId);
       
-      // Récupérer les créneaux de surveillance validés
-      const { data: creneauxConfig, error: creneauxError } = await supabase
-        .from('creneaux_surveillance_config')
-        .select('*')
-        .eq('session_id', sessionId)
-        .eq('is_active', true)
-        .eq('is_validated', true)
-        .order('heure_debut');
-
-      if (creneauxError) {
-        console.error('[useOptimizedCreneauxFromGenerated] Error fetching creneaux config:', creneauxError);
-        throw creneauxError;
-      }
-
-      console.log('[useOptimizedCreneauxFromGenerated] Found validated creneaux:', creneauxConfig?.length || 0);
-
-      if (!creneauxConfig || creneauxConfig.length === 0) {
-        console.log('[useOptimizedCreneauxFromGenerated] No validated creneaux found');
-        return [];
-      }
-
       // Récupérer tous les examens validés pour cette session
       const { data: examens, error: examensError } = await supabase
         .from('examens')
@@ -78,72 +57,55 @@ export const useOptimizedCreneauxFromGenerated = (sessionId: string | null) => {
 
       const optimizedCreneaux: OptimizedCreneauFromGenerated[] = [];
 
-      // Fonction utilitaire pour convertir l'heure en minutes
-      const toMinutes = (time: string) => {
-        const [h, m] = time.split(':').map(Number);
-        return h * 60 + m;
-      };
+      // Grouper les examens par date, heure de début et heure de fin
+      const groupedExamens = examens.reduce((groups, examen) => {
+        const key = `${examen.date_examen}_${examen.heure_debut}_${examen.heure_fin}`;
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(examen);
+        return groups;
+      }, {} as Record<string, typeof examens>);
 
-      // Récupérer toutes les dates d'examens uniques
-      const datesExamens = [...new Set(examens.map(e => e.date_examen))].sort();
+      console.log('[useOptimizedCreneauxFromGenerated] Grouped examens into', Object.keys(groupedExamens).length, 'time slots');
 
-      console.log('[useOptimizedCreneauxFromGenerated] Processing dates:', datesExamens);
-
-      // Pour chaque date d'examen
-      datesExamens.forEach(date => {
-        const examensDate = examens.filter(e => e.date_examen === date);
-        console.log(`[useOptimizedCreneauxFromGenerated] Processing date ${date} with ${examensDate.length} examens`);
+      // Pour chaque groupe d'examens, créer un créneau de surveillance
+      Object.values(groupedExamens).forEach(groupeExamens => {
+        if (groupeExamens.length === 0) return;
         
-        // Pour chaque créneau validé, vérifier s'il peut couvrir des examens de cette date
-        creneauxConfig.forEach(creneauConfig => {
-          const creneauDebutMin = toMinutes(creneauConfig.heure_debut);
-          const creneauFinMin = toMinutes(creneauConfig.heure_fin);
-          
-          // Trouver tous les examens de cette date qui peuvent être couverts par ce créneau
-          const examensCouverts = examensDate.filter(examen => {
-            const examenDebutMin = toMinutes(examen.heure_debut);
-            const examenFinMin = toMinutes(examen.heure_fin);
-            
-            // Logique corrigée pour la surveillance :
-            // 1. Le créneau doit commencer AVANT ou au début de l'examen (surveillance pré-examen)
-            // 2. Le créneau doit finir à la fin ou après l'examen
-            // 3. Tolérance de 2h avant (pour surveillance étendue) et 15min de flexibilité
-            const maxAvanceAcceptable = examenDebutMin + 15; // 15min de tolérance max après début examen
-            const surDebutAcceptable = examenDebutMin - 120; // Jusqu'à 2h avant l'examen
-            
-            return creneauDebutMin >= surDebutAcceptable && 
-                   creneauDebutMin <= maxAvanceAcceptable && 
-                   creneauFinMin >= examenFinMin;
-          });
-          
-          // Si ce créneau peut couvrir au moins un examen de cette date, l'ajouter
-          if (examensCouverts.length > 0) {
-            console.log(`[useOptimizedCreneauxFromGenerated] Creating slot for ${date} ${creneauConfig.heure_debut}-${creneauConfig.heure_fin} covering ${examensCouverts.length} examens`);
-            
-            optimizedCreneaux.push({
-              type: 'surveillance',
-              date_examen: date,
-              heure_debut: creneauConfig.heure_debut,
-              heure_fin: creneauConfig.heure_fin,
-              heure_debut_surveillance: creneauConfig.heure_debut,
-              examens: examensCouverts.map(examen => ({
-                id: examen.id,
-                code_examen: examen.code_examen || '',
-                matiere: examen.matiere,
-                salle: examen.salle,
-                heure_debut: examen.heure_debut,
-                heure_fin: examen.heure_fin,
-                nombre_surveillants: examen.nombre_surveillants,
-                surveillants_enseignant: examen.surveillants_enseignant || 0,
-                surveillants_amenes: examen.surveillants_amenes || 0,
-                surveillants_pre_assignes: examen.surveillants_pre_assignes || 0
-              }))
-            });
-          }
+        const premierExamen = groupeExamens[0];
+        
+        // Calculer l'heure de début de surveillance (45 min avant l'examen)
+        const [heures, minutes] = premierExamen.heure_debut.split(':').map(Number);
+        const debutExamenMinutes = heures * 60 + minutes;
+        const debutSurveillanceMinutes = debutExamenMinutes - 45;
+        
+        const heureDebutSurveillance = `${Math.floor(debutSurveillanceMinutes / 60).toString().padStart(2, '0')}:${(debutSurveillanceMinutes % 60).toString().padStart(2, '0')}`;
+        
+        console.log(`[useOptimizedCreneauxFromGenerated] Creating créneau for ${premierExamen.date_examen} ${heureDebutSurveillance}-${premierExamen.heure_fin} with ${groupeExamens.length} examens`);
+        
+        optimizedCreneaux.push({
+          type: 'surveillance',
+          date_examen: premierExamen.date_examen,
+          heure_debut: heureDebutSurveillance,
+          heure_fin: premierExamen.heure_fin,
+          heure_debut_surveillance: heureDebutSurveillance,
+          examens: groupeExamens.map(examen => ({
+            id: examen.id,
+            code_examen: examen.code_examen || '',
+            matiere: examen.matiere,
+            salle: examen.salle,
+            heure_debut: examen.heure_debut,
+            heure_fin: examen.heure_fin,
+            nombre_surveillants: examen.nombre_surveillants,
+            surveillants_enseignant: examen.surveillants_enseignant || 0,
+            surveillants_amenes: examen.surveillants_amenes || 0,
+            surveillants_pre_assignes: examen.surveillants_pre_assignes || 0
+          }))
         });
       });
 
-      console.log(`[useOptimizedCreneauxFromGenerated] Generated ${optimizedCreneaux.length} surveillance slots from validated creneaux`);
+      console.log(`[useOptimizedCreneauxFromGenerated] Generated ${optimizedCreneaux.length} surveillance slots from examens`);
       
       // Trier par date puis par heure
       optimizedCreneaux.sort((a, b) => {
