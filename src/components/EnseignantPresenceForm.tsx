@@ -32,8 +32,10 @@ export const EnseignantPresenceForm = ({
   surveillantsNecessaires,
   onPresenceSaved,
 }: EnseignantPresenceFormProps) => {
-  const [enseignantPresent, setEnseignantPresent] = useState(true);
+  const [enseignantPresent, setEnseignantPresent] = useState(true); // Par défaut coché
   const [nomEnseignant, setNomEnseignant] = useState("");
+  const [nomRemplacant, setNomRemplacant] = useState("");
+  const [showRemplacantField, setShowRemplacantField] = useState(false);
   const [personnesAmenees, setPersonnesAmenees] = useState(0);
   const [detailsPersonnesAmenees, setDetailsPersonnesAmenees] = useState<PersonneAmenee[]>([]);
   const [informationsMisesAJour, setInformationsMisesAJour] = useState(false);
@@ -44,8 +46,12 @@ export const EnseignantPresenceForm = ({
 
   useEffect(() => {
     if (selectedExamen) {
-      // Pré-remplir avec les données existantes
-      setEnseignantPresent((selectedExamen.surveillants_enseignant || 0) > 0);
+      // Pré-remplir avec les données existantes ou mettre par défaut l'enseignant comme présent
+      const isEnseignantPresent = selectedExamen.surveillants_enseignant !== null 
+        ? (selectedExamen.surveillants_enseignant || 0) > 0 
+        : true; // Par défaut, l'enseignant est présent
+      
+      setEnseignantPresent(isEnseignantPresent);
       setNomEnseignant(selectedExamen.enseignant_nom || selectedExamen.enseignants || "");
       setPersonnesAmenees(selectedExamen.surveillants_amenes || 0);
       
@@ -69,6 +75,32 @@ export const EnseignantPresenceForm = ({
       setInformationsMisesAJour(selectedExamen.surveillants_enseignant !== null || selectedExamen.surveillants_amenes > 0);
     }
   }, [selectedExamen]);
+
+  // Gérer le changement de présence de l'enseignant
+  const handleEnseignantPresenceChange = (checked: boolean) => {
+    setEnseignantPresent(checked);
+    
+    if (!checked) {
+      // L'enseignant décoche sa présence, demander un remplaçant
+      setShowRemplacantField(true);
+      setNomRemplacant("");
+    } else {
+      // L'enseignant se recoche, cacher le champ remplaçant
+      setShowRemplacantField(false);
+      setNomRemplacant("");
+    }
+  };
+
+  // Gérer le changement du nom du remplaçant
+  const handleRemplacantChange = (value: string) => {
+    setNomRemplacant(value);
+    
+    // Si un nom de remplaçant est fourni, recocher automatiquement la présence
+    if (value.trim().length > 0) {
+      setEnseignantPresent(true);
+      setShowRemplacantField(false);
+    }
+  };
 
   // Calculer les surveillants restants à attribuer avec les calculs harmonisés
   const calculerSurveillantsRestants = () => {
@@ -127,25 +159,52 @@ export const EnseignantPresenceForm = ({
             <Checkbox
               id="enseignant-present"
               checked={enseignantPresent}
-              onCheckedChange={(checked) => setEnseignantPresent(!!checked)}
+              onCheckedChange={(checked) => handleEnseignantPresenceChange(!!checked)}
             />
             <Label htmlFor="enseignant-present" className="text-base">
               L'enseignant assure la surveillance
             </Label>
           </div>
           
+          {!enseignantPresent && showRemplacantField && (
+            <div className="space-y-2 ml-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="text-sm text-yellow-700 mb-2">
+                Qui assurera la surveillance à votre place ?
+              </div>
+              <Label htmlFor="nom-remplacant">
+                Nom du remplaçant
+              </Label>
+              <Input
+                id="nom-remplacant"
+                type="text"
+                value={nomRemplacant}
+                onChange={(e) => handleRemplacantChange(e.target.value)}
+                placeholder="Nom et prénom du remplaçant"
+                className="border-yellow-300 focus:border-yellow-500"
+              />
+              <p className="text-xs text-yellow-600">
+                En renseignant un remplaçant, vous serez automatiquement recoché comme présent.
+              </p>
+            </div>
+          )}
+          
           {enseignantPresent && (
             <div className="space-y-2 ml-6">
               <Label htmlFor="nom-enseignant">
-                Nom de l'enseignant
+                {nomRemplacant ? "Nom du remplaçant" : "Nom de l'enseignant"}
               </Label>
               <Input
                 id="nom-enseignant"
                 type="text"
-                value={nomEnseignant}
-                onChange={(e) => setNomEnseignant(e.target.value)}
-                placeholder="Nom de l'enseignant"
+                value={nomRemplacant || nomEnseignant}
+                onChange={(e) => nomRemplacant ? setNomRemplacant(e.target.value) : setNomEnseignant(e.target.value)}
+                placeholder={nomRemplacant ? "Nom du remplaçant" : "Nom de l'enseignant"}
               />
+              {nomRemplacant && (
+                <p className="text-sm text-green-600">
+                  ✓ Remplaçant confirmé : {nomRemplacant}
+                </p>
+              )}
             </div>
           )}
         </CardContent>
