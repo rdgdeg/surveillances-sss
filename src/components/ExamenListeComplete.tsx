@@ -6,7 +6,6 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Input } from "@/components/ui/input";
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { AuditoireLink } from "./AuditoireLink";
 
 function formatHeure(heure: string | null) {
   if (!heure) return "-";
@@ -73,18 +72,6 @@ export function ExamenListeComplete() {
     enabled: !!activeSession?.id,
   });
 
-  // Récupérer les contraintes d'auditoires pour les liens Google Maps
-  const { data: contraintesAuditoires } = useQuery({
-    queryKey: ["contraintes-auditoires"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contraintes_auditoires")
-        .select("auditoire, lien_google_maps, adresse");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
   // Transformation : "Jour" et "duree"
   const examens = useMemo(() => {
     const examsArray = data || [];
@@ -149,12 +136,7 @@ export function ExamenListeComplete() {
                   <TableCell>{ exam.activite || exam.matiere || "-" }</TableCell>
                   <TableCell>{ exam.faculte || "-" }</TableCell>
                   <TableCell className="font-mono">{ exam.code_examen || "-" }</TableCell>
-                  <TableCell>
-                    <AuditoireLink 
-                      auditoire={exam.salle || "-"} 
-                      contraintesAuditoires={contraintesAuditoires}
-                    />
-                  </TableCell>
+                  <TableCell>{ exam.salle || "-" }</TableCell>
                   <TableCell>{ exam.etudiants || "-" }</TableCell>
                   <TableCell>{ exam.enseignants || "-" }</TableCell>
                 </TableRow>
