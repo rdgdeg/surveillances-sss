@@ -1,15 +1,22 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Calendar, FileText, Settings, ClipboardList, GraduationCap } from "lucide-react";
+import { Users, Calendar, FileText, Settings, ClipboardList, GraduationCap, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Footer } from "@/components/Footer";
 import { formatSession } from "@/utils/sessionUtils";
 import { useActiveSession } from "@/hooks/useSessions";
+import { useIsFeatureLocked } from "@/hooks/useFeatureLocks";
 
 const Index = () => {
   const { data: activeSession } = useActiveSession();
   const isPlanningVisible = activeSession?.planning_general_visible || false;
+  
+  // Vérification des verrous de fonctionnalités
+  const isPlanningLocked = useIsFeatureLocked('acces_planning_general');
+  const isEnseignantsLocked = useIsFeatureLocked('acces_enseignants');
+  const isSurveillantsLocked = useIsFeatureLocked('acces_surveillants');
+  const isAdministrationLocked = useIsFeatureLocked('acces_administration');
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 w-full">
@@ -95,7 +102,16 @@ const Index = () => {
                 </CardDescription>
               </div>
               <div className="flex justify-center">
-                {isPlanningVisible ? (
+                {isPlanningLocked ? (
+                  <Button 
+                    disabled 
+                    className="w-full bg-gray-300 text-gray-500 cursor-not-allowed text-base font-medium rounded-lg h-12 flex items-center justify-center gap-2"
+                    title="Accès temporairement désactivé"
+                  >
+                    <Lock className="h-4 w-4" />
+                    Accès verrouillé
+                  </Button>
+                ) : isPlanningVisible ? (
                   <Link to="/planning-general" className="w-full">
                     <Button className="w-full bg-purple-600 hover:bg-purple-700 text-base font-medium rounded-lg h-12">
                       Voir le planning complet
@@ -126,11 +142,22 @@ const Index = () => {
                 </CardDescription>
               </div>
               <div className="flex justify-center">
-                <Link to="/enseignant" className="w-full">
-                  <Button className="w-full bg-green-600 hover:bg-green-700 text-base font-medium rounded-lg h-12">
-                    Accès avec token enseignant
+                {isEnseignantsLocked ? (
+                  <Button 
+                    disabled 
+                    className="w-full bg-gray-300 text-gray-500 cursor-not-allowed text-base font-medium rounded-lg h-12 flex items-center justify-center gap-2"
+                    title="Accès temporairement désactivé"
+                  >
+                    <Lock className="h-4 w-4" />
+                    Accès verrouillé
                   </Button>
-                </Link>
+                ) : (
+                  <Link to="/enseignant" className="w-full">
+                    <Button className="w-full bg-green-600 hover:bg-green-700 text-base font-medium rounded-lg h-12">
+                      Accès avec token enseignant
+                    </Button>
+                  </Link>
+                )}
               </div>
             </Card>
 
@@ -148,11 +175,22 @@ const Index = () => {
                 </CardDescription>
               </div>
               <div className="flex justify-center">
-                <Link to="/surveillant" className="w-full">
-                  <Button className="w-full bg-blue-600 hover:bg-blue-700 text-base font-medium rounded-lg h-12">
-                    Mes attributions & disponibilités
+                {isSurveillantsLocked ? (
+                  <Button 
+                    disabled 
+                    className="w-full bg-gray-300 text-gray-500 cursor-not-allowed text-base font-medium rounded-lg h-12 flex items-center justify-center gap-2"
+                    title="Accès temporairement désactivé"
+                  >
+                    <Lock className="h-4 w-4" />
+                    Accès verrouillé
                   </Button>
-                </Link>
+                ) : (
+                  <Link to="/surveillant" className="w-full">
+                    <Button className="w-full bg-blue-600 hover:bg-blue-700 text-base font-medium rounded-lg h-12">
+                      Mes attributions & disponibilités
+                    </Button>
+                  </Link>
+                )}
               </div>
             </Card>
 
@@ -170,11 +208,23 @@ const Index = () => {
                 </CardDescription>
               </div>
               <div className="flex justify-center">
-                <Link to="/admin" className="w-full">
-                  <Button variant="outline" className="w-full text-base font-medium rounded-lg h-12 border-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-blue-grey hover:text-uclouvain-blue transition-colors">
-                    Accéder à l'administration
+                {isAdministrationLocked ? (
+                  <Button 
+                    disabled 
+                    variant="outline"
+                    className="w-full text-base font-medium rounded-lg h-12 border-gray-300 text-gray-500 cursor-not-allowed flex items-center justify-center gap-2"
+                    title="Accès temporairement désactivé"
+                  >
+                    <Lock className="h-4 w-4" />
+                    Accès verrouillé
                   </Button>
-                </Link>
+                ) : (
+                  <Link to="/admin" className="w-full">
+                    <Button variant="outline" className="w-full text-base font-medium rounded-lg h-12 border-uclouvain-cyan text-uclouvain-blue hover:bg-uclouvain-blue-grey hover:text-uclouvain-blue transition-colors">
+                      Accéder à l'administration
+                    </Button>
+                  </Link>
+                )}
               </div>
             </Card>
           </div>

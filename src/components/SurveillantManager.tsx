@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Users, Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { EditableGSMCell } from "@/components/EditableGSMCell";
 
 interface Surveillant {
   id: string;
@@ -21,6 +22,7 @@ interface Surveillant {
   type: string;
   statut: string;
   telephone?: string;
+  telephone_gsm?: string;
   campus?: string;
   affectation_fac?: string;
 }
@@ -99,20 +101,20 @@ export const SurveillantManager = () => {
       if (!activeSession?.id) throw new Error("Session non sélectionnée");
 
       // D'abord créer le surveillant
-      const { data: surveillant, error: surveillantError } = await supabase
-        .from('surveillants')
-        .insert({
-          nom: surveillantData.nom,
-          prenom: surveillantData.prenom,
-          email: surveillantData.email,
-          type: surveillantData.type,
-          telephone: surveillantData.telephone || null,
-          campus: surveillantData.campus || null,
-          affectation_fac: surveillantData.affectation_fac || null,
-          statut: 'actif'
-        })
-        .select()
-        .single();
+        const { data: surveillant, error: surveillantError } = await supabase
+          .from('surveillants')
+          .insert({
+            nom: surveillantData.nom,
+            prenom: surveillantData.prenom,
+            email: surveillantData.email,
+            type: surveillantData.type,
+            telephone_gsm: surveillantData.telephone || null,
+            campus: surveillantData.campus || null,
+            affectation_fac: surveillantData.affectation_fac || null,
+            statut: 'actif'
+          })
+          .select()
+          .single();
 
       if (surveillantError) throw surveillantError;
 
@@ -273,11 +275,11 @@ export const SurveillantManager = () => {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium mb-1">Téléphone</label>
+                    <label className="block text-sm font-medium mb-1">Téléphone GSM</label>
                     <Input
                       value={newSurveillant.telephone || ''}
                       onChange={(e) => setNewSurveillant(prev => ({ ...prev, telephone: e.target.value }))}
-                      placeholder="Numéro de téléphone"
+                      placeholder="+32..."
                     />
                   </div>
                   
@@ -323,49 +325,58 @@ export const SurveillantManager = () => {
                   <TableHead>Nom/Prénom</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Téléphone GSM</TableHead>
                   <TableHead>Campus</TableHead>
                   <TableHead>Statut</TableHead>
                   <TableHead>Quota</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-4">
-                      Chargement...
-                    </TableCell>
-                  </TableRow>
-                ) : surveillants.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-4">
-                      Aucun surveillant trouvé
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  surveillants.map((surveillant) => (
-                    <TableRow key={surveillant.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{surveillant.nom} {surveillant.prenom}</div>
-                        </div>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-4">
+                        Chargement...
                       </TableCell>
-                      <TableCell>{surveillant.email}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{surveillant.type}</Badge>
-                      </TableCell>
-                      <TableCell>{surveillant.campus || '-'}</TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={surveillant.is_active ? "default" : "secondary"}
-                          className={surveillant.is_active ? "bg-green-100 text-green-800" : ""}
-                        >
-                          {surveillant.is_active ? "Actif" : "Inactif"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{surveillant.quota || 6}</TableCell>
                     </TableRow>
-                  ))
-                )}
+                  ) : surveillants.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-4">
+                        Aucun surveillant trouvé
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    surveillants.map((surveillant) => (
+                      <TableRow key={surveillant.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{surveillant.nom} {surveillant.prenom}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{surveillant.email}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{surveillant.type}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <EditableGSMCell
+                            surveillantId={surveillant.id}
+                            currentGSM={surveillant.telephone_gsm}
+                            nom={surveillant.nom}
+                            prenom={surveillant.prenom}
+                          />
+                        </TableCell>
+                        <TableCell>{surveillant.campus || '-'}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={surveillant.is_active ? "default" : "secondary"}
+                            className={surveillant.is_active ? "bg-green-100 text-green-800" : ""}
+                          >
+                            {surveillant.is_active ? "Actif" : "Inactif"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{surveillant.quota || 6}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
               </TableBody>
             </Table>
           </div>

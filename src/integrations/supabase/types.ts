@@ -7,7 +7,7 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
+  // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "12.2.3 (519615d)"
@@ -1326,8 +1326,8 @@ export type Database = {
     Functions: {
       calculer_creneaux_surveillance: {
         Args: {
-          p_examen_id: string
           p_date_examen: string
+          p_examen_id: string
           p_heure_debut: string
           p_heure_fin: string
         }
@@ -1336,9 +1336,9 @@ export type Database = {
       classifier_code_examen: {
         Args: { code_original: string }
         Returns: {
-          type_detecte: string
-          statut_validation: string
           commentaire: string
+          statut_validation: string
+          type_detecte: string
         }[]
       }
       fusionner_creneaux_surveillance: {
@@ -1355,8 +1355,8 @@ export type Database = {
       }
       has_role: {
         Args: {
-          _user_id: string
           _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
         }
         Returns: boolean
       }
