@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Plus, X, RotateCcw, Edit, Save, Power, PowerOff, Search, Users, Target, Calculator } from "lucide-react";
+import { EditableGSMCell } from "./EditableGSMCell";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CustomStatusModal } from "./CustomStatusModal";
 import { FacultesMultiSelect, FACULTES_FILTERED } from "./FacultesMultiSelect";
@@ -63,6 +64,7 @@ interface SurveillantJoin {
   campus?: string;
   eft?: number;
   date_fin_contrat?: string | null;
+  telephone_gsm?: string | null;
   session_entry_id?: string;
   quota?: number | null;
   is_active?: boolean;
@@ -71,6 +73,7 @@ interface SurveillantJoin {
 type SurveillantJoinWithArray = Omit<SurveillantJoin, "faculte_interdite"> & {
   faculte_interdite: string[];
   date_fin_contrat?: string | null;
+  telephone_gsm?: string | null;
   is_active: boolean;
   a_obligations?: boolean | null;
 };
@@ -168,7 +171,8 @@ export function SurveillantUnifiedManager() {
             affectation_fac,
             campus,
             eft,
-            date_fin_contrat
+            date_fin_contrat,
+            telephone_gsm
           )
         `)
         .eq("session_id", activeSession.id);
@@ -193,6 +197,7 @@ export function SurveillantUnifiedManager() {
         campus: row.surveillants.campus,
         eft: row.surveillants.eft ?? null,
         date_fin_contrat: row.surveillants.date_fin_contrat ?? null,
+        telephone_gsm: row.surveillants.telephone_gsm ?? null,
         session_entry_id: row.id,
         quota: row.quota ?? null,
         is_active: row.is_active === undefined ? true : row.is_active,
@@ -684,6 +689,7 @@ export function SurveillantUnifiedManager() {
                       <TableHead>Nom</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Type</TableHead>
+                      <TableHead>Téléphone GSM</TableHead>
                       <TableHead>ETP</TableHead>
                       <TableHead>Quota théorique</TableHead>
                       <TableHead>Attribution auto</TableHead>
@@ -715,6 +721,14 @@ export function SurveillantUnifiedManager() {
                           <TableCell className="text-sm">{row.email}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{row.type}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <EditableGSMCell
+                              surveillantId={row.id}
+                              currentGSM={row.telephone_gsm}
+                              nom={row.nom}
+                              prenom={row.prenom}
+                            />
                           </TableCell>
                           <TableCell>{row.eft || '-'}</TableCell>
                           <TableCell>
@@ -834,6 +848,7 @@ export function SurveillantUnifiedManager() {
                       <TableHead>Nom</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Type</TableHead>
+                      <TableHead>Téléphone GSM</TableHead>
                       <TableHead>ETP</TableHead>
                       <TableHead>Quota théorique</TableHead>
                       <TableHead>Actions</TableHead>
@@ -863,6 +878,14 @@ export function SurveillantUnifiedManager() {
                           <TableCell className="text-sm">{row.email}</TableCell>
                           <TableCell>
                             <Badge variant="secondary">{row.type}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <EditableGSMCell
+                              surveillantId={row.id}
+                              currentGSM={row.telephone_gsm}
+                              nom={row.nom}
+                              prenom={row.prenom}
+                            />
                           </TableCell>
                           <TableCell>{row.eft || '-'}</TableCell>
                           <TableCell>
