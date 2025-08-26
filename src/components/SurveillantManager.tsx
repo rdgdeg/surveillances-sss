@@ -64,7 +64,21 @@ export const SurveillantManager = () => {
       let query = supabase
         .from('surveillant_sessions')
         .select(`
-          surveillant:surveillants(*),
+          surveillant:surveillants(
+            id,
+            nom,
+            prenom,
+            email,
+            type,
+            statut,
+            telephone,
+            telephone_gsm,
+            campus,
+            affectation_fac,
+            eft,
+            date_fin_contrat,
+            faculte_interdite
+          ),
           is_active,
           quota,
           sessions_imposees
